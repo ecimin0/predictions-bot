@@ -1,5 +1,24 @@
 #!/usr/local/bin/python3
 
+
+# Predict our next match against West Ham United (A)
+# Rules
+# :two: points – correct result (w/d/l)
+# :two: points – correct number of Arsenal goals
+# :one: point – correct number of goals we concede
+# :one: point – every correct scorer
+# :one: point – correct FGS (only Arsenal)
+# :two: points bonus – getting all scorers right
+
+# No points for scorers if your prediction's goals exceed the actual goals by 4+.
+
+# Remember, we are only counting Arsenal goal scorers so you do not need to predict who scored for the opposition team
+# also applies to FGS.
+
+# Example
+# +predict 4:0 auba 2x fgs, laca, mustafi
+
+
 # pip3 install discord
 import discord
 from discord.ext import commands
@@ -19,10 +38,10 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # if the bot speaks, don't return anything
+    # if the bot sends messages to itself, don't return anything
     if message.author == bot.user:
         return
-    print("The message's content was", message.content)
+    print("Message content:", message.content)
     await bot.process_commands(message)
 
 @bot.command()
