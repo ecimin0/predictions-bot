@@ -22,6 +22,8 @@
 # pip3 install discord
 import discord
 from discord.ext import commands
+import re
+
 
 # MAKE THIS AN ENVIRONMENT VARIABLE SOON
 token = "NjM3NzQ5Mjg1OTk1NDEzNTA1.XeqgWA.SyRF0igSotR0JI-EdM-xdhHa0mI"
