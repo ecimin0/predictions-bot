@@ -5,6 +5,8 @@ import discord
 from discord.ext import commands
 import re
 import sys
+import os
+import pymongo
 
 
 # Predict our next match against West Ham United (A)
@@ -19,12 +21,33 @@ rules_set = """Prediction League Rules:
 
 No points for scorers if your prediction's goals exceed the actual goals by 4+
 
-Remember, we are only counting Arsenal goal scorers so you do not need to 
-predict who scored for the opposition team. This also applies to FGS.
+** Remember, we are only counting Arsenal goal scorers **
+    - you do not need to predict opposition goal scorers
+    - you do not need to predict opposition FGS
 
 Example:
 +predict 3:0 auba 2x fgs, laca
 """
+
+
+# env_vars = []
+# with open('.secrets/token.txt') as f:
+#     for line in f:
+#         if line.startswith('#'):
+#             continue
+#         # if 'export' not in line:
+#         #     continue
+#         # Remove leading `export `, if you have those
+#         # then, split name / value pair
+#         # key, value = line.replace('export ', '', 1).strip().split('=', 1)
+#         key, value = line.strip().split('=', 1)
+#         # os.environ[key] = value  # Load to local environ
+#         env_vars.append({'name': key, 'value': value}) # Save to a list
+
+# print(env_vars)
+
+# token = env_vars[value]
+# print(token)
 
 # MAKE THIS AN ENVIRONMENT VARIABLE SOON
 token = "NjM3NzQ5Mjg1OTk1NDEzNTA1.XeqgWA.SyRF0igSotR0JI-EdM-xdhHa0mI"
@@ -35,6 +58,8 @@ prefix = "+"
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
 
+# print and printf statements print to stdout, not Discord
+# < .send() > sends messages via Discord
 
 ### Bot Events ###
 @bot.event
@@ -43,13 +68,13 @@ async def on_ready():
     print('Connected as {0.user}'.format(bot))
 
 
+# mostly for debugging, doesn't do anything on Discord
 @bot.event
 async def on_message(message):
     # if the bot sends messages to itself, don't return anything
     if message.author == bot.user:
         return
-    print(f"@{message.author} Message content: {message.content}")
-
+    print(f"@{message.author}:{message.user.name} ||| {message.content}")
     await bot.process_commands(message)
 
 
@@ -57,6 +82,7 @@ async def on_message(message):
 # rules
 @bot.command()
 async def rules(ctx):
+    # these 3 quote blocks are returned when user enters +help
     '''
     Display Prediction League Rules
     '''
@@ -69,7 +95,12 @@ async def predict(ctx):
     '''
     Make a new prediction
     '''
-    print(ctx.message.content)
+    if not re.search("([0-9])[:-]([0-9]) +player +fgs", ctx.message.content):
+        # user_prediction = ctx.message.content
+        await ctx.send(f"{ctx.message.author.mention}\nInvalid prediction format")
+    else:
+        print(ctx.message.content)
+        await ctx.send(f"{ctx.message.author.mention}\nYour prediction:\n{ctx.message.content}")
 
 
 # show user's predictions
@@ -155,7 +186,7 @@ async def ping(ctx):
     await ctx.send(f"{ctx.message.author.mention}\n{latency}")
 
 
-# echo (mostly for testing)
+# echo, mostly for testing,
 @bot.command(hidden=True)
 async def echo(ctx, *, content:str):
     '''
