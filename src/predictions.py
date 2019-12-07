@@ -36,11 +36,9 @@ prefix = "+"
 
 # bot = commands.Bot(prefix,formatter=commands.DefaultHelpCommand(no_category="Available Commands"))
 
-class HelpFunction(commands.DefaultHelpCommand()):
-    def __init__(self):
-        self.no_category = "Testing"
-        super().__init__(self)
-help_function = HelpFunction()
+help_function = commands.DefaultHelpCommand()
+help_function.no_category = "Test"
+help_function.indent = 8
 bot = commands.Bot(prefix, help_command=help_function)
 
 
