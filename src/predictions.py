@@ -4,6 +4,7 @@
 import discord
 from discord.ext import commands
 import re
+import sys
 
 
 # Predict our next match against West Ham United (A)
@@ -31,16 +32,8 @@ token = "NjM3NzQ5Mjg1OTk1NDEzNTA1.XeqgWA.SyRF0igSotR0JI-EdM-xdhHa0mI"
 prefix = "+"
 # bot = commands.Bot(prefix)
 
-# help_function = commands.DefaultHelpCommand(no_category="Test", sort_commands=False, indent=5)
-# bot = commands.Bot(prefix, formatter=help_function)
-
-# bot = commands.Bot(prefix,formatter=commands.DefaultHelpCommand(no_category="Available Commands"))
-
-help_function = commands.DefaultHelpCommand()
-help_function.no_category = "Test"
-help_function.indent = 8
+help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
-
 
 
 ### Bot Events ###
@@ -161,6 +154,7 @@ async def ping(ctx):
     # Send it to the user
     await ctx.send(f"{ctx.message.author.mention}\n{latency}")
 
+
 # echo (mostly for testing)
 @bot.command(hidden=True)
 async def echo(ctx, *, content:str):
@@ -184,4 +178,9 @@ async def what_do_you_think_of_tottenham(ctx):
 # bot.load_extension("cogs.MainCog")
 
 # 'token' is the bot token from Discord Developer config
-bot.run(token)  
+try:
+    bot.run(token)  
+except Exception as e:
+    print(f"error: {e}")
+    sys.exit(1)
+    
