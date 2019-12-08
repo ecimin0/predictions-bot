@@ -8,7 +8,9 @@ import sys
 import os
 import asyncio
 import motor.motor_asyncio
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # Predict our next match against West Ham United (A)
 rules_set = """Prediction League Rules:
@@ -30,10 +32,11 @@ Example:
 +predict 3:0 auba 2x fgs, laca
 """
 
-client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
+mongodb = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
+print("Connected to mongodb")
 
 # MAKE THIS AN ENVIRONMENT VARIABLE SOON
-token = "NjM3NzQ5Mjg1OTk1NDEzNTA1.XeqgWA.SyRF0igSotR0JI-EdM-xdhHa0mI"
+token = os.environ.get("TOKEN", None)
 
 prefix = "+"
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
@@ -45,8 +48,8 @@ bot = commands.Bot(prefix, help_command=help_function)
 ### Bot Events ###
 @bot.event
 # on_ready = connected to server
-async def on_ready(ctx):
-    print('Connected to {guild.name} as {0.user}'.format(bot))
+async def on_ready(): 
+    print(f'Connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
 
 
 # mostly for debugging, doesn't do anything on Discord
@@ -55,8 +58,7 @@ async def on_message(message):
     # if the bot sends messages to itself, don't return anything
     if message.author == bot.user:
         return
-    user_id = message.author.id
-    print(f"@{message.author} | {user_id} | {message.content}")
+    print(f"@{message.author} | {message.author.id} | {message.content}")
     await bot.process_commands(message)
 
 
