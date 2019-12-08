@@ -42,8 +42,8 @@ prefix = "+"
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
 
-# print and printf statements print to stdout, not Discord
-# < .send() > sends messages via Discord
+# print() statements print to stdout, not Discord
+# ctx.send() sends messages via Discord
 
 ### Bot Events ###
 @bot.event
@@ -79,12 +79,20 @@ async def predict(ctx):
     '''
     Make a new prediction
     '''
-    if not re.search("([0-9])[:-]([0-9]) +player +fgs", ctx.message.content):
+    goals_regex = "[0-9][:-][0-9]"
+    player_prediction = ctx.message.content.replace("+predict ", "").split(', ')
+
+    print(player_prediction)
+
+    # re.search(goals_regex, message)
+    # re.search(player_regex, message, re.IGNORECASE)
+    
+    # if re.search(goals_regex, ctx.message.content):
         # user_prediction = ctx.message.content
-        await ctx.send(f"{ctx.message.author.mention}\nInvalid prediction format")
-    else:
-        print(ctx.message.content)
-        await ctx.send(f"{ctx.message.author.mention}\nYour prediction:\n{ctx.message.content}")
+        # await ctx.send(f"{ctx.message.author.mention}\nInvalid prediction format")
+    # else:
+    # print(ctx.message.content)
+    await ctx.send(f"{ctx.message.author.mention}\nYour prediction:\n{ctx.message.content}")
 
 
 # show user's predictions
