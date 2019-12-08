@@ -6,7 +6,8 @@ from discord.ext import commands
 import re
 import sys
 import os
-import pymongo
+import asyncio
+import motor.motor_asyncio
 
 
 # Predict our next match against West Ham United (A)
@@ -29,32 +30,12 @@ Example:
 +predict 3:0 auba 2x fgs, laca
 """
 
-
-# env_vars = []
-# with open('.secrets/token.txt') as f:
-#     for line in f:
-#         if line.startswith('#'):
-#             continue
-#         # if 'export' not in line:
-#         #     continue
-#         # Remove leading `export `, if you have those
-#         # then, split name / value pair
-#         # key, value = line.replace('export ', '', 1).strip().split('=', 1)
-#         key, value = line.strip().split('=', 1)
-#         # os.environ[key] = value  # Load to local environ
-#         env_vars.append({'name': key, 'value': value}) # Save to a list
-
-# print(env_vars)
-
-# token = env_vars[value]
-# print(token)
+client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
 
 # MAKE THIS AN ENVIRONMENT VARIABLE SOON
 token = "NjM3NzQ5Mjg1OTk1NDEzNTA1.XeqgWA.SyRF0igSotR0JI-EdM-xdhHa0mI"
 
 prefix = "+"
-# bot = commands.Bot(prefix)
-
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
 
@@ -64,8 +45,8 @@ bot = commands.Bot(prefix, help_command=help_function)
 ### Bot Events ###
 @bot.event
 # on_ready = connected to server
-async def on_ready(): 
-    print('Connected as {0.user}'.format(bot))
+async def on_ready(ctx):
+    print('Connected to {guild.name} as {0.user}'.format(bot))
 
 
 # mostly for debugging, doesn't do anything on Discord
@@ -74,7 +55,8 @@ async def on_message(message):
     # if the bot sends messages to itself, don't return anything
     if message.author == bot.user:
         return
-    print(f"@{message.author}:{message.user.name} ||| {message.content}")
+    user_id = message.author.id
+    print(f"@{message.author} | {user_id} | {message.content}")
     await bot.process_commands(message)
 
 
