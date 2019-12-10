@@ -8,6 +8,7 @@ import sys
 import os
 import asyncio
 import motor.motor_asyncio
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -32,10 +33,19 @@ Example:
 +predict 3:0 auba 2x fgs, laca
 """
 
-mongodb = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
+# initialize connection to mongod
+mongodb= motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
 print("Connected to mongodb")
 
-# MAKE THIS AN ENVIRONMENT VARIABLE SOON
+# select database
+database = mongodb.test
+print(f"Connected to mongo database: {database.name}")
+
+# select collection
+collection = database['predictions']
+print(f"Connected to collection: {collection.name}")
+
+
 token = os.environ.get("TOKEN", None)
 
 prefix = "+"
@@ -44,6 +54,13 @@ bot = commands.Bot(prefix, help_command=help_function)
 
 # print() statements print to stdout, not Discord
 # ctx.send() sends messages via Discord
+
+async def do_insert(msg_id, name, prediction):
+    document = {'user_id': msg_id, 'user_name': name, 'prediction_string': prediction}
+    result = await database['predictions'].insert_one(document)
+    print('result %s' % repr(result.inserted_id))
+
+
 
 ### Bot Events ###
 @bot.event
@@ -58,8 +75,9 @@ async def on_message(message):
     # if the bot sends messages to itself, don't return anything
     if message.author == bot.user:
         return
-    print(f"@{message.author} | {message.author.id} | {message.content}")
-    await bot.process_commands(message)
+    if message.channel.name == 'test-predictions-bot':
+        print(f"@{message.author} | {message.author.id} | {message.content}")
+        await bot.process_commands(message)
 
 
 ### Bot Commands ###
@@ -79,20 +97,25 @@ async def predict(ctx):
     '''
     Make a new prediction
     '''
-    goals_regex = "[0-9][:-][0-9]"
-    player_prediction = ctx.message.content.replace("+predict ", "").split(', ')
-
-    print(player_prediction)
-
-    # re.search(goals_regex, message)
-    # re.search(player_regex, message, re.IGNORECASE)
+    player_regex = "[A-Za-z].*"
+    goals_regex = "((\d) ?[:-] ?(\d))"
+    # home_goals = goals_regex.group(2)
+    # away_goals = goals_regex.group(3)
+    # player_prediction = ctx.message.content.replace("+predict ", "").split(', ')
+    try:
+        goals_match = re.search(goals_regex, ctx.message.content)
+        player_match = re.search(player_regex, ctx.message.content, re.IGNORECASE)
+    except Exception as e:
+        print("Failed.")
+        await ctx.send("FAILED: {e}")
     
-    # if re.search(goals_regex, ctx.message.content):
-        # user_prediction = ctx.message.content
-        # await ctx.send(f"{ctx.message.author.mention}\nInvalid prediction format")
-    # else:
-    # print(ctx.message.content)
-    await ctx.send(f"{ctx.message.author.mention}\nYour prediction:\n{ctx.message.content}")
+    if not goals_match:
+        print("Missing goals")
+        await ctx.send(f"{ctx.message.author.mention}\nDid not provide a match score in your prediction\n{ctx.message.content}")
+    else:
+        print(ctx.message.content.replace("+predict ", "").split(', '))
+        await ctx.send(f"{ctx.message.author.mention}\nYour prediction:\n{ctx.message.content}")
+        await do_insert(ctx.message.author.id, ctx.message.author.name, ctx.message.content)
 
 
 # show user's predictions
