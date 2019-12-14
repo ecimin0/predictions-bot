@@ -6,15 +6,16 @@ from discord.ext import commands
 import re
 import sys
 import os
-import asyncio
+import datetime
 import motor.motor_asyncio
 import asyncio
 from dotenv import load_dotenv
+from pprint import pprint
 
 load_dotenv()
 
 # Predict our next match against West Ham United (A)
-rules_set = """Prediction League Rules:
+rules_set = """** Prediction League Rules: **
 
 2 points – correct result (W/D/L)
 2 points – correct number of Arsenal goals
@@ -23,11 +24,13 @@ rules_set = """Prediction League Rules:
 1 point – correct FGS (first goal scorer, only Arsenal)
 2 points bonus – correct all scorers
 
-No points for scorers if your prediction's goals exceed the actual goals by 4+
+- Players you predict to score multiple goals should be entered as "player x2" or "player 2x"
+
+- No points for scorers if your prediction's goals exceed the actual goals by 4+
 
 ** Remember, we are only counting Arsenal goal scorers **
-    - you do not need to predict opposition goal scorers
-    - you do not need to predict opposition FGS
+    - Do not predict opposition goal scorers
+    - Do not predict opposition FGS
 
 Example:
 +predict 3:0 auba 2x fgs, laca
@@ -38,7 +41,7 @@ mongodb= motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
 print("Connected to mongodb")
 
 # select database
-database = mongodb.test
+database = mongodb.users
 print(f"Connected to mongo database: {database.name}")
 
 # select collection
@@ -55,11 +58,28 @@ bot = commands.Bot(prefix, help_command=help_function)
 # print() statements print to stdout, not Discord
 # ctx.send() sends messages via Discord
 
-async def do_insert(msg_id, name, prediction):
-    document = {'user_id': msg_id, 'user_name': name, 'prediction_string': prediction}
+# class Players()
+#     def __init__(self, timestamp, user_id, name, prediction_id, prediction_string, hg, ag, scorers)
+
+
+async def do_insert(time, msg_id, name, predict_id, prediction, hg, ag, scorers):
+    document = {
+        'timestamp': time,
+        'user_id': msg_id,
+        'user_name': name,
+        'prediction_id': predict_id,
+        'prediction_string': prediction,
+        'home_goals': hg,
+        'away_goals': ag,
+        'scorers': scorers
+        }
     result = await database['predictions'].insert_one(document)
     print('result %s' % repr(result.inserted_id))
 
+
+async def do_find_one(user_id):
+    document = await database['predictions'].find({"user_id": user_id}).to_list(10)
+    pprint(document)
 
 
 ### Bot Events ###
@@ -97,25 +117,74 @@ async def predict(ctx):
     '''
     Make a new prediction
     '''
-    player_regex = "[A-Za-z].*"
+
+    temp_msg = ctx.message.content
     goals_regex = "((\d) ?[:-] ?(\d))"
-    # home_goals = goals_regex.group(2)
-    # away_goals = goals_regex.group(3)
-    # player_prediction = ctx.message.content.replace("+predict ", "").split(', ')
+    player_regex = r"[A-Za-z]{1,18}[,]? ?(\dx|x\d)?"
+
     try:
-        goals_match = re.search(goals_regex, ctx.message.content)
-        player_match = re.search(player_regex, ctx.message.content, re.IGNORECASE)
+        temp_msg = temp_msg.replace("+predict ", "")
+        print(temp_msg)
+        goals_match = re.search(goals_regex, temp_msg)
+        temp_msg = re.sub(goals_regex, "", temp_msg)
+        # print(temp_msg)
+
+        scorers = temp_msg.strip().split(",")
+
+        scorers = [player.strip() for player in scorers]
+
+        scorer_properties = []
+
+        for player in scorers:
+            fgs = False
+            num_goals = 1
+
+            if "fgs" in player:
+                fgs = True
+                player.replace("fgs", "")
+
+            goals_scored = re.search('x?(\d)x?', player)
+
+            if goals_scored:
+                player = re.sub('x?(\d)x?', "", player)
+                num_goals = goals_scored.group(1)
+
+            scorer_dict = {"name": player, "fgs": fgs, "num goals": num_goals}
+
+            scorer_properties.append(scorer_dict)
+
+
+        # player_match = re.search(player_regex, temp_msg, re.IGNORECASE)
+        # temp_msg = re.sub(player_regex, "", temp_msg)
+
     except Exception as e:
         print("Failed.")
-        await ctx.send("FAILED: {e}")
+        await ctx.send(f"FAILED: {e}")
     
     if not goals_match:
         print("Missing goals")
-        await ctx.send(f"{ctx.message.author.mention}\nDid not provide a match score in your prediction\n{ctx.message.content}")
+        await ctx.send(f"{ctx.message.author.mention}\nDid not provide a match score in your prediction.\n{ctx.message.content}")
     else:
-        print(ctx.message.content.replace("+predict ", "").split(', '))
-        await ctx.send(f"{ctx.message.author.mention}\nYour prediction:\n{ctx.message.content}")
-        await do_insert(ctx.message.author.id, ctx.message.author.name, ctx.message.content)
+        message_timestamp = datetime.datetime.utcnow()
+        home_goals = goals_match.group(2)
+        away_goals = goals_match.group(3)
+
+        # print(ctx.message.content.replace("+predict ", "").split(', '))
+
+        await ctx.send(f"""{ctx.message.author.mention}
+        **Prediction against $opponent successful.**
+
+        You have $time_until_next_match-2hr to edit your prediction.
+
+        {ctx.message.content}
+
+        **Score**
+        Home {home_goals}:{away_goals} Away
+
+        **Goal Scorers**
+        $scorers""")
+
+        await do_insert(message_timestamp, ctx.message.author.id, ctx.message.author.name, ctx.message.id, ctx.message.content, home_goals, away_goals, scorer_properties)
 
 
 # show user's predictions
@@ -124,6 +193,8 @@ async def predictions(ctx):
     '''
     Show your past predictions
     '''
+    await do_find_one(ctx.message.author.id)
+
 
 # show leaderboard
 @bot.command()
