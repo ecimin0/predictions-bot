@@ -6,6 +6,7 @@ from discord.ext import commands
 import re
 import sys
 import os
+import json
 import datetime
 import motor.motor_asyncio
 import asyncio
@@ -15,7 +16,9 @@ from pprint import pprint
 load_dotenv()
 
 # Predict our next match against West Ham United (A)
-rules_set = """** Prediction League Rules: **
+rules_set = """**Predict our next match against $next_opponent**
+
+** Prediction League Rules: **
 
 2 points – correct result (W/D/L)
 2 points – correct number of Arsenal goals
@@ -36,7 +39,7 @@ Example:
 +predict 3:0 auba 2x fgs, laca
 """
 
-# initialize connection to mongod
+# initialize connection to mongodb
 mongodb= motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
 print("Connected to mongodb")
 
@@ -72,14 +75,18 @@ async def do_insert(time, msg_id, name, predict_id, prediction, hg, ag, scorers)
         'home_goals': hg,
         'away_goals': ag,
         'scorers': scorers
+        # 'fixture_id': fixture_id
         }
+
     result = await database['predictions'].insert_one(document)
     print('result %s' % repr(result.inserted_id))
 
 
-async def do_find_one(user_id):
-    document = await database['predictions'].find({"user_id": user_id}).to_list(10)
-    pprint(document)
+async def do_find(user_id):
+    document = await database['predictions'].find({"user_id": user_id}).to_list(5)
+    
+    # pprint(document[1]['timestamp'])
+    return document
 
 
 ### Bot Events ###
@@ -104,7 +111,7 @@ async def on_message(message):
 # rules
 @bot.command()
 async def rules(ctx):
-    # these 3 quote blocks are returned when user enters +help
+    # these 3 quote blocks in all of the commands are returned when user enters +help
     '''
     Display Prediction League Rules
     '''
@@ -127,7 +134,6 @@ async def predict(ctx):
         print(temp_msg)
         goals_match = re.search(goals_regex, temp_msg)
         temp_msg = re.sub(goals_regex, "", temp_msg)
-        # print(temp_msg)
 
         scorers = temp_msg.strip().split(",")
 
@@ -152,7 +158,6 @@ async def predict(ctx):
             scorer_dict = {"name": player, "fgs": fgs, "num goals": num_goals}
 
             scorer_properties.append(scorer_dict)
-
 
         # player_match = re.search(player_regex, temp_msg, re.IGNORECASE)
         # temp_msg = re.sub(player_regex, "", temp_msg)
@@ -193,7 +198,10 @@ async def predictions(ctx):
     '''
     Show your past predictions
     '''
-    await do_find_one(ctx.message.author.id)
+    discord_document = await do_find(ctx.message.author.id)
+
+    pprint(discord_document)
+    await ctx.send(f"{ctx.message.author.mention}\n{discord_document}")
 
 
 # show leaderboard
