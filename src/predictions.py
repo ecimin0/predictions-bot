@@ -8,14 +8,17 @@ import sys
 import os
 import json
 import datetime
-import motor.motor_asyncio
+import requests
+# import motor.motor_asyncio # mongo, old
 import asyncio
+import asyncpg # postgres yay
+import sqlalchemy # lol @ nosql
 from dotenv import load_dotenv
 from pprint import pprint
 
 load_dotenv()
 
-# Predict our next match against West Ham United (A)
+# Predict next match
 rules_set = """**Predict our next match against $next_opponent**
 
 ** Prediction League Rules: **
@@ -40,17 +43,30 @@ Example:
 """
 
 # initialize connection to mongodb
-mongodb= motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
-print("Connected to mongodb")
+# mongodb= motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
+# print("Connected to mongodb")
 
 # select database
-database = mongodb.users
-print(f"Connected to mongo database: {database.name}")
+# database = mongodb.users
+# print(f"Connected to mongo database: {database.name}")
 
 # select collection
-collection = database['predictions']
-print(f"Connected to collection: {collection.name}")
+# collection = database['predictions']
+# print(f"Connected to collection: {collection.name}")
 
+
+### postgres stuff ###
+dbuser = "postgres"
+dbpass = "postgres"
+dbhost = "localhost"
+dbname = "database"
+
+try:
+    postgresconnection = asyncpg.connect("postgres://{0}:{1}@{2}:5432/{3}".format(dbuser, dbpass, dbhost, dbname))
+    cursor = postgresconnection.cursor()
+    print("Connected to postgres")
+except Exception as e:
+    print(f"{e}")
 
 token = os.environ.get("TOKEN", None)
 
@@ -58,13 +74,21 @@ prefix = "+"
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
 
-# print() statements print to stdout, not Discord
-# ctx.send() sends messages via Discord
+# print statements print to stdout, not Discord
+# calling ctx.send() sends messages via Discord
 
 # class Players()
 #     def __init__(self, timestamp, user_id, name, prediction_id, prediction_string, hg, ag, scorers)
 
 
+### API stuff ###
+async def apiGetSquad(teamid, season):
+    response = requests.get(f"http://v2.api-football.com/players/squad/{teamid}/{season}", headers={'X-RapidAPI-Key': 'ee515a38087aa97eaa6697c0d89f6bb0'})
+    return response.json()
+
+
+
+### database operations ###
 async def do_insert(time, msg_id, name, predict_id, prediction, hg, ag, scorers):
     document = {
         'timestamp': time,
@@ -78,11 +102,11 @@ async def do_insert(time, msg_id, name, predict_id, prediction, hg, ag, scorers)
         # 'fixture_id': fixture_id
         }
 
-    result = await database['predictions'].insert_one(document)
-    print('result %s' % repr(result.inserted_id))
+    # result = await database['predictions'].insert_one(document)
+    # print('result %s' % repr(result.inserted_id))
 
 
-async def do_find(user_id):
+async def getUserId(user_id):
     document = await database['predictions'].find({"user_id": user_id}).to_list(5)
     
     # pprint(document[1]['timestamp'])
@@ -96,7 +120,7 @@ async def on_ready():
     print(f'Connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
 
 
-# mostly for debugging, doesn't do anything on Discord
+# mostly for debugging in terminal, doesn't do anything on Discord
 @bot.event
 async def on_message(message):
     # if the bot sends messages to itself, don't return anything
@@ -108,6 +132,12 @@ async def on_message(message):
 
 
 ### Bot Commands ###
+
+# show squad players
+@bot.command()
+async def arsenalsquad(ctx):
+    print(f"{await apiGetSquad('42','2019')}")
+
 # rules
 @bot.command()
 async def rules(ctx):
@@ -126,7 +156,7 @@ async def predict(ctx):
     '''
 
     temp_msg = ctx.message.content
-    goals_regex = "((\d) ?[:-] ?(\d))"
+    goals_regex = r"((\d) ?[:-] ?(\d))"
     player_regex = r"[A-Za-z]{1,18}[,]? ?(\dx|x\d)?"
 
     try:
@@ -149,10 +179,10 @@ async def predict(ctx):
                 fgs = True
                 player.replace("fgs", "")
 
-            goals_scored = re.search('x?(\d)x?', player)
+            goals_scored = re.search(r'x?(\d)x?', player)
 
             if goals_scored:
-                player = re.sub('x?(\d)x?', "", player)
+                player = re.sub(r'x?(\d)x?', "", player)
                 num_goals = goals_scored.group(1)
 
             scorer_dict = {"name": player, "fgs": fgs, "num goals": num_goals}
@@ -187,9 +217,9 @@ async def predict(ctx):
         Home {home_goals}:{away_goals} Away
 
         **Goal Scorers**
-        $scorers""")
+        {scorers}""")
 
-        await do_insert(message_timestamp, ctx.message.author.id, ctx.message.author.name, ctx.message.id, ctx.message.content, home_goals, away_goals, scorer_properties)
+        # await do_insert(message_timestamp, ctx.message.author.id, ctx.message.author.name, ctx.message.id, ctx.message.content, home_goals, away_goals, scorer_properties)
 
 
 # show user's predictions
@@ -198,7 +228,7 @@ async def predictions(ctx):
     '''
     Show your past predictions
     '''
-    discord_document = await do_find(ctx.message.author.id)
+    discord_document = await getUserId(ctx.message.author.id)
 
     pprint(discord_document)
     await ctx.send(f"{ctx.message.author.mention}\n{discord_document}")
@@ -280,7 +310,7 @@ async def ping(ctx):
     await ctx.send(f"{ctx.message.author.mention}\n{latency}")
 
 
-# echo, mostly for testing,
+# echo, mostly for testing
 @bot.command(hidden=True)
 async def echo(ctx, *, content:str):
     '''
