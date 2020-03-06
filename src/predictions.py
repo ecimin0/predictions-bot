@@ -81,13 +81,6 @@ bot = commands.Bot(prefix, help_command=help_function)
 #     def __init__(self, timestamp, user_id, name, prediction_id, prediction_string, hg, ag, scorers)
 
 
-### API stuff ###
-async def apiGetSquad(teamid, season):
-    response = requests.get(f"http://v2.api-football.com/players/squad/{teamid}/{season}", headers={'X-RapidAPI-Key': 'ee515a38087aa97eaa6697c0d89f6bb0'})
-    return response.json()
-
-
-
 ### database operations ###
 async def do_insert(time, msg_id, name, predict_id, prediction, hg, ag, scorers):
     document = {
@@ -104,7 +97,6 @@ async def do_insert(time, msg_id, name, predict_id, prediction, hg, ag, scorers)
 
     # result = await database['predictions'].insert_one(document)
     # print('result %s' % repr(result.inserted_id))
-
 
 async def getUserId(user_id):
     document = await database['predictions'].find({"user_id": user_id}).to_list(5)
@@ -132,12 +124,6 @@ async def on_message(message):
 
 
 ### Bot Commands ###
-
-# show squad players
-@bot.command()
-async def arsenalsquad(ctx):
-    print(f"{await apiGetSquad('42','2019')}")
-
 # rules
 @bot.command()
 async def rules(ctx):
