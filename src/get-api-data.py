@@ -6,8 +6,8 @@ import os
 import json
 import datetime
 import requests
-import asyncio
-import asyncpg
+# import asyncio
+import psycopg2
 import sqlalchemy
 from dotenv import load_dotenv
 from pprint import pprint
@@ -34,7 +34,9 @@ dbname = "database"
 
 def getSquad(teamid, season):
     response = requests.get(f"http://v2.api-football.com/players/squad/{teamid}/{season}", headers={'X-RapidAPI-Key': api_key})
-    return response.json()
+    # return response.json()
+    players = response.json().get("api").get("players")
+    return players
 
 def getTeam(teamid):
     response = requests.get(f"http://v2.api-football.com/teams/team/{teamid}", headers={'X-RapidAPI-Key': api_key})
