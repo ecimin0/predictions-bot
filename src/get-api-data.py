@@ -44,16 +44,69 @@ aws_dbname = "predictions-bot-data"
 #### team IDs ####
 # arsenal: 42
 
-team_id = "42"
+# team_id = "42"
+# pl2019202teams = ["40", "71", "48", "50", "35", "62", "44", "41", "52", "45", "46", "39", "38", "51", "47", "66", "34", "42", "33", "49"]
 season = "2019-2020"
-leagueid = "524"
+pl_league_id = "524"
+current_year = datetime.datetime.now().year
+prev_year = datetime.datetime.now().year - 1
+# print(prev_year)
+
+# def getCountries():
 
 
-# execute("INSERT INTO players (season, team_id, player_name, firstname, lastname) VALUE (%s, %s, %s, %s, %s)", (season, team_id, player_name, firstname, lastname))
+def getLeagues():
+    response = requests.get(f"http://v2.api-football.com/leagues", headers={'X-RapidAPI-Key': api_key})
+    leagues = response.json().get("api").get("leagues")
+    
+    parsed_leagues = []
+    for league in leagues:
+        delete_keys = [key for key in league if key not in ["league_id", "name", "season", "logo"]]
+        for key in delete_keys: 
+            del league[key]
+        parsed_leagues.append(league)
+
+    # for league in parsed_leagues:
+        # check_season = league.get("season")
+    delete_seasons = [x for x in parsed_leagues if x.get("season") != prev_year]
+    for season in delete_seasons:
+        parsed_leagues.remove(season)
+        
+    # pprint(parsed_leagues)
+    for league in parsed_leagues:
+        try:
+            # print(f"{parsed_leagues}")
+            pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo) VALUES (%s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo")))
+        except (Exception) as e:
+            print(f"{e}")
+            postgresconnection.rollback()
+
+
+
+def getTeamsInLeague(league_id):
+    response = requests.get(f"http://v2.api-football.com/teams/league/{league_id}", headers={'X-RapidAPI-Key': api_key})
+    league_teams = response.json().get("api").get("teams")
+
+    parsed_team_ids = []
+
+    for team in league_teams:
+        parsed_team_ids.append(team.get("team_id"))
+    
+    return parsed_team_ids
+    
+
+# def getTeamDetails(team_id):
+    # response = requests.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': api_key})
+    # teams = response.json().get("api").get("teams")
+
+    # for team in teams:
+
+    # return response.json()
+    # pprint(f"{team}")
+        
 
 def getPlayers(team_id, season):
     response = requests.get(f"http://v2.api-football.com/players/squad/{team_id}/{season}", headers={'X-RapidAPI-Key': api_key})
-    # return response.json()
     players = response.json().get("api").get("players")
     parsed_players = []
 
@@ -61,78 +114,39 @@ def getPlayers(team_id, season):
         delete_keys = [key for key in player if key not in ["player_name", "firstname", "lastname"]]
         for key in delete_keys: 
             del player[key]
-        # print(player)
         parsed_players.append(player)
-    # print(parsed_players[0])
 
     for player in parsed_players:
         try:
             pgcursor.execute("INSERT INTO predictionsbot.players (season, team_id, player_name, firstname, lastname) VALUES (%s, %s, %s, %s, %s);", (season, team_id, player.get("player_name"), player.get("firstname"), player.get("lastname")))
-        except Exception as e:
+        except (Exception) as e:
             print(f"{e}")
+            postgresconnection.rollback()
 
-    # return players
 
-
-def getTeam(team_id):
-    response = requests.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': api_key})
+def getFixtures(team_id, league_id):
+    response = requests.get(f"http://v2.api-football.com/fixtures/team/{team_id}/{league_id}", headers={'X-RapidAPI-Key': api_key})
     return response.json()
 
 
-
-def getFixtures(team_id, leagueid):
-    response = requests.get(f"http://v2.api-football.com/fixtures/team/{team_id}/{leagueid}", headers={'X-RapidAPI-Key': api_key})
+def getTables(team_id, league_id):
+    response = requests.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key})
     return response.json()
-
-
-
-def getTables(team_id, leagueid):
-    response = requests.get(f"http://v2.api-football.com/leagueTable/{leagueid}", headers={'X-RapidAPI-Key': api_key})
-    return response.json()
-
-
-# def dbInsert(json):
-#     # create a nested list of the records' values
-#     values = [list(x.values()) for x in players]
-
-#     # get the column names
-#     columns = [list(x.keys()) for x in record_list][0]
-
-#     # value string for the SQL string
-#     values_str = ""
-
-#     # enumerate over the records' values
-#     for i, record in enumerate(values):
-
-#         # declare empty list for values
-#         val_list = []
-    
-#         # append each value to a new list of values
-#         for v, val in enumerate(record):
-#             if type(val) == str:
-#                 val = str(Json(val)).replace('"', '')
-#             val_list += [ str(val) ]
-
-#         # put parenthesis around each record string
-#         values_str += "(" + ', '.join( val_list ) + "),\n"
-
-#     # remove the last comma and end SQL with a semicolon
-#     values_str = values_str[:-2] + ";"
-
-#     # concatenate the SQL string
-#     table_name = "json_data"
-#     sql_string = "INSERT INTO %s (%s)\nVALUES %s" % (table_name, ', '.join(columns), values_str)
-
-
-
-
 
 
 try:
-    postgresconnection = psycopg2.connect("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_dbhost, aws_dbname))
-    print("Connected to postgres")
-    pgcursor = postgresconnection.cursor()
-    getPlayers(team_id, season)
+    with psycopg2.connect("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_dbhost, aws_dbname)) as postgresconnection:
+        postgresconnection.autocommit = True
+        print("Connected to postgres")
+        pgcursor = postgresconnection.cursor()
+    
+    # for team_id in pl2019202teams:
+    #     getPlayers(team_id, season)
+    
+    # for team_id in pl2019202teams:
+        # getTeamDetails(team_id)
+    # getTeamsInLeague(pl_league_id)
+        getLeagues()
 except Exception as e:
     print(f"{e}")
 
