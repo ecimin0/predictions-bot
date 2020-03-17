@@ -102,22 +102,23 @@ def getTeamsInLeague(league_id):
     final_teams = []
     for team_id in parsed_team_ids:
         team_details = requests.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': api_key})
-        team = team_details.json().get("api").get("teams")
+        team = team_details.json().get("api").get("teams")[0]
         parsed_teams.append(team)
-        
-    delete_keys = [key for key in team[0] if key not in ["team_id", "name", "logo", "country"]]
-    # print(delete_keys)
 
     for team in parsed_teams:
-        # print(delete_keys)
-        if key in delete_keys:
-            del team[key]
-        # for key in delete_keys:
-            
-        final_teams.append(team)
-    print(final_teams)
-        
+        delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
 
+        for key in delete_keys:
+            del team[key]
+        final_teams.append(team)
+    # pprint(final_teams)
+        
+    for team in final_teams:
+        try:
+            pgcursor.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES (%s, %s, %s, %s);", (team.get("team_id"), team.get("name"), team.get("logo"), team.get("country")))
+        except (Exception) as e:
+            print(f"{e}")
+            postgresconnection.rollback()
     
 
 # def getTeamDetails(team_id):
