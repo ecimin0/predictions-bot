@@ -46,13 +46,23 @@ aws_dbname = "predictions-bot-data"
 
 # team_id = "42"
 # pl2019202teams = ["40", "71", "48", "50", "35", "62", "44", "41", "52", "45", "46", "39", "38", "51", "47", "66", "34", "42", "33", "49"]
-season = "2019-2020"
+season = "2019"
 pl_league_id = "524"
 current_year = datetime.datetime.now().year
 prev_year = datetime.datetime.now().year - 1
 # print(prev_year)
 
-# def getCountries():
+
+def getCountries():
+    response = requests.get(f"http://v2.api-football.com/countries", headers={'X-RapidAPI-Key': api_key})
+    countries = response.json().get("api").get("countries")
+
+    for country in countries:
+        try:
+            pgcursor.execute("INSERT INTO predictionsbot.countries (country, code, flag) VALUES (%s, %s, %s);", (country.get("country"), country.get("code"), country.get("flag")))
+        except (Exception) as e:
+            print(f"{e}")
+            postgresconnection.rollback()
 
 
 def getLeagues():
@@ -61,26 +71,23 @@ def getLeagues():
     
     parsed_leagues = []
     for league in leagues:
-        delete_keys = [key for key in league if key not in ["league_id", "name", "season", "logo"]]
+        delete_keys = [key for key in league if key not in ["league_id", "name", "season", "logo", "country"]]
         for key in delete_keys: 
             del league[key]
         parsed_leagues.append(league)
 
-    # for league in parsed_leagues:
-        # check_season = league.get("season")
-    delete_seasons = [x for x in parsed_leagues if x.get("season") != prev_year]
+    # only get leagues for the current season
+    # season '2019' is for calendar years 2019-2020
+    delete_seasons = [row for row in parsed_leagues if row.get("season") != prev_year]
     for season in delete_seasons:
         parsed_leagues.remove(season)
         
-    # pprint(parsed_leagues)
     for league in parsed_leagues:
         try:
-            # print(f"{parsed_leagues}")
-            pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo) VALUES (%s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo")))
+            pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo, country) VALUES (%s, %s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo"), league.get("country")))
         except (Exception) as e:
             print(f"{e}")
             postgresconnection.rollback()
-
 
 
 def getTeamsInLeague(league_id):
@@ -92,7 +99,20 @@ def getTeamsInLeague(league_id):
     for team in league_teams:
         parsed_team_ids.append(team.get("team_id"))
     
-    return parsed_team_ids
+    final_teams = []
+    for team_id in parsed_team_ids:
+        team_details = requests.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': api_key})
+        team = team_details.json().get("api").get("teams")
+        final_teams.append(team)
+        # print(team)
+    
+        for team in final_teams:
+            delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
+            for key in delete_keys:
+                team.remove(team)
+            final_teams.append(team)
+        # print(delete_keys)
+
     
 
 # def getTeamDetails(team_id):
@@ -119,7 +139,7 @@ def getPlayers(team_id, season):
     for player in parsed_players:
         try:
             pgcursor.execute("INSERT INTO predictionsbot.players (season, team_id, player_name, firstname, lastname) VALUES (%s, %s, %s, %s, %s);", (season, team_id, player.get("player_name"), player.get("firstname"), player.get("lastname")))
-        except (Exception) as e:
+        except (Exception) as e:    
             print(f"{e}")
             postgresconnection.rollback()
 
@@ -140,16 +160,13 @@ try:
         print("Connected to postgres")
         pgcursor = postgresconnection.cursor()
     
-    # for team_id in pl2019202teams:
-    #     getPlayers(team_id, season)
     
-    # for team_id in pl2019202teams:
-        # getTeamDetails(team_id)
-    # getTeamsInLeague(pl_league_id)
-        getLeagues()
+        # getCountries()
+        # getLeagues()
+        getTeamsInLeague(524)
+        
 except Exception as e:
     print(f"{e}")
 
 # players_json = getPlayers(team_id, season)
 # pprint(players_json)
-

@@ -44,27 +44,20 @@ bot = commands.Bot(prefix, help_command=help_function)
 ### database operations ###
 async def connectToDB():
     try:
-        bot.pgconnection = await asyncpg.create_pool("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_db_ip, aws_dbname))
-        print("Connected to postgres")
+        with await asyncpg.create_pool("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_db_ip, aws_dbname)) as postgresconnection:
+            print("Connected to postgres")
+            postgresconnection.autocommit = True
+            pgcursor = await postgresconnection.cursor()
+
     except Exception as e:
         print(f"{e}")
+        postgresconnection.rollback()
 
 
 async def dbInsertPrediction(time, user_id, name, predict_id, prediction, hg, ag, scorers):
-    document = {
-        'timestamp': time,
-        'user_id': user_id,
-        'user_name': name,
-        'prediction_id': predict_id,
-        'prediction_string': prediction,
-        'home_goals': hg,
-        'away_goals': ag,
-        'scorers': scorers
-        # 'fixture_id': fixture_id
-        }
-
+    await pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo, country) VALUES (%s, %s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo"), league.get("country")))
     connection = await bot.pgconnection.acquire()
-    testprint = await bot.pgconnection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", (42))
+    # testprint = await bot.pgconnection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", (42))
     print(testprint)
 
     # result = await database['predictions'].insert_one(document)
