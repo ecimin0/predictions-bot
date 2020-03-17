@@ -95,23 +95,28 @@ def getTeamsInLeague(league_id):
     league_teams = response.json().get("api").get("teams")
 
     parsed_team_ids = []
-
     for team in league_teams:
         parsed_team_ids.append(team.get("team_id"))
     
+    parsed_teams = []
     final_teams = []
     for team_id in parsed_team_ids:
         team_details = requests.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': api_key})
         team = team_details.json().get("api").get("teams")
-        final_teams.append(team)
-        # print(team)
-    
-        for team in final_teams:
-            delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
-            for key in delete_keys:
-                team.remove(team)
-            final_teams.append(team)
+        parsed_teams.append(team)
+        
+    delete_keys = [key for key in team[0] if key not in ["team_id", "name", "logo", "country"]]
+    # print(delete_keys)
+
+    for team in parsed_teams:
         # print(delete_keys)
+        if key in delete_keys:
+            del team[key]
+        # for key in delete_keys:
+            
+        final_teams.append(team)
+    print(final_teams)
+        
 
     
 
