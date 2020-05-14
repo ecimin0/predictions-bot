@@ -60,9 +60,6 @@ async def dbInsertPrediction(time, user_id, name, predict_id, prediction, hg, ag
     # testprint = await bot.pgconnection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", (42))
     print(testprint)
 
-    # result = await database['predictions'].insert_one(document)
-    # print('result %s' % repr(result.inserted_id))
-
 
 # async def getUserPredictions(user_id):
 #     document = await database['predictions'].find({"user_id": user_id}).to_list(5)

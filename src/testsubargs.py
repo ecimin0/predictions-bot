@@ -22,11 +22,23 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Populate database with info from football API")
 subparser = parser.add_subparsers()
+printer = subparser.add_parser('countries')
+printer.add_argument('n/a', type=int, help="no parameters required; get all country names and codes")
+
+printer = subparser.add_parser('leagues')
+printer.add_argument('<season>', type=int, help="season string: e.g. '2019' is valid for the 2019-2020 season; get specified season's league IDs to db")
+
 printer = subparser.add_parser('teams')
-printer.add_argument('league', type=int, help="requires valid league ID")
+printer.add_argument('<league ID>', type=int, help="league ID; check leagues in db for reference; get teams by league")
 
 printer = subparser.add_parser('players')
-printer.add_argument('league', type=int, help="requires valid team ID and season")
+printer.add_argument('players', type=int, help="team ID and season")
+
+printer = subparser.add_parser('fixtures')
+printer.add_argument('fixtures', type=int, help="requires valid team ID and season")
+
+printer = subparser.add_parser('tables')
+printer.add_argument('tables', type=int, help="requires valid team ID and season")
 # printer.set_defaults(func=printText)
 
 cmd = parser.parse_args()
