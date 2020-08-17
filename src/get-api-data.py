@@ -8,51 +8,12 @@ import datetime
 import requests
 # import asyncio
 import psycopg2
-# import the new JSON method from psycopg2
-from psycopg2.extras import Json
+from psycopg2.extras import Json # import the new JSON method from psycopg2
 import sqlalchemy
 from dotenv import load_dotenv
 from pprint import pprint
 import argparse
 
-load_dotenv()
-
-api_key = os.environ.get("API_KEY", None)
-
-# Command line arguments #
-parser = argparse.ArgumentParser(description="Populate database with football API data for a given season", formatter_class=argparse.RawTextHelpFormatter, add_help=False)
-parser.add_argument('-h ', '--help', action='help', help="show this help message and exit\n\n")
-parser.add_argument('--season', help="SEASON is a string in YYYY format\n'2003' identifies the 2003-2004 season\n\n")
-parser.add_argument('--league', help="LEAGUE is a league_id from the API\n'524' identifies the the English Premier League 2019-2020\n\n")
-option = parser.parse_args()
-
-
-### aws postgres stuff
-aws_dbuser = "postgres"
-aws_dbpass = "2d9t728EAIRhtAcHW3Bw"
-aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
-aws_db_ip = "3.15.92.33"
-aws_dbname = "predictions-bot-data"
-
-### API stuff ###
-#### league IDs 2019-2020 ####
-# UEFA CL: 530
-# UEFA EL: 514
-# PL: 524
-# FA Cup: 1063
-# League Cup: 957
-
-team_ids_list = []
-
-season = option.season
-league = option.league
-
-season_YYYY = int(season) + 1
-full_season = f"{season}-{season_YYYY}"
-
-current_year = datetime.datetime.now().year
-prev_year = current_year - 1
-next_year = current_year + 1 
 
 
 def getCountries():
@@ -107,47 +68,23 @@ def getTeamsInLeague():
     final_teams = []
     for team_id in team_ids_list:
         response = requests.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': api_key})
-        teams = response.json().get("api").get("teams")[0]
+        teams = response.json().get("api").get("teams")
         # parsed_teams.append(team)
 
-    for team in teams:
-        delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
+        for team in teams:
+            delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
 
         for key in delete_keys:
             del team[key]
         final_teams.append(team)
-        
+
     for team in final_teams:
         try:
+            # print(f"adding {team}")
             pgcursor.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES (%s, %s, %s, %s);", (team.get("team_id"), team.get("name"), team.get("logo"), team.get("country")))
         except (Exception) as e:
             print(f"{e}")
             postgresconnection.rollback()
-
-        
-# def getPlayers():
-#     players_on_teams = []
-#     final_players = []
-#     for team_id in team_ids_list:
-#         response = requests.get(f"http://v2.api-football.com/players/squad/{team_id}/{full_season}", headers={'X-RapidAPI-Key': api_key})
-#         players = response.json().get("api").get("players")
-#         players_on_teams.append(players)
-        
-#     for team in players_on_teams:
-#         for player in team:
-#             delete_keys = [key for key in player if key not in ["player_name", "firstname", "lastname"]]
-#             for key in delete_keys: 
-#                 del player[key]
-#             final_players.append(player)
-    
-#     # print(final_players)
-
-#     for player in final_players:
-#         try:
-#             pgcursor.execute("INSERT INTO predictionsbot.players (season, team_id, player_name, firstname, lastname) VALUES (%s, %s, %s, %s, %s);", (full_season, team_id, player.get("player_name"), player.get("firstname"), player.get("lastname")))
-#         except (Exception) as e:    
-#             print(f"{e}")
-#             postgresconnection.rollback()
 
 
 def getPlayers():
@@ -177,15 +114,78 @@ def getPlayers():
                 postgresconnection.rollback()
         
 
+def getFixtures(league_id):
+    parsed_fixtures = []
+    
+    response = requests.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key})
+    fixtures = response.json().get("api").get("fixtures")
 
-def getFixtures(team_id, league_id):
-    response = requests.get(f"http://v2.api-football.com/fixtures/team/{team_id}/{league_id}", headers={'X-RapidAPI-Key': api_key})
-    return response.json()
+    for match in fixtures:
+        home = match.get("homeTeam").get("team_id")
+        away = match.get("awayTeam").get("team_id")
+
+        delete_keys = [key for key in match if key not in ["fixture_id", "league_id", "event_date", "goalsHomeTeam", "goalsAwayTeam"]]
+    
+        for key in delete_keys:
+            del match[key]
+        
+        match["home"] = home
+        match["away"] = away
+
+        parsed_fixtures.append(match)
+    
+    for fixture in parsed_fixtures:
+        try:
+            pgcursor.execute("INSERT INTO predictionsbot.fixtures (home, away, fixture_id, league_id, event_date, goals_home, goals_away) VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
+        except (Exception) as e:    
+            print(f"{e}")
+            postgresconnection.rollback()
+
 
 
 def getTables(team_id, league_id):
     response = requests.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key})
     return response.json()
+
+
+load_dotenv()
+
+api_key = os.environ.get("API_KEY", None)
+
+
+# Command line arguments #
+parser = argparse.ArgumentParser(description="Populate database with football API data for a given season", formatter_class=argparse.RawTextHelpFormatter, add_help=False)
+parser.add_argument('-h ', '--help', action='help', help="show this help message and exit\n\n")
+parser.add_argument('--season', help="SEASON is a string in YYYY format\n'2003' identifies the 2003-2004 season\n\n")
+parser.add_argument('--league', help="LEAGUE is a league_id from the API\n'524' identifies the the English Premier League 2019-2020\n\n")
+option = parser.parse_args()
+
+### aws postgres stuff
+aws_dbuser = "postgres"
+aws_dbpass = "2d9t728EAIRhtAcHW3Bw"
+aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
+aws_db_ip = "3.15.92.33"
+aws_dbname = "predictions-bot-data"
+
+### API stuff ###
+#### league IDs 2019-2020 ####
+# UEFA CL: 530
+# UEFA EL: 514
+# PL: 524
+# FA Cup: 1063
+# League Cup: 957
+
+team_ids_list = []
+
+season = option.season
+league = option.league
+
+season_YYYY = int(season) + 1
+full_season = f"{season}-{season_YYYY}"
+
+current_year = datetime.datetime.now().year
+prev_year = current_year - 1
+next_year = current_year + 1 
 
 
 try:
@@ -198,8 +198,9 @@ try:
         generateTeamIDList(league)
         # getCountries()
         # getLeagues()
-        # getTeamsInLeague()
-        getPlayers()
+        getTeamsInLeague()
+        # getPlayers()
+        # getFixtures(league)
         
 except Exception as e:
     print(f"{e}")
