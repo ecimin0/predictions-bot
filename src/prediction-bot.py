@@ -14,10 +14,16 @@ import asyncpg # postgres yay
 import sqlalchemy
 from dotenv import load_dotenv
 from pprint import pprint
+# import asyncio
+import psycopg2
+from psycopg2.extras import Json # import the new JSON method from psycopg2
+import argparse
+import random
+import string
+
 
 # source environment variables
 load_dotenv()
-
 
 ### aws postgres stuff
 aws_dbuser = "postgres"
@@ -36,29 +42,47 @@ prefix = "+"
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
 
+# team id of team in API to use as main team
+main_team = "42" # arsenal
+
 
 # class Players()
 #     def __init__(self, timestamp, user_id, name, prediction_id, prediction_string, hg, ag, scorers)
 
 
+### generate random prediction ID
+def get_random_alphanumeric_string(length):
+    letters_and_digits = string.ascii_letters + string.digits
+    result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
+    return result_str
+
+
+# def nextMatch(league):
+
+
 ### database operations ###
 async def connectToDB():
     try:
-        with await asyncpg.create_pool("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_db_ip, aws_dbname)) as postgresconnection:
-            print("Connected to postgres")
-            postgresconnection.autocommit = True
-            pgcursor = await postgresconnection.cursor()
+        postgresconnection = await asyncpg.create_pool(user=aws_dbuser, password=aws_dbpass, database=aws_dbname, host=aws_db_ip)
+        print("Connected to postgres")
+            # postgresconnection.autocommit = True
+            # pgcursor = await postgresconnection.cursor()
 
+    #         with psycopg2.connect("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_dbhost, aws_dbname)) as postgresconnection:
+    #             postgresconnection.autocommit = True
+    #             pgcursor = postgresconnection.cursor()
+    #             print("connected to postgres\n")
     except Exception as e:
         print(f"{e}")
-        postgresconnection.rollback()
+        # postgresconnection.rollback()
+        sys.exit(1)
 
 
-async def dbInsertPrediction(time, user_id, name, predict_id, prediction, hg, ag, scorers):
-    await pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo, country) VALUES (%s, %s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo"), league.get("country")))
-    connection = await bot.pgconnection.acquire()
-    # testprint = await bot.pgconnection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", (42))
-    print(testprint)
+# async def dbInsertPrediction(time, user_id, name, predict_id, prediction, hg, ag, scorers):
+#     await pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo, country) VALUES (%s, %s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo"), league.get("country")))
+#     connection = await bot.pgconnection.acquire()
+#     # testprint = await bot.pgconnection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", (42))
+#     print(testprint)
 
 
 # async def getUserPredictions(user_id):
@@ -72,7 +96,7 @@ async def dbInsertPrediction(time, user_id, name, predict_id, prediction, hg, ag
 @bot.event
 # on_ready = connected to server
 async def on_ready(): 
-    print(f'Connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
+    print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
 
     # async connect to postgres
     await connectToDB()
@@ -141,8 +165,9 @@ async def predict(ctx):
 
     try:
         # remove '+predict ' from message string
+        prediction_string = temp_msg
         temp_msg = temp_msg.replace("+predict ", "")
-        print(temp_msg)
+        # print(temp_msg)
 
         # store string matching the score/goals in the prediction
         goals_match = re.search(goals_regex, temp_msg)
@@ -201,7 +226,9 @@ async def predict(ctx):
     # if prediction syntax was OK load it into the db
     # tell the user their prediction was logged and show it to them
     try:
-        # await dbInsertPrediction(message_timestamp, ctx.message.author.id, ctx.message.author.name, ctx.message.id, ctx.message.content, home_goals, away_goals, scorer_properties)
+        prediction_id = get_random_alphanumeric_string(16)
+        print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
+        pgcursor.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string) VALUES (%s, %s, %s);", (prediction_id, ctx.message.author.id, prediction_string))
 
         await ctx.send(f"""{ctx.message.author.mention}
         **Prediction against $opponent successful.**
@@ -211,12 +238,14 @@ async def predict(ctx):
         {ctx.message.content}
 
         **Score**
-        Home {home_goals}:{away_goals} Away
+        Home {home_goals} : {away_goals} Away
 
         **Goal Scorers**
         {scorers}""")
-    except Exception as e:
-        print(f"{e}")
+
+    except (Exception) as e:    
+            print(f"{e}")
+            postgresconnection.rollback()
 
 
 
@@ -343,12 +372,18 @@ async def what_do_you_think_of_tottenham(ctx):
     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
 
 
+
 # bot.load_extension("cogs.MainCog")
 
 # 'token' is the bot token from Discord Developer config
 try:
-    bot.run(token)  
+    # with psycopg2.connect("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_dbhost, aws_dbname)) as postgresconnection:
+    #     postgresconnection.autocommit = True
+    #     pgcursor = postgresconnection.cursor()
+    #     print("connected to postgres")
+    bot.run(token)
 except Exception as e:
-    print(f"error: {e}")
+    print(f"{e}")
+    # postgresconnection.rollback()
     sys.exit(1)
     
