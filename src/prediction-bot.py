@@ -2,25 +2,24 @@
 
 # pip3 install discord
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import re
 import sys
 import os
 import json
-import datetime
 import requests
 import asyncio
 import asyncpg # postgres yay
 import sqlalchemy
 from dotenv import load_dotenv
 from pprint import pprint
-# import asyncio
 import psycopg2
-from psycopg2.extras import Json # import the new JSON method from psycopg2
 import argparse
 import random
 import string
+
 from datetime import timedelta, datetime
+from psycopg2.extras import Json # import the new JSON method from psycopg2
 
 player_nicknames = {
     "13298": ["cech"],
@@ -81,6 +80,7 @@ aws_dbname = "predictions-bot-data"
 
 # use the token env var
 token = os.environ.get("TOKEN", None)
+channel_id = int(os.environ.get("CHANNELID", 0))
 
 # bot only responds to commands prepended with '+'
 prefix = "+"
@@ -90,7 +90,7 @@ help_function = commands.DefaultHelpCommand(no_category="Available Commands", in
 bot = commands.Bot(prefix, help_command=help_function)
 
 # team id of team in API to use as main team
-main_team = "42" # arsenal
+main_team = 42 # arsenal
 
 
 def getPlayerId(userInput):
@@ -112,7 +112,7 @@ async def nextMatches(dbconn, count=1):
     '''
     Return the array of next fixtures records from Database 
     '''
-    matches = await dbconn.fetch("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = 42 OR away = 42) ORDER BY event_date LIMIT $1;", count)
+    matches = await dbconn.fetch(f"SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1;", count)
     return matches
 
 # returns record (no array)
@@ -120,8 +120,15 @@ async def nextMatch(dbconn):
     '''
     Return the next fixture record from Database 
     '''
-    match = await dbconn.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = 42 OR away = 42) ORDER BY event_date LIMIT 1;")
+    match = await dbconn.fetchrow(f"SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT 1;")
     return match
+
+async def completedMatches(dbconn, count=1, offset=0):
+    '''
+    Return the array of completed fixtures records from Database 
+    '''
+    matches = await dbconn.fetch(f"SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1 OFFSET $2;", count, offset)
+    return matches
 
 ### database operations ###
 async def connectToDB():
@@ -149,7 +156,6 @@ async def on_ready():
     await connectToDB()
     print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
 
-
 # mostly for debugging in terminal, doesn't do anything on Discord
 @bot.event
 async def on_message(message):
@@ -157,7 +163,7 @@ async def on_message(message):
     if message.author == bot.user:
         return
     if message.channel.name == 'test-predictions-bot':
-        print(f"@{message.author} | {message.author.id} | {message.content}")
+        print(f"@{message.author} | {message.author.id} | {message.content} | {message.channel}")
         await bot.process_commands(message)
 
 
@@ -211,7 +217,7 @@ async def predict(ctx):
     fixture_id = current_match.get('fixture_id')
 
     opponent = current_match.get('away_name')
-    if current_match.get('away') == 42:
+    if current_match.get('away') == main_team:
         opponent = current_match.get('home_name')
 
     if datetime.utcnow() > time_limit:
@@ -393,7 +399,14 @@ async def when(ctx):
 async def results(ctx):
     '''
     Return historical match results
-    '''        
+    '''
+    done_matches = await completedMatches(bot.pg_conn, count=10)
+    done_matches_output = ""
+    for match in done_matches:
+        done_matches_output += f'{match.get("event_date")} {match.get("home_name")} vs. {match.get("away_name")} {match.get("goals_home")}-{match.get("goals_away")}\n'
+
+    done_matches_output = f"```\n{done_matches_output}\n```"
+    await ctx.send(f"{done_matches_output}")
 
 # PL table
 @bot.command()
@@ -401,6 +414,7 @@ async def pltable(ctx):
     '''
     Current Premier League table
     '''
+    pl_id = 524
 
 # CL table
 @bot.command()
@@ -408,6 +422,7 @@ async def cltable(ctx):
     '''
     Current Champion's League table
     '''        
+    cl_id = 530
 
 # EL table
 @bot.command()
@@ -415,6 +430,7 @@ async def eltable(ctx):
     '''
     Current Europa League table
     '''
+    el_id = 514
 
 # FA Cup table
 @bot.command()
@@ -422,6 +438,7 @@ async def fatable(ctx):
     '''
     Current FA Cup table
     '''        
+    fa_id = 956
 
 # League Cup table
 # EFL Cup
@@ -430,6 +447,7 @@ async def efltable(ctx):
     '''
     Current League Cup table
     '''            
+    efl_id = 955
 
 # ping
 @bot.command()
@@ -463,9 +481,24 @@ async def what_do_you_think_of_tottenham(ctx):
     spurs_status = "SHIT"    
     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
 
+# scheduled task configuration example
+@tasks.loop(minutes=1)
+async def called_once_a_day():
+    message_channel = bot.get_channel(channel_id)
+    print(f"Got channel {message_channel}")
+    await message_channel.send("Test scheduled message")
+
+@called_once_a_day.before_loop
+async def before():
+    await bot.wait_until_ready()
+    print("Finished waiting")
+
 
 # 'token' is the bot token from Discord Developer config
 try:
+    # Scheduled task enabling only if channel is specified.
+    if channel_id != 0:
+        called_once_a_day.start()
     bot.run(token)
 except Exception as e:
     print(f"{e}")
