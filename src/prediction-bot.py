@@ -20,7 +20,54 @@ from psycopg2.extras import Json # import the new JSON method from psycopg2
 import argparse
 import random
 import string
+from datetime import timedelta, datetime
 
+player_nicknames = {
+    "13298": ["cech"],
+    "13299": ["burton"],
+    "13300": ["olayinka"],
+    "13301": ["mavropanos"],
+    "13302": ["monreal", "nacho"],
+    "13303": ["iwobi"],
+    "13304": ["smith-rowe", "esr"],
+    "13305": ["leno"],
+    "13306": ["martinez", "emi"],
+    "13307": ["macey"],
+    "13308": ["iliev"],
+    "13309": ["bellerin", "hector", "heccy"],
+    "13310": ["tierney", "kt"],
+    "13311": ["papastathopoulos", "sokratis"],
+    "13312": ["holding", "rob"],
+    "13313": ["mustafi"],
+    "13314": ["chambers"],
+    "13315": ["luiz"],
+    "13316": ["kolasinac", "kola"],
+    "13317": ["medley"],
+    "13318": ["smith"],
+    "13319": ["soares", "cedric"],
+    "13320": ["bola"],
+    "13321": ["mari"],
+    "13322": ["osei-tutu"],
+    "13323": ["saliba"],
+    "13324": ["ozil", "mesut"],
+    "13325": ["torreira"],
+    "13326": ["maitland-niles", "amn"],
+    "13327": ["willock"],
+    "13328": ["guendouzi"],
+    "13329": ["xhaka"],
+    "13330": ["saka"],
+    "13331": ["balogun"],
+    "13332": ["elneny"],
+    "13333": ["lacazette", "laca"],
+    "13334": ["aubameyang", "auba"],
+    "13335": ["pepe"],
+    "13336": ["nelson"],
+    "13337": ["nketiah", "eddie"],
+    "13338": ["martinelli", "gabi"],
+    "13339": ["john-jules"],
+    "13340": ["mkhitaryan"],
+    "13341": ["ceballos", "dani"]
+}
 
 # source environment variables
 load_dotenv()
@@ -46,9 +93,11 @@ bot = commands.Bot(prefix, help_command=help_function)
 main_team = "42" # arsenal
 
 
-# class Players()
-#     def __init__(self, timestamp, user_id, name, prediction_id, prediction_string, hg, ag, scorers)
-
+def getPlayerId(userInput):
+    for k,v in player_nicknames.items():
+        if userInput.lower() in v:
+            return k
+    raise Exception(f"no player by that name {userInput}")
 
 ### generate random prediction ID
 def get_random_alphanumeric_string(length):
@@ -56,50 +105,50 @@ def get_random_alphanumeric_string(length):
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
 
+# use something like these functions to get data from db
+#  bot.pg_conn.fetch("<sql>")
+# returns array of fixtures (even for one)
+async def nextMatches(dbconn, count=1):
+    '''
+    Return the array of next fixtures records from Database 
+    '''
+    matches = await dbconn.fetch("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = 42 OR away = 42) ORDER BY event_date LIMIT $1;", count)
+    return matches
 
-# def nextMatch(league):
-
+# returns record (no array)
+async def nextMatch(dbconn):
+    '''
+    Return the next fixture record from Database 
+    '''
+    match = await dbconn.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = 42 OR away = 42) ORDER BY event_date LIMIT 1;")
+    return match
 
 ### database operations ###
 async def connectToDB():
     try:
-        postgresconnection = await asyncpg.create_pool(user=aws_dbuser, password=aws_dbpass, database=aws_dbname, host=aws_db_ip)
+        bot.pg_conn = await asyncpg.create_pool(user=aws_dbuser, password=aws_dbpass, database=aws_dbname, host=aws_db_ip)
         print("Connected to postgres")
-            # postgresconnection.autocommit = True
-            # pgcursor = await postgresconnection.cursor()
-
-    #         with psycopg2.connect("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_dbhost, aws_dbname)) as postgresconnection:
-    #             postgresconnection.autocommit = True
-    #             pgcursor = postgresconnection.cursor()
-    #             print("connected to postgres\n")
     except Exception as e:
         print(f"{e}")
-        # postgresconnection.rollback()
         sys.exit(1)
 
 
-# async def dbInsertPrediction(time, user_id, name, predict_id, prediction, hg, ag, scorers):
-#     await pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo, country) VALUES (%s, %s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo"), league.get("country")))
-#     connection = await bot.pgconnection.acquire()
-#     # testprint = await bot.pgconnection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", (42))
-#     print(testprint)
-
-
-# async def getUserPredictions(user_id):
-#     document = await database['predictions'].find({"user_id": user_id}).to_list(5)
-    
-    # pprint(document[1]['timestamp'])
-    # return document
+async def getUserPredictions(dbconn, user_id):
+    '''
+    Return the last 10 predictions by user
+    '''
+    predictions = await dbconn.fetch("SELECT * FROM predictionsbot.fixtures ON j.team_id = t.team_id WHERE event_date > now() AND (home = 42 OR away = 42) ORDER BY event_date LIMIT 10;")
+    return predictions
 
 
 ### Bot Events ###
-@bot.event
 # on_ready = connected to server
+@bot.event
 async def on_ready(): 
-    print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
-
     # async connect to postgres
     await connectToDB()
+    print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
+
 
 # mostly for debugging in terminal, doesn't do anything on Discord
 @bot.event
@@ -144,11 +193,12 @@ async def rules(ctx):
     '''
     Display Prediction League Rules
     '''
-    # connection = await bot.pgconnection.acquire()
-    # testprint = await bot.pgconnection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", (42))
-    # print(testprint)
     await ctx.send(f"{ctx.message.author.mention}\n{rules_set}")
 
+async def getRandomTeam(dbconn):
+    team = await dbconn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
+    return team.get("name")
+    
 
 # predict
 @bot.command()
@@ -156,6 +206,18 @@ async def predict(ctx):
     '''
     Make a new prediction
     '''
+    current_match = await nextMatch(bot.pg_conn)
+    time_limit = current_match.get("event_date") - timedelta(hours=2)
+    fixture_id = current_match.get('fixture_id')
+
+    opponent = current_match.get('away_name')
+    if current_match.get('away') == 42:
+        opponent = current_match.get('home_name')
+
+    if datetime.utcnow() > time_limit:
+        team = await getRandomTeam(bot.pg_conn)
+        await ctx.send(f"{ctx.message.author.mention}\nError: time is too late, go support {team} instead.")
+        return
 
     # raw incoming messaged typed by user
     temp_msg = ctx.message.content
@@ -192,7 +254,7 @@ async def predict(ctx):
             # if predicted fgs flag as True and remove 'fgs' from string
             if "fgs" in player:
                 fgs = True
-                player.replace("fgs", "")
+                player = player.replace("fgs", "")
 
             # number of goals scored by player(s)
             goals_scored = re.search(r'x?(\d)x?', player)
@@ -201,7 +263,7 @@ async def predict(ctx):
                 num_goals = goals_scored.group(1)
 
             # append dictionary of scorer names, fgs status, goals predicted to properties array
-            scorer_dict = {"name": player, "fgs": fgs, "num goals": num_goals}
+            scorer_dict = {"name": player.strip(), "fgs": fgs, "num goals": num_goals}
             scorer_properties.append(scorer_dict)
 
         # player_match = re.search(player_regex, temp_msg, re.IGNORECASE)
@@ -215,7 +277,7 @@ async def predict(ctx):
         print("Missing goals")
         await ctx.send(f"{ctx.message.author.mention}\nDid not provide a match score in your prediction.\n{ctx.message.content}")
     else:
-        message_timestamp = datetime.datetime.utcnow()
+        message_timestamp = datetime.utcnow()
         
         # football home teams listed first
         home_goals = goals_match.group(2)
@@ -226,14 +288,28 @@ async def predict(ctx):
     # if prediction syntax was OK load it into the db
     # tell the user their prediction was logged and show it to them
     try:
+        for scorer in scorer_properties:
+            try:
+                print(f"{getPlayerId(scorer.get('name'))}")
+            except Exception as e:
+                await ctx.send(f"Please try again, {e}")
+                return 
+            
+
         prediction_id = get_random_alphanumeric_string(16)
         print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
-        pgcursor.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string) VALUES (%s, %s, %s);", (prediction_id, ctx.message.author.id, prediction_string))
+        # use similar syntax as 300-305 for any insert/update to the db
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                try:
+                    await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id) VALUES ($1, $2, $3, $4);", prediction_id, str(ctx.message.author.id), prediction_string, fixture_id)
+                except Exception as e:
+                    print(e)
 
         await ctx.send(f"""{ctx.message.author.mention}
-        **Prediction against $opponent successful.**
+        **Prediction against {opponent} successful.**
 
-        You have $time_until_next_match-2hr to edit your prediction.
+        You have until {time_limit} UTC to edit your prediction.
 
         {ctx.message.content}
 
@@ -241,13 +317,25 @@ async def predict(ctx):
         Home {home_goals} : {away_goals} Away
 
         **Goal Scorers**
-        {scorers}""")
+        {[scorer.get("name") for scorer in scorer_properties]}""")
 
     except (Exception) as e:    
-            print(f"{e}")
-            postgresconnection.rollback()
+        print(f"{e}")
 
+# todo
+# init discord user into db
+#make a function to do this
 
+# check if user has made predciton for current match
+# logic to update that prediction
+
+# add TZ field for users
+
+# score in predictions table
+
+# timestamp on predictions
+
+# add seperate prediction data fields to table
 
 # show user's predictions
 @bot.command()
@@ -255,7 +343,7 @@ async def predictions(ctx):
     '''
     Show your past predictions
     '''
-    discord_document = await getUserPredictions(ctx.message.author.id)
+    discord_document = await getUserPredictions(bot.pg_conn, ctx.message.author.id)
 
     pprint(discord_document)
     await ctx.send(f"{ctx.message.author.mention}\n{discord_document}")
@@ -281,6 +369,9 @@ async def next(ctx):
     '''
     Next 2 matches in each competition
     '''
+    # todo format this better
+    next_matches = await nextMatches(bot.pg_conn, count=2)
+    await ctx.send(f"{[match for match in next_matches]}")
 
 # list fixtures
 @bot.command()
@@ -294,7 +385,8 @@ async def fixtures(ctx):
 async def when(ctx):
     '''
     Return next match against given team | when <team>
-    '''        
+    '''
+    # todo lookup table for team abbrevs (like players)
 
 # results
 @bot.command()
@@ -308,7 +400,7 @@ async def results(ctx):
 async def pltable(ctx):
     '''
     Current Premier League table
-    '''        
+    '''
 
 # CL table
 @bot.command()
@@ -372,18 +464,10 @@ async def what_do_you_think_of_tottenham(ctx):
     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
 
 
-
-# bot.load_extension("cogs.MainCog")
-
 # 'token' is the bot token from Discord Developer config
 try:
-    # with psycopg2.connect("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_dbhost, aws_dbname)) as postgresconnection:
-    #     postgresconnection.autocommit = True
-    #     pgcursor = postgresconnection.cursor()
-    #     print("connected to postgres")
     bot.run(token)
 except Exception as e:
     print(f"{e}")
-    # postgresconnection.rollback()
     sys.exit(1)
     
