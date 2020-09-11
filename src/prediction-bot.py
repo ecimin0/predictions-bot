@@ -11,14 +11,15 @@ import requests
 import asyncio
 import asyncpg # postgres yay
 import sqlalchemy
-from dotenv import load_dotenv
-from pprint import pprint
+import pytz
 import psycopg2
 import argparse
 import random
 import string
 
 from datetime import timedelta, datetime
+from dotenv import load_dotenv
+from pprint import pprint
 from psycopg2.extras import Json # import the new JSON method from psycopg2
 
 player_nicknames = {
@@ -68,15 +69,55 @@ player_nicknames = {
     "13341": ["ceballos", "dani"]
 }
 
+team_nicknames = {
+    44: ["burnley"], 
+    33: ["manchester united", "man u", "man united", "united"], 
+    52: ["crystal palace"], 
+    41: ["southampton", "saints"],
+    36: ["fulham"], 
+    42: ["arsenal"], 
+    40: ["liverpool"], 
+    63: ["leeds", "leeds united"], 
+    50: ["manchester city", "man city", "city"], 
+    66: ["aston villa", "villa"], 
+    47: ["tottenham", "tottenham hotspur", "spurs", "spuds", "the shit", "shit", "shite"], 
+    45: ["everton", "toffees"], 
+    60: ["west brom", "west bromwich albion"], 
+    46: ["leicester", "leicester city"], 
+    48: ["west ham", "west ham united"], 
+    34: ["newcastle", "newcastle united"], 
+    51: ["brighton", "brighton and hove albion"], 
+    49: ["chelsea"], 
+    62: ["sheffield united", "sheffield"], 
+    39: ["wolves", "wolverhampton"]
+}
+
+# 2020-2021 season
+pl_id = 2790
+cl_id = 2771
+el_id = 2777
+fa_cup_id = 2791
+league_cup_id = 2781
+
+
 # source environment variables
 load_dotenv()
 
+utc = pytz.timezone("UTC")
+
 ### aws postgres stuff
 aws_dbuser = "postgres"
-aws_dbpass = "2d9t728EAIRhtAcHW3Bw"
+aws_dbpass = os.environ.get("AWS_DBPASS", None)
 aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
 aws_db_ip = "3.15.92.33"
 aws_dbname = "predictions-bot-data"
+
+# team id of team in API to use as main team
+main_team = 42 # arsenal
+
+time_format = "%m/%d/%Y, %H:%M:%S %Z"
+match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {main_team} THEN 'away' ELSE 'home' END as home_or_away"
+
 
 # use the token env var
 token = os.environ.get("TOKEN", None)
@@ -89,15 +130,18 @@ prefix = "+"
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
 
-# team id of team in API to use as main team
-main_team = 42 # arsenal
-
 
 def getPlayerId(userInput):
     for k,v in player_nicknames.items():
         if userInput.lower() in v:
             return k
     raise Exception(f"no player by that name {userInput}")
+
+def getTeamId(userInput):
+    for k,v in team_nicknames.items():
+        if userInput.lower() in v:
+            return k
+    raise Exception(f"no team by that name {userInput}")
 
 ### generate random prediction ID
 def get_random_alphanumeric_string(length):
@@ -112,7 +156,7 @@ async def nextMatches(dbconn, count=1):
     '''
     Return the array of next fixtures records from Database 
     '''
-    matches = await dbconn.fetch(f"SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1;", count)
+    matches = await dbconn.fetch(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1;", count)
     return matches
 
 # returns record (no array)
@@ -120,15 +164,29 @@ async def nextMatch(dbconn):
     '''
     Return the next fixture record from Database 
     '''
-    match = await dbconn.fetchrow(f"SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT 1;")
+    match = await dbconn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT 1;")
     return match
 
 async def completedMatches(dbconn, count=1, offset=0):
     '''
     Return the array of completed fixtures records from Database 
     '''
-    matches = await dbconn.fetch(f"SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1 OFFSET $2;", count, offset)
+    matches = await dbconn.fetch(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1 OFFSET $2;", count, offset)
     return matches
+
+def formatMatch(match):
+    time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
+    return f"{match.get('league_name')}\n\({match.get('home_or_away')}\) {match.get('opponent_name')}\n{match.get('event_date')}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
+
+
+async def getUserTimezone(dbconn, user):
+    user_tz = await dbconn.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
+    return user_tz.get("tz", "UTC")
+    
+async def prepareTimestamp(timestamp, tz):
+    dt = utc.localize(timestamp)
+    dt = timestamp.astimezone(tz)
+    return dt
 
 ### database operations ###
 async def connectToDB():
@@ -144,9 +202,25 @@ async def getUserPredictions(dbconn, user_id):
     '''
     Return the last 10 predictions by user
     '''
+
     predictions = await dbconn.fetch("SELECT * FROM predictionsbot.fixtures ON j.team_id = t.team_id WHERE event_date > now() AND (home = 42 OR away = 42) ORDER BY event_date LIMIT 10;")
     return predictions
 
+
+async def checkUserExists(dbconn, user_id, ctx):
+    user = await dbconn.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
+
+    if not user:
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                try:
+                    await connection.execute("INSERT INTO predictionsbot.users (user_id) VALUES ($1);", user_id)
+                except Exception as e:
+                    print(e)
+        # return False
+        await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
+    else:
+        return True
 
 ### Bot Events ###
 # on_ready = connected to server
@@ -169,7 +243,7 @@ async def on_message(message):
 
 ### Bot Commands ###
 # Predict next match
-rules_set = """**Predict our next match against $next_opponent**
+rules_set = """**Predict our next match against {0}**
 
 ** Prediction League Rules: **
 
@@ -199,7 +273,11 @@ async def rules(ctx):
     '''
     Display Prediction League Rules
     '''
-    await ctx.send(f"{ctx.message.author.mention}\n{rules_set}")
+    next_match = await nextMatch(bot.pg_conn)
+    opponent = next_match.get('opponent_name')
+
+    rules_set_filled = rules_set.format(opponent)
+    await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
 
 async def getRandomTeam(dbconn):
     team = await dbconn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
@@ -212,15 +290,20 @@ async def predict(ctx):
     '''
     Make a new prediction
     '''
+    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
+
     current_match = await nextMatch(bot.pg_conn)
+    user_tz = await getUserTimezone(bot.pg_conn, str(ctx.message.author.id))
+    user_tz = pytz.timezone(user_tz)
+
     time_limit = current_match.get("event_date") - timedelta(hours=2)
+    time_limit = await prepareTimestamp(time_limit, user_tz)
+
     fixture_id = current_match.get('fixture_id')
 
-    opponent = current_match.get('away_name')
-    if current_match.get('away') == main_team:
-        opponent = current_match.get('home_name')
+    opponent = current_match.get('opponent_name')
 
-    if datetime.utcnow() > time_limit:
+    if utc.localize(datetime.utcnow()) > time_limit:
         team = await getRandomTeam(bot.pg_conn)
         await ctx.send(f"{ctx.message.author.mention}\nError: time is too late, go support {team} instead.")
         return
@@ -304,7 +387,7 @@ async def predict(ctx):
 
         prediction_id = get_random_alphanumeric_string(16)
         print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
-        # use similar syntax as 300-305 for any insert/update to the db
+        # use similar syntax as next 5 lines for any insert/update to the db
         async with bot.pg_conn.acquire() as connection:
             async with connection.transaction():
                 try:
@@ -315,12 +398,12 @@ async def predict(ctx):
         await ctx.send(f"""{ctx.message.author.mention}
         **Prediction against {opponent} successful.**
 
-        You have until {time_limit} UTC to edit your prediction.
+        You have until {time_limit.strftime(time_format)} to edit your prediction.
 
         {ctx.message.content}
 
         **Score**
-        Home {home_goals} : {away_goals} Away
+        {current_match.get('home_name')} {home_goals} : {away_goals} {current_match.get('away_name')}
 
         **Goal Scorers**
         {[scorer.get("name") for scorer in scorer_properties]}""")
@@ -328,20 +411,16 @@ async def predict(ctx):
     except (Exception) as e:    
         print(f"{e}")
 
-# todo
-# init discord user into db
-#make a function to do this
 
-# check if user has made predciton for current match
-# logic to update that prediction
+# todo update db timestamp on prediction, figure out updating in general
 
-# add TZ field for users
+# todo check if user has made predciton for current match, make logic to update that prediction
 
-# score in predictions table
+# todo add seperate prediction data fields to table
 
-# timestamp on predictions
+# todo add scoring function/scheduled task
 
-# add seperate prediction data fields to table
+# todo better goal scorers list
 
 # show user's predictions
 @bot.command()
@@ -349,6 +428,9 @@ async def predictions(ctx):
     '''
     Show your past predictions
     '''
+    #todo: format user predictions
+
+    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
     discord_document = await getUserPredictions(bot.pg_conn, ctx.message.author.id)
 
     pprint(discord_document)
@@ -368,16 +450,57 @@ async def timezone(ctx):
     '''
     Change timezone
     '''
+    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
+
+    msg = ctx.message.content
+    try:
+        tz = re.search("\+timezone (.*)", msg).group(1)
+    except Exception as e:
+        await ctx.send(f"{ctx.message.author.mention}\nYou didn't include a timezone!")
+        return
+    
+    if tz in pytz.all_timezones:
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, str(ctx.message.author.id))
+        await ctx.send(f"{ctx.message.author.mention}\nYour timezone has been set to {tz}")
+    else:
+        await ctx.send(f"{ctx.message.author.mention}\nThat is not a recognized timezone!\nExpected format looks like so: 'US/Central' or 'America/Chicago' or 'Europe/Dublin'")
+
 
 # next 2 matches of each competition
 @bot.command()
 async def next(ctx):
     '''
-    Next 2 matches in each competition
+    Next matches in each competition
     '''
-    # todo format this better
-    next_matches = await nextMatches(bot.pg_conn, count=2)
-    await ctx.send(f"{[match for match in next_matches]}")
+
+    msg = ctx.message.content
+
+    split_msg = msg.split()
+    
+    if len(split_msg) > 2:
+        await ctx.send(f"{ctx.message.author.mention}\ntoo many arguments; should be '+next 2' or similar")
+        return
+
+    elif len(split_msg) > 1:
+        count = split_msg[1]
+        try:
+            count = int(count)
+        except:
+            await ctx.send(f"{ctx.message.author.mention}\nExpected usage:\n`+next <number>`")
+            return
+    else: 
+        count = 2
+    
+    next_matches = await nextMatches(bot.pg_conn, count=count)
+    output = f"{ctx.message.author.mention}\n**Next {count} matches:**\n\n"
+    for match in next_matches:
+    # await ctx.send(f"{[match for match in next_matches]}")
+    # todo: embed icons here
+        output += formatMatch(match)
+    await ctx.send(f"{output}")
+
 
 # list fixtures
 @bot.command()
@@ -392,7 +515,21 @@ async def when(ctx):
     '''
     Return next match against given team | when <team>
     '''
-    # todo lookup table for team abbrevs (like players)
+    msg = ctx.message.content
+    try:
+        team = msg.split(" ", 1)[1]
+    except: 
+        await ctx.send("Missing a team!")
+        return
+
+    try:
+        team_id = getTeamId(team)
+    except:
+        await ctx.send(f"{ctx.message.author.mention}\n{team} does not seem to be a team I recognize.")
+        return
+
+    next_match = await bot.pg_conn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {main_team} AND away = $1) OR (away = {main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
+    await ctx.send(f"{formatMatch(next_match)}")
 
 # results
 @bot.command()
@@ -447,7 +584,7 @@ async def efltable(ctx):
     '''
     Current League Cup table
     '''            
-    efl_id = 955
+
 
 # ping
 @bot.command()
