@@ -10,9 +10,7 @@ import json
 import requests
 import asyncio
 import asyncpg # postgres yay
-import sqlalchemy
 import pytz
-import psycopg2
 import argparse
 import random
 import string
@@ -20,53 +18,44 @@ import string
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 from pprint import pprint
-from psycopg2.extras import Json # import the new JSON method from psycopg2
+
 
 player_nicknames = {
-    "13298": ["cech"],
-    "13299": ["burton"],
-    "13300": ["olayinka"],
-    "13301": ["mavropanos"],
-    "13302": ["monreal", "nacho"],
-    "13303": ["iwobi"],
-    "13304": ["smith-rowe", "esr"],
-    "13305": ["leno"],
-    "13306": ["martinez", "emi"],
-    "13307": ["macey"],
-    "13308": ["iliev"],
-    "13309": ["bellerin", "hector", "heccy"],
-    "13310": ["tierney", "kt"],
-    "13311": ["papastathopoulos", "sokratis"],
-    "13312": ["holding", "rob"],
-    "13313": ["mustafi"],
-    "13314": ["chambers"],
-    "13315": ["luiz"],
-    "13316": ["kolasinac", "kola"],
-    "13317": ["medley"],
-    "13318": ["smith"],
-    "13319": ["soares", "cedric"],
-    "13320": ["bola"],
-    "13321": ["mari"],
-    "13322": ["osei-tutu"],
-    "13323": ["saliba"],
-    "13324": ["ozil", "mesut"],
-    "13325": ["torreira"],
-    "13326": ["maitland-niles", "amn"],
-    "13327": ["willock"],
-    "13328": ["guendouzi"],
-    "13329": ["xhaka"],
-    "13330": ["saka"],
-    "13331": ["balogun"],
-    "13332": ["elneny"],
-    "13333": ["lacazette", "laca"],
-    "13334": ["aubameyang", "auba"],
-    "13335": ["pepe"],
-    "13336": ["nelson"],
-    "13337": ["nketiah", "eddie"],
-    "13338": ["martinelli", "gabi"],
-    "13339": ["john-jules"],
-    "13340": ["mkhitaryan"],
-    "13341": ["ceballos", "dani"]
+    "13606": ["olayinka"],
+    "13609": ["smith-rowe", "esr"],
+    "13587": ["leno"],
+    "13589": ["martinez", "emi"],
+    "13588": ["macey"],
+    "13586": ["iliev"],
+    "13591": ["bellerin", "hector", "heccy"],
+    "13601": ["tierney", "kt"],
+    "13599": ["papastathopoulos", "sokratis"],
+    "13594": ["holding", "rob"],
+    "13598": ["mustafi"],
+    "13592": ["chambers"],
+    "13597": ["luiz"],
+    "13595": ["kolasinac", "kola"],
+    "13590": ["soares", "cedric"],
+    "13596": ["mari"],
+    "13600": ["saliba"],
+    "13607": ["ozil", "mesut"],
+    "13610": ["torreira"],
+    "13605": ["maitland-niles", "amn"],
+    "13611": ["willock"],
+    "13604": ["guendouzi"],
+    "13612": ["xhaka"],
+    "13608": ["saka"],
+    "13603": ["elneny"],
+    "13615": ["lacazette", "laca"],
+    "13613": ["aubameyang", "auba"],
+    "13619": ["pepe"],
+    "13617": ["nelson"],
+    "13618": ["nketiah", "eddie"],
+    "13616": ["martinelli", "gabi"],
+    "13585": ["john-jules"],
+    "13602": ["ceballos", "dani"],
+    "13614": ["willian"],
+    "13593": ["gabriel", "gabem"]
 }
 
 team_nicknames = {
@@ -88,9 +77,10 @@ team_nicknames = {
     34: ["newcastle", "newcastle united"], 
     51: ["brighton", "brighton and hove albion"], 
     49: ["chelsea"], 
-    62: ["sheffield united", "sheffield"], 
+    62: ["sheffield united", "sheffield"],
     39: ["wolves", "wolverhampton"]
 }
+
 
 # 2020-2021 season
 pl_id = 2790
@@ -149,6 +139,19 @@ def get_random_alphanumeric_string(length):
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
 
+async def getUserTimezone(dbconn, user):
+    user_tz = await dbconn.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
+    tz = pytz.timezone(user_tz.get("tz", "UTC"))
+    return tz 
+    
+def prepareTimestamp(timestamp, tz, str=True):
+    dt = utc.localize(timestamp)
+    dt = timestamp.astimezone(tz)
+    if str:
+        return dt.strftime(time_format)
+    else:
+        return dt
+
 # use something like these functions to get data from db
 #  bot.pg_conn.fetch("<sql>")
 # returns array of fixtures (even for one)
@@ -174,19 +177,12 @@ async def completedMatches(dbconn, count=1, offset=0):
     matches = await dbconn.fetch(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
-def formatMatch(match):
+async def formatMatch(dbconn, match, user):
+    tz = await getUserTimezone(dbconn, user)
+    match_time = prepareTimestamp(match.get('event_date'), tz)
+
     time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
-    return f"{match.get('league_name')}\n\({match.get('home_or_away')}\) {match.get('opponent_name')}\n{match.get('event_date')}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
-
-
-async def getUserTimezone(dbconn, user):
-    user_tz = await dbconn.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
-    return user_tz.get("tz", "UTC")
-    
-async def prepareTimestamp(timestamp, tz):
-    dt = utc.localize(timestamp)
-    dt = timestamp.astimezone(tz)
-    return dt
+    return f"{match.get('league_name')}\n\({match.get('home_or_away')}\) {match.get('opponent_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
 
 ### database operations ###
 async def connectToDB():
@@ -197,13 +193,18 @@ async def connectToDB():
         print(f"{e}")
         sys.exit(1)
 
+async def getAdminDiscordId():
+    try:
+        bot.admin_id = await bot.fetch_user("249231078303203329")
+        await bot.admin_id.send(f"found admin ID {bot.admin_id}")
+    except Exception as e:
+        print(f"{e}")
 
 async def getUserPredictions(dbconn, user_id):
     '''
     Return the last 10 predictions by user
     '''
-
-    predictions = await dbconn.fetch("SELECT * FROM predictionsbot.fixtures ON j.team_id = t.team_id WHERE event_date > now() AND (home = 42 OR away = 42) ORDER BY event_date LIMIT 10;")
+    predictions = await dbconn.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
     return predictions
 
 
@@ -218,7 +219,7 @@ async def checkUserExists(dbconn, user_id, ctx):
                 except Exception as e:
                     print(e)
         # return False
-        await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
+        # await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
     else:
         return True
 
@@ -228,7 +229,9 @@ async def checkUserExists(dbconn, user_id, ctx):
 async def on_ready(): 
     # async connect to postgres
     await connectToDB()
+    await getAdminDiscordId()
     print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
+
 
 # mostly for debugging in terminal, doesn't do anything on Discord
 @bot.event
@@ -236,8 +239,9 @@ async def on_message(message):
     # if the bot sends messages to itself, don't return anything
     if message.author == bot.user:
         return
-    if message.channel.name == 'test-predictions-bot':
-        print(f"@{message.author} | {message.author.id} | {message.content} | {message.channel}")
+    # if message.channel.name == 'test-predictions-bot': # TEST #kubernauts
+    if message.channel.name == 'prediction-league': # PROD #gunners
+        print(f"@{message.author} | {message.author.id} | {message.content}")
         await bot.process_commands(message)
 
 
@@ -263,7 +267,7 @@ rules_set = """**Predict our next match against {0}**
     - Do not predict opposition FGS
 
 Example:
-+predict 3:0 auba 2x fgs, laca
++predict 3-0 auba 2x fgs, laca
 """
 
 # rules
@@ -294,10 +298,10 @@ async def predict(ctx):
 
     current_match = await nextMatch(bot.pg_conn)
     user_tz = await getUserTimezone(bot.pg_conn, str(ctx.message.author.id))
-    user_tz = pytz.timezone(user_tz)
 
     time_limit = current_match.get("event_date") - timedelta(hours=2)
-    time_limit = await prepareTimestamp(time_limit, user_tz)
+    time_limit_str = prepareTimestamp(time_limit, user_tz)
+    time_limit = prepareTimestamp(time_limit, user_tz, str=False)
 
     fixture_id = current_match.get('fixture_id')
 
@@ -337,6 +341,8 @@ async def predict(ctx):
 
         # initialize fgs and num goals to False/1 for each scorer
         for player in scorers:
+            if not player:
+                continue
             fgs = False
             num_goals = 1
 
@@ -349,10 +355,14 @@ async def predict(ctx):
             goals_scored = re.search(r'x?(\d)x?', player)
             if goals_scored:
                 player = re.sub(r'x?(\d)x?', "", player)
-                num_goals = goals_scored.group(1)
+                num_goals = int(goals_scored.group(1))
+
+            fgs_str = ""
+            if fgs:
+                fgs_str = "fgs"
 
             # append dictionary of scorer names, fgs status, goals predicted to properties array
-            scorer_dict = {"name": player.strip(), "fgs": fgs, "num goals": num_goals}
+            scorer_dict = {"name": player.strip(), "fgs": fgs, "num_goals": num_goals, "fgs_string": fgs_str}
             scorer_properties.append(scorer_dict)
 
         # player_match = re.search(player_regex, temp_msg, re.IGNORECASE)
@@ -363,64 +373,90 @@ async def predict(ctx):
         await ctx.send(f"FAILED: {e}")
     
     if not goals_match:
-        print("Missing goals")
+        # print("Missing goals")
         await ctx.send(f"{ctx.message.author.mention}\nDid not provide a match score in your prediction.\n{ctx.message.content}")
     else:
         message_timestamp = datetime.utcnow()
         
         # football home teams listed first
-        home_goals = goals_match.group(2)
+        home_goals = int(goals_match.group(2))
         # football away teams listed second
-        away_goals = goals_match.group(3)
+        away_goals = int(goals_match.group(3))
 
     
+    if current_match.get("home_or_away") == "home":
+        arsenal_goals = home_goals
+    else:
+        arsenal_goals = away_goals
+
+    predicted_goal_count = 0
+    for scorer in scorer_properties:
+        predicted_goal_count += scorer.get("num_goals")
+
+    if predicted_goal_count > arsenal_goals:
+        await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
+        return
+
+
     # if prediction syntax was OK load it into the db
     # tell the user their prediction was logged and show it to them
     try:
         for scorer in scorer_properties:
             try:
-                print(f"{getPlayerId(scorer.get('name'))}")
+                getPlayerId(scorer.get('name'))
+                # print(f"{getPlayerId(scorer.get('name'))}")
             except Exception as e:
                 await ctx.send(f"Please try again, {e}")
                 return 
             
 
         prediction_id = get_random_alphanumeric_string(16)
-        print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
+        # print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
         # use similar syntax as next 5 lines for any insert/update to the db
+        # also include the magic json stuff for things accessing the predictions table
         async with bot.pg_conn.acquire() as connection:
             async with connection.transaction():
+                await connection.set_type_codec(
+                    'json',
+                    encoder=json.dumps,
+                    decoder=json.loads,
+                    schema='pg_catalog'
+                )
                 try:
-                    await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id) VALUES ($1, $2, $3, $4);", prediction_id, str(ctx.message.author.id), prediction_string, fixture_id)
+                    prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2", str(ctx.message.author.id), fixture_id)
+                    if prev_prediction:
+                        await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, str(ctx.message.author.id), fixture_id)
+                    else:
+                        await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, str(ctx.message.author.id), prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                 except Exception as e:
                     print(e)
+                    await ctx.send("There was an error adding your prediction, please try again later.")
+                    # await client.send_message(bot.admin_id, f"Error with prediction {prediction_string}")
+                    return
 
-        await ctx.send(f"""{ctx.message.author.mention}
-        **Prediction against {opponent} successful.**
+        goal_scorers_array = [f'{scorer.get("name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
+        goal_scorers = "\n".join(goal_scorers_array)
 
-        You have until {time_limit.strftime(time_format)} to edit your prediction.
 
-        {ctx.message.content}
+        output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} successful.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
+        output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} : {away_goals} {current_match.get('away_name')}\n\n"""
+        if goal_scorers:
+            output += f"""**Goal Scorers**\n{goal_scorers}"""
+        await ctx.send(output)
 
-        **Score**
-        {current_match.get('home_name')} {home_goals} : {away_goals} {current_match.get('away_name')}
-
-        **Goal Scorers**
-        {[scorer.get("name") for scorer in scorer_properties]}""")
-
-    except (Exception) as e:    
+    except (Exception) as e:
         print(f"{e}")
 
 
-# todo update db timestamp on prediction, figure out updating in general
 
-# todo check if user has made predciton for current match, make logic to update that prediction
-
-# todo add seperate prediction data fields to table
+# todo print real palyer name in prediction ouptut to user
 
 # todo add scoring function/scheduled task
 
-# todo better goal scorers list
+# todo fix sending errors to admin account
+
+
+
 
 # show user's predictions
 @bot.command()
@@ -431,10 +467,13 @@ async def predictions(ctx):
     #todo: format user predictions
 
     await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
-    discord_document = await getUserPredictions(bot.pg_conn, ctx.message.author.id)
+    discord_document = await getUserPredictions(bot.pg_conn, str(ctx.message.author.id))
 
-    pprint(discord_document)
-    await ctx.send(f"{ctx.message.author.mention}\n{discord_document}")
+    # pprint(discord_document)
+    output = f"{ctx.message.author.mention}\n"
+    for prediction in discord_document:
+        output += f'{prediction.get("fixture_id")} - {prediction.get("prediction_string")} - {prediction.get("prediction_score")}'
+    await ctx.send(f"{output}")
 
 
 # show leaderboard
@@ -468,11 +507,11 @@ async def timezone(ctx):
         await ctx.send(f"{ctx.message.author.mention}\nThat is not a recognized timezone!\nExpected format looks like so: 'US/Central' or 'America/Chicago' or 'Europe/Dublin'")
 
 
-# next 2 matches of each competition
+# next matches
 @bot.command()
 async def next(ctx):
     '''
-    Next matches in each competition
+    Next matches
     '''
 
     msg = ctx.message.content
@@ -498,7 +537,7 @@ async def next(ctx):
     for match in next_matches:
     # await ctx.send(f"{[match for match in next_matches]}")
     # todo: embed icons here
-        output += formatMatch(match)
+        output += await formatMatch(bot.pg_conn, match, str(ctx.message.author.id))
     await ctx.send(f"{output}")
 
 
@@ -529,7 +568,8 @@ async def when(ctx):
         return
 
     next_match = await bot.pg_conn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {main_team} AND away = $1) OR (away = {main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
-    await ctx.send(f"{formatMatch(next_match)}")
+    next_match = await formatMatch(bot.pg_conn, next_match, str(ctx.message.author.id))
+    await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
 
 # results
 @bot.command()
@@ -578,7 +618,6 @@ async def fatable(ctx):
     fa_id = 956
 
 # League Cup table
-# EFL Cup
 @bot.command()
 async def efltable(ctx):
     '''
@@ -617,6 +656,7 @@ async def what_do_you_think_of_tottenham(ctx):
     video = "https://www.youtube.com/watch?v=w0R7gWf-nSA"
     spurs_status = "SHIT"    
     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
+
 
 # scheduled task configuration example
 @tasks.loop(minutes=1)

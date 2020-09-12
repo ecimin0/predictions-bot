@@ -1,9 +1,7 @@
-FROM python:3.8.0-slim
+FROM python:3.8-slim
 
-RUN pip3 install discord
-
+COPY ./requirements.txt /
+RUN pip install -r /requirements.txt
 COPY ./src/ /usr/local/bin/
 
-COPY ./custom-default.conf /etc/nginx/conf.d/default.conf
-
-CMD ["python3 predictions.py"]
+ENTRYPOINT [ "python3", "/usr/local/bin/prediction-bot.py" ]

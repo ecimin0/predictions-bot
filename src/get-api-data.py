@@ -30,7 +30,7 @@ def getCountries():
     print("done\n")
 
 
-def getLeagues():
+def getLeagues(season):
     if not season:
         print("cannot get leagues; re-run with --season <YYYY>")
         sys.exit(1)
@@ -42,17 +42,19 @@ def getLeagues():
     
     parsed_leagues = []
     for league in leagues:
-        delete_keys = [key for key in league if key not in ["league_id", "name", "season", "logo", "country"]]
+        delete_keys = [key for key in league if key not in ["league_id", "name", "season", "logo", "country", "is_current"]]
         for key in delete_keys: 
             del league[key]
         parsed_leagues.append(league)
 
     # only get leagues for the current season
     # season '2019' is for calendar years 2019-2020
-    delete_seasons = [row for row in parsed_leagues if row.get("season") != prev_year]
+    delete_seasons = [row for row in parsed_leagues if row.get("is_current") != 1]
+    # delete_seasons = [row for row in parsed_leagues if row.get("season") != prev_year]
     for season in delete_seasons:
         parsed_leagues.remove(season)
         
+
     for league in parsed_leagues:
         try:
             pgcursor.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo, country) VALUES (%s, %s, %s, %s, %s);", (league.get("league_id"), league.get("name"), league.get("season"), league.get("logo"), league.get("country")))
@@ -77,7 +79,7 @@ def generateTeamIDList(league_id):
     print("done\n")
 
 
-def getTeams():
+def getTeams(league):
     parsed_teams = []
 
     if not team_ids_list:
@@ -105,10 +107,10 @@ def getTeams():
     print("done\n")
 
 
-def getPlayers():
+def getPlayers(season, full_season, league):
     teams = {}
 
-    if not team_ids_list or if not season:
+    if not team_ids_list or not season:
         print("no players generated. make sure generateTeamIDList function is active and --season <YYYY> was passed")
         sys.exit(1)
 
@@ -222,7 +224,7 @@ option = parser.parse_args()
 
 ### aws postgres stuff
 aws_dbuser = "postgres"
-aws_dbpass = "2d9t728EAIRhtAcHW3Bw"
+aws_dbpass = os.environ.get("AWS_DBPASS", None)
 aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
 aws_db_ip = "3.15.92.33"
 aws_dbname = "predictions-bot-data"
@@ -240,6 +242,7 @@ team_ids_list = []
 season = option.season
 league = option.league
 
+
 if option.season:
     season_YYYY = int(season) + 1
     full_season = f"{season}-{season_YYYY}"
@@ -255,17 +258,17 @@ try:
         pgcursor = postgresconnection.cursor()
         print("connected to postgres\n")
     
-        # generateTeamIDList(league)
+        generateTeamIDList(league)
 
         # getCountries()
 
-        # getLeagues()
+        # getLeagues(season)
         
-        # getTeams()
+        getTeams(league)
     
-        # getPlayers()
+        # getPlayers(season, full_season, league)
     
-        # getFixtures(league)
+        getFixtures(league)
     
         # getStandings(league)
 
