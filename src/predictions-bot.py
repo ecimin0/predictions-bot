@@ -473,7 +473,7 @@ async def predict(ctx):
         goal_scorers = "\n".join(goal_scorers_array)
 
         # tell the user their prediction was logged and show it to them
-        output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} successful.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
+        output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} successful.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
         output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} - {away_goals} {current_match.get('away_name')}\n\n"""
         if goal_scorers:
             output += f"""**Goal Scorers**\n{goal_scorers}"""
@@ -499,7 +499,7 @@ async def predictions(ctx):
     output = f"{ctx.message.author.mention}\n\n"
     for prediction in predictions:
         match = await getMatch(bot.pg_conn, prediction.get("fixture_id"))
-        output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`'
+        output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
     await ctx.send(f"{output}")
 
 
@@ -540,7 +540,6 @@ async def next(ctx):
     '''
     Next matches
     '''
-
     msg = ctx.message.content
 
     split_msg = msg.split()
@@ -663,10 +662,7 @@ async def ping(ctx):
     '''
     Return latency between bot and server
     '''
-    # Get the latency of the bot
-    # Included in the Discord.py library
     latency = bot.latency
-    # Send it to the user
     await ctx.send(f"{ctx.message.author.mention}\n\n{latency}")
 
 
