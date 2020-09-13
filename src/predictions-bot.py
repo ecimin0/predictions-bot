@@ -1,8 +1,6 @@
 #!/usr/local/bin/python3
 
-# pip3 install discord
 import discord
-from discord.ext import commands, tasks
 import re
 import sys
 import os
@@ -15,6 +13,7 @@ import argparse
 import random
 import string
 
+from discord.ext import commands, tasks
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 from pprint import pprint
@@ -30,7 +29,7 @@ player_nicknames = {
     "13591": ["bellerin", "hector", "heccy"],
     "13601": ["tierney", "kt"],
     "13599": ["papastathopoulos", "sokratis"],
-    "13594": ["holding", "rob"],
+    "13594": ["holding", "holdinho"],
     "13598": ["mustafi"],
     "13592": ["chambers"],
     "13597": ["luiz"],
@@ -55,13 +54,13 @@ player_nicknames = {
     "13585": ["john-jules"],
     "13602": ["ceballos", "dani"],
     "13614": ["willian"],
-    "13593": ["gabriel", "gabem"]
+    "13593": ["gabriel"]
 }
 
 team_nicknames = {
     44: ["burnley"], 
     33: ["manchester united", "man u", "man united", "united"], 
-    52: ["crystal palace"], 
+    52: ["crystal palace", "palace"], 
     41: ["southampton", "saints"],
     36: ["fulham"], 
     42: ["arsenal"], 
@@ -73,7 +72,7 @@ team_nicknames = {
     45: ["everton", "toffees"], 
     60: ["west brom", "west bromwich albion"], 
     46: ["leicester", "leicester city"], 
-    48: ["west ham", "west ham united"], 
+    48: ["west ham", "west ham united", "hammers"], 
     34: ["newcastle", "newcastle united"], 
     51: ["brighton", "brighton and hove albion"], 
     49: ["chelsea"], 
@@ -182,7 +181,7 @@ async def formatMatch(dbconn, match, user):
     match_time = prepareTimestamp(match.get('event_date'), tz)
 
     time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
-    return f"{match.get('league_name')}\n\({match.get('home_or_away')}\) {match.get('opponent_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
+    return f"{match.get('league_name')}\n\({match.get('home_or_away')}\) vs {match.get('opponent_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
 
 ### database operations ###
 async def connectToDB():
@@ -219,7 +218,7 @@ async def checkUserExists(dbconn, user_id, ctx):
                 except Exception as e:
                     print(e)
         # return False
-        # await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
+        # await ctx.send(f"{ctx.message.author.mention}\n\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
     else:
         return True
 
@@ -241,6 +240,7 @@ async def on_message(message):
         return
     # if message.channel.name == 'test-predictions-bot': # TEST #kubernauts
     if message.channel.name == 'prediction-league': # PROD #gunners
+        #todo print(f"{bot.guild} | @{message.author} | {message.author.id} | {message.content}")
         print(f"@{message.author} | {message.author.id} | {message.content}")
         await bot.process_commands(message)
 
@@ -249,7 +249,7 @@ async def on_message(message):
 # Predict next match
 rules_set = """**Predict our next match against {0}**
 
-** Prediction League Rules: **
+**Prediction League Rules:**
 
 2 points – correct result (W/D/L)
 2 points – correct number of Arsenal goals
@@ -262,13 +262,14 @@ rules_set = """**Predict our next match against {0}**
 
 - No points for scorers if your prediction's goals exceed the actual goals by 4+
 
-** Remember, we are only counting Arsenal goal scorers **
+**Remember, we are only counting Arsenal goal scorers**
     - Do not predict opposition goal scorers
     - Do not predict opposition FGS
 
-Example:
-+predict 3-0 auba 2x fgs, laca
+**Example:**
+`{1}`
 """
+#todo code block on prediction example above
 
 # rules
 @bot.command()
@@ -277,11 +278,12 @@ async def rules(ctx):
     '''
     Display Prediction League Rules
     '''
+    predict_example = "+predict 3-0 auba 2x fgs, laca"
     next_match = await nextMatch(bot.pg_conn)
     opponent = next_match.get('opponent_name')
 
-    rules_set_filled = rules_set.format(opponent)
-    await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
+    rules_set_filled = rules_set.format(opponent, predict_example)
+    await ctx.send(f"{ctx.message.author.mention}\n\n{rules_set_filled}")
 
 async def getRandomTeam(dbconn):
     team = await dbconn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
@@ -294,11 +296,16 @@ async def predict(ctx):
     '''
     Make a new prediction
     '''
+    #checkUserExists inserts the user_id if not present
+    #todo should we split this into checkUserExists() and insertUser() ?
     await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
 
     current_match = await nextMatch(bot.pg_conn)
     user_tz = await getUserTimezone(bot.pg_conn, str(ctx.message.author.id))
 
+    #todo
+    # if premier league then timedelta(hours=1)
+    # elif europa league then timedelta(hours=1.5)
     time_limit = current_match.get("event_date") - timedelta(hours=2)
     time_limit_str = prepareTimestamp(time_limit, user_tz)
     time_limit = prepareTimestamp(time_limit, user_tz, str=False)
@@ -309,7 +316,7 @@ async def predict(ctx):
 
     if utc.localize(datetime.utcnow()) > time_limit:
         team = await getRandomTeam(bot.pg_conn)
-        await ctx.send(f"{ctx.message.author.mention}\nError: time is too late, go support {team} instead.")
+        await ctx.send(f"{ctx.message.author.mention}\n\nError: prediction time too close to match start time. Go support {team} instead.")
         return
 
     # raw incoming messaged typed by user
@@ -374,7 +381,7 @@ async def predict(ctx):
     
     if not goals_match:
         # print("Missing goals")
-        await ctx.send(f"{ctx.message.author.mention}\nDid not provide a match score in your prediction.\n{ctx.message.content}")
+        await ctx.send(f"{ctx.message.author.mention}\n\nDid not provide a match score in your prediction.\n{ctx.message.content}")
     else:
         message_timestamp = datetime.utcnow()
         
@@ -394,12 +401,11 @@ async def predict(ctx):
         predicted_goal_count += scorer.get("num_goals")
 
     if predicted_goal_count > arsenal_goals:
-        await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
+        await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
         return
 
 
     # if prediction syntax was OK load it into the db
-    # tell the user their prediction was logged and show it to them
     try:
         for scorer in scorer_properties:
             try:
@@ -437,7 +443,7 @@ async def predict(ctx):
         goal_scorers_array = [f'{scorer.get("name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
         goal_scorers = "\n".join(goal_scorers_array)
 
-
+        # tell the user their prediction was logged and show it to them
         output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} successful.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
         output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} : {away_goals} {current_match.get('away_name')}\n\n"""
         if goal_scorers:
@@ -470,9 +476,10 @@ async def predictions(ctx):
     discord_document = await getUserPredictions(bot.pg_conn, str(ctx.message.author.id))
 
     # pprint(discord_document)
-    output = f"{ctx.message.author.mention}\n"
+    output = f"{ctx.message.author.mention}\n\n"
     for prediction in discord_document:
-        output += f'{prediction.get("fixture_id")} - {prediction.get("prediction_string")} - {prediction.get("prediction_score")}'
+        # todo: get actual fixture vs and date?
+        output += f'Fixture ID: `{prediction.get("fixture_id")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`'
     await ctx.send(f"{output}")
 
 
@@ -495,16 +502,16 @@ async def timezone(ctx):
     try:
         tz = re.search("\+timezone (.*)", msg).group(1)
     except Exception as e:
-        await ctx.send(f"{ctx.message.author.mention}\nYou didn't include a timezone!")
+        await ctx.send(f"{ctx.message.author.mention}\n\nYou didn't include a timezone!")
         return
     
     if tz in pytz.all_timezones:
         async with bot.pg_conn.acquire() as connection:
             async with connection.transaction():
                 await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, str(ctx.message.author.id))
-        await ctx.send(f"{ctx.message.author.mention}\nYour timezone has been set to {tz}")
+        await ctx.send(f"{ctx.message.author.mention}\n\nYour timezone has been set to {tz}")
     else:
-        await ctx.send(f"{ctx.message.author.mention}\nThat is not a recognized timezone!\nExpected format looks like so: 'US/Central' or 'America/Chicago' or 'Europe/Dublin'")
+        await ctx.send(f"{ctx.message.author.mention}\n\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'")
 
 
 # next matches
@@ -519,7 +526,7 @@ async def next(ctx):
     split_msg = msg.split()
     
     if len(split_msg) > 2:
-        await ctx.send(f"{ctx.message.author.mention}\ntoo many arguments; should be '+next 2' or similar")
+        await ctx.send(f"{ctx.message.author.mention}\n\nToo many arguments; should be '+next 2' or similar")
         return
 
     elif len(split_msg) > 1:
@@ -527,13 +534,13 @@ async def next(ctx):
         try:
             count = int(count)
         except:
-            await ctx.send(f"{ctx.message.author.mention}\nExpected usage:\n`+next <number>`")
+            await ctx.send(f"{ctx.message.author.mention}\n\nExpected usage:\n`+next <number>`")
             return
     else: 
         count = 2
     
     next_matches = await nextMatches(bot.pg_conn, count=count)
-    output = f"{ctx.message.author.mention}\n**Next {count} matches:**\n\n"
+    output = f"{ctx.message.author.mention}\n\n**Next {count} matches:**\n\n"
     for match in next_matches:
     # await ctx.send(f"{[match for match in next_matches]}")
     # todo: embed icons here
@@ -552,7 +559,7 @@ async def fixtures(ctx):
 @bot.command()
 async def when(ctx):
     '''
-    Return next match against given team | when <team>
+    Return next match against given team | +when <team>
     '''
     msg = ctx.message.content
     try:
@@ -564,26 +571,27 @@ async def when(ctx):
     try:
         team_id = getTeamId(team)
     except:
-        await ctx.send(f"{ctx.message.author.mention}\n{team} does not seem to be a team I recognize.")
+        await ctx.send(f"{ctx.message.author.mention}\n\n{team} does not seem to be a team I recognize.")
         return
 
     next_match = await bot.pg_conn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {main_team} AND away = $1) OR (away = {main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
     next_match = await formatMatch(bot.pg_conn, next_match, str(ctx.message.author.id))
-    await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
+    await ctx.send(f"{ctx.message.author.mention}\n\n{next_match}")
 
 # results
 @bot.command()
 async def results(ctx):
+    # todo get results from all leagues and cap results by season
     '''
     Return historical match results
     '''
     done_matches = await completedMatches(bot.pg_conn, count=10)
     done_matches_output = ""
     for match in done_matches:
-        done_matches_output += f'{match.get("event_date")} {match.get("home_name")} vs. {match.get("away_name")} {match.get("goals_home")}-{match.get("goals_away")}\n'
+        done_matches_output += f'{match.get("event_date")} {match.get("home_name")} {match.get("goals_home")}-{match.get("goals_away")} {match.get("away_name")}\n'
 
     done_matches_output = f"```\n{done_matches_output}\n```"
-    await ctx.send(f"{done_matches_output}")
+    await ctx.send(f"{ctx.message.author.mention}\n\n{done_matches_output}")
 
 # PL table
 @bot.command()
@@ -635,7 +643,7 @@ async def ping(ctx):
     # Included in the Discord.py library
     latency = bot.latency
     # Send it to the user
-    await ctx.send(f"{ctx.message.author.mention}\n{latency}")
+    await ctx.send(f"{ctx.message.author.mention}\n\n{latency}")
 
 
 # echo, mostly for testing
@@ -654,8 +662,8 @@ async def what_do_you_think_of_tottenham(ctx):
     Who do we think is shit?
     '''
     video = "https://www.youtube.com/watch?v=w0R7gWf-nSA"
-    spurs_status = "SHIT"    
-    await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
+    spurs_status = "SHIT"
+    await ctx.send(f"{ctx.message.author.mention}\n\n{spurs_status}\n{video}")
 
 
 # scheduled task configuration example
@@ -664,6 +672,7 @@ async def called_once_a_day():
     message_channel = bot.get_channel(channel_id)
     print(f"Got channel {message_channel}")
     await message_channel.send("Test scheduled message")
+
 
 @called_once_a_day.before_loop
 async def before():

@@ -1,6 +1,0 @@
-
-- initialize bot to a team (42 for arsenal)
-
-- get bot on current date/time/schedule for next fixtures
-
-- function to determine points per prediction after full time results
