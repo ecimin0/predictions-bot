@@ -215,7 +215,7 @@ async def checkUserExists(dbconn, user_id, ctx):
         async with bot.pg_conn.acquire() as connection:
             async with connection.transaction():
                 try:
-                    await connection.execute("INSERT INTO predictionsbot.users (user_id) VALUES ($1);", user_id)
+                    await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
                 except Exception as e:
                     print(e)
         # return False
