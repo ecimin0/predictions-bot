@@ -20,3 +20,34 @@ DONE 754187231161483354    ::  9/11/2020 22:29:39  ::  Vimes  ::  1-4  ::  Willi
 DONE 754185396962721795 9/11/2020 23:55:41	Andout (Ivan)	2-0	Auba	Pepe	Fulham Away
 DONE 399707509591375882 9/12/2020 0:17:24	dogbook	3-1	Auba	Auba, Laca, Pepe	Fulham Away
 754033879643586752 9/12/2020 0:32:43	Keefy Leafy	4-1 Arsenal	Auba	Auba x2, Saka, Laca	Fulham Away	
+
+
+
+
+
+1 Timestamp	Discord Name	Score	First Goal Scorer	Goal Scorers 	Match (e.g., Fulham Away) 					 											
+2 											
+3 9/11/2020 13:21:54	Carter	3-1 Arsenal	Pepe	Auba x2 	Fulham Away						
+4 9/11/2020 13:23:51	OneSock	3-0 arsenal 	Aubamayang 	Auba, Laca, pepe	Fulham away 						
+5 9/11/2020 13:24:56	Bullwine85	3-1 Arsenal	Aubameyang	Aubameyang x2, Lacazette	Fulham Away						
+6 9/11/2020 13:25:31	zlecawiigo	3-0 Arsenal	Auba	Ceballos, Pepe	Fulham Away						
+7 9/11/2020 13:29:19	ash663	3-1	Auba	Auba x2, Pepe	Fulham away						
+8 9/11/2020 13:33:18	marisa	1-3 Arsenal	Auba	Lacazette, Luiz	Fulham away						
+9 9/11/2020 13:36:23	frankguerra	4-0	Pepe	Pepe, Auba, Eddie	Fulham Away						
+10 9/11/2020 13:51:06	Oth 🔥	2-0	Auba	Auba x1 and FGS + holding	Fulham away						
+11 9/11/2020 13:54:29	Jimmy Gatete the Goat	1-3	Aubameyang	Aubameyang x2 Pépé	Fulham away						
+12 9/11/2020 14:09:18	Rizal	4-1	Aubameyang	Aubameyang 2x, Pepe, Holding	Fulham away						
+13 9/11/2020 16:01:32	ukafadar	3-0 Arsenal	Aubameyang	Aubameyang x2 | Pepe x1	Fulham Away						
+14 9/11/2020 16:28:43	ChiliSauce	3-2	Auba	Auba X2, Pepe x1	Fulham Away						
+15 9/11/2020 16:30:46	Blizzard	4:0	Aubameyang	Aubameyang x2, Xhaka, Lacazette	Fulham Away						
+16 9/11/2020 18:13:10	Fat guy welbz	3-0	Auba	Auba two, Pepe one	Fulham Away						
+17 9/11/2020 18:14:44	Emiltar	1-3	aubameyang	2	Fulham Away						
+18 9/11/2020 22:08:23	ChillRaider.007	1-3	Aubameyang	Aubameyang, Lacazette, Saka	Fulham Away						
+19 9/11/2020 22:22:36	TheStat	2-0 Arsenal	Pepe	Pepe, Auba	Fulham Away						
+20 9/11/2020 22:29:39	Vimes	1-4	Willian	Willian 1x Auba 2x Pepe 1x Fulham no idea	Fulhan Away						
+21 9/11/2020 23:55:41	9/11/2020 23:55:41	9/11/2020 23:55:41	9/11/2020 23:55:41	9/11/2020 23:55:41	9/11/2020 23:55:41						
+22 9/12/2020 0:17:24	9/12/2020 0:17:24	9/12/2020 0:17:24	9/12/2020 0:17:24	9/12/2020 0:17:24	9/12/2020 0:17:24						
+23 9/12/2020 0:32:43	9/12/2020 0:32:43	9/12/2020 0:32:43	9/12/2020 0:32:43	9/12/2020 0:32:43	9/12/2020 0:32:43	9/12/2020 0:32:43					
+24 9/12/2020 1:29:28	Washer#5572	1-3 to the arsenal 	auba	auba, pepe, xhaka	fulham away						
+25 9/12/2020 4:33:28	Ghant312	2-0 Arsenal	Auba	Auba, Auba	Fulham(a)						
+26 9/13/2020 1:20:59	Bullwine85	3-0	Aubameyang	Aubameyang, Ceballos, Saka	West Ham Home		

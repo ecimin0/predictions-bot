@@ -70,7 +70,7 @@ team_nicknames = {
     66: ["aston villa", "villa"], 
     47: ["tottenham", "tottenham hotspur", "spurs", "spuds", "the shit", "shit", "shite"], 
     45: ["everton", "toffees"], 
-    60: ["west brom", "west bromwich albion"], 
+    60: ["west brom", "west bromwich albion", "baggies"], 
     46: ["leicester", "leicester city"], 
     48: ["west ham", "west ham united", "hammers"], 
     34: ["newcastle", "newcastle united"], 
@@ -141,13 +141,13 @@ def getPlayerId(userInput):
     for k,v in player_nicknames.items():
         if userInput.lower() in v:
             return k
-    raise Exception(f"no player by that name {userInput}")
+    raise Exception(f"no player named {userInput}")
 
 def getTeamId(userInput):
     for k,v in team_nicknames.items():
         if userInput.lower() in v:
             return k
-    raise Exception(f"no team by that name {userInput}")
+    raise Exception(f"no team named {userInput}")
 
 ### generate random prediction ID
 def get_random_alphanumeric_string(length):
@@ -441,11 +441,13 @@ async def predict(ctx):
                 scorer["real_name"] = player_real_name.get("player_name")
                 # print(f"{getPlayerId(scorer.get('name'))}")
             except Exception as e:
-                await ctx.send(f"Please try again, {e}")
+                await ctx.send(f"{ctx.message.author.mention}\n\nPlease try again, {e}")
                 return 
             
 
         prediction_id = get_random_alphanumeric_string(16)
+        successful_or_updated = "successful"
+
         # print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
         # use similar syntax as next 5 lines for any insert/update to the db
         # also include the magic json stuff for things accessing the predictions table
@@ -462,6 +464,7 @@ async def predict(ctx):
                     if prev_prediction:
                         await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, str(ctx.message.author.id), fixture_id)
                     else:
+                        successful_or_updated = "updated"
                         await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, str(ctx.message.author.id), prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                 except Exception as e:
                     print(e)
@@ -472,8 +475,9 @@ async def predict(ctx):
         goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
         goal_scorers = "\n".join(goal_scorers_array)
 
+        # todo dedupe users if they type "auba fs, auba" instead of "auba 2x"
         # tell the user their prediction was logged and show it to them
-        output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} successful.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
+        output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} {successful_or_updated}.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
         output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} - {away_goals} {current_match.get('away_name')}\n\n"""
         if goal_scorers:
             output += f"""**Goal Scorers**\n{goal_scorers}"""
@@ -656,6 +660,12 @@ async def efltable(ctx):
     '''            
 
 
+# fixtures in progess
+@bot.command()
+async def inProgress(ctx):
+    pass
+
+
 # ping
 @bot.command()
 async def ping(ctx):
@@ -663,7 +673,7 @@ async def ping(ctx):
     Return latency between bot and server
     '''
     latency = bot.latency
-    await ctx.send(f"{ctx.message.author.mention}\n\n{latency}")
+    await ctx.send(f"{ctx.message.author.mention}\n\nBot latency is {latency * 1000} milliseconds")
 
 
 # echo, mostly for testing
@@ -692,7 +702,6 @@ async def called_once_a_day():
     message_channel = bot.get_channel(channel_id)
     print(f"Got channel {message_channel}")
     await message_channel.send("Test scheduled message")
-
 
 
 # @bot.command(hidden=True)
@@ -748,7 +757,7 @@ async def updateFixtures():
         async with bot.pg_conn.acquire() as connection:
             async with connection.transaction():
                 await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, match_completed = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
-    
+    #todo put shortStatus in db?
     print(f"Updated fixtures table, {len(fixtures)} were changed.")
     await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
 
