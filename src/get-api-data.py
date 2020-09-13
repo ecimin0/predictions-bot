@@ -180,7 +180,7 @@ def getFixtures(league_id):
 def getStandings(league_id):
     #todo get standings for other leagues
     #todo fix db to track standings from all leagues
-    
+
     parsed_standings = []
 
     if not league:
@@ -275,11 +275,11 @@ try:
 
         # getLeagues(season)
         
-        getTeams(league)
+        # getTeams(league)
     
         # getPlayers(season, full_season, league)
     
-        # getFixtures(league)
+        getFixtures(league)
     
         # getStandings(league)
 
