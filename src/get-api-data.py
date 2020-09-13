@@ -83,7 +83,7 @@ def getTeams(league):
     parsed_teams = []
 
     if not team_ids_list:
-        print("No team IDs generated. Pass in a --league <league_id> \nand make sure generateTeamIDList function is active")
+        print("No team IDs generated. Pass in --league <league_id> \nand make sure generateTeamIDList function is called")
         sys.exit(1)
 
     print(f"generating teams in league {league}")
@@ -161,8 +161,13 @@ def getFixtures(league_id):
         parsed_fixtures.append(match)
     
     for fixture in parsed_fixtures:
+        # todo make this update fixtures if it exists
+        # fixture_exists = pgcursor.execute("SELECT * FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
         try:
-            pgcursor.execute("INSERT INTO predictionsbot.fixtures (home, away, fixture_id, league_id, event_date, goals_home, goals_away) VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
+            # if fixture_exists:
+                # pgcursor.execute("UPDATE predictionsbot.fixtures SET (home, away, fixture_id, league_id, event_date, goals_home, goals_away) WHERE fixture_id = $1 VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
+            # else: 
+            pgcursor.execute("INSERT INTO predictionsbot.fixtures (home, away, fixture_id, league_id, event_date, goals_home, goals_away) VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam'))) 
         except (Exception) as e:    
             print(f"{e}")
             postgresconnection.rollback()
@@ -268,7 +273,7 @@ try:
     
         # getPlayers(season, full_season, league)
     
-        getFixtures(league)
+        # getFixtures(league)
     
         # getStandings(league)
 

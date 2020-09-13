@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictions-bot
+  namespace: predictions-bot
+  labels:
+    name: predictions-bot
+spec:
+  selector:
+    matchLabels:
+      app: predictions-bot
+  progressDeadlineSeconds: 300
+  replicas: 1
+  revisionHistoryLimit: 15
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:      
+        kubernetes.io/change-cause: ""
+      labels:
+        app: predictions-bot
+    spec:
+      nodeSelector:
+        beta.kubernetes.io/arch: arm
+      containers:
+      - name: predictions-bot
+        image: registry.gitlab.com/ecimino/predictions-bot:v1.9
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: false
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        # livenessProbe:
+        #   httpGet:
+        #     path: try a bot command like ping or something?
+        #     port: 80
+        #   initialDelaySeconds: 40
+        #   periodSeconds: 5
+        # readinessProbe:
+        #   httpGet:
+        #     path: SELECT 1 FROM some_table
+        #     port: 80
+        #   initialDelaySeconds: 40
+        #   periodSeconds: 5
+      imagePullSecrets:
+        - name: gitlab-auth
