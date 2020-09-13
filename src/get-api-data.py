@@ -279,3 +279,6 @@ try:
 
 except Exception as e:
     print(f"{e}")
+
+# todo cron this script for getFixtures()
+# todo make args for function calls

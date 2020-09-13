@@ -41,10 +41,6 @@ spec:
           requests:
             cpu: 100m
             memory: 128Mi
-        ports:
-        - containerPort: 80
-          name: http
-          protocol: TCP
         # livenessProbe:
         #   httpGet:
         #     path: try a bot command like ping or something?

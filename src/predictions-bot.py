@@ -20,41 +20,41 @@ from pprint import pprint
 
 
 player_nicknames = {
-    "13606": ["olayinka"],
-    "13609": ["smith-rowe", "esr"],
-    "13587": ["leno"],
-    "13589": ["martinez", "emi"],
-    "13588": ["macey"],
-    "13586": ["iliev"],
-    "13591": ["bellerin", "hector", "heccy"],
-    "13601": ["tierney", "kt"],
-    "13599": ["papastathopoulos", "sokratis"],
-    "13594": ["holding", "holdinho"],
-    "13598": ["mustafi"],
-    "13592": ["chambers"],
-    "13597": ["luiz"],
-    "13595": ["kolasinac", "kola"],
-    "13590": ["soares", "cedric"],
-    "13596": ["mari"],
-    "13600": ["saliba"],
-    "13607": ["ozil", "mesut"],
-    "13610": ["torreira"],
-    "13605": ["maitland-niles", "amn"],
-    "13611": ["willock"],
-    "13604": ["guendouzi"],
-    "13612": ["xhaka"],
-    "13608": ["saka"],
-    "13603": ["elneny"],
-    "13615": ["lacazette", "laca"],
-    "13613": ["aubameyang", "auba"],
-    "13619": ["pepe"],
-    "13617": ["nelson"],
-    "13618": ["nketiah", "eddie"],
-    "13616": ["martinelli", "gabi"],
-    "13585": ["john-jules"],
-    "13602": ["ceballos", "dani"],
-    "13614": ["willian"],
-    "13593": ["gabriel"]
+    13606: ["olayinka"],
+    13609: ["smith-rowe", "esr"],
+    13587: ["leno"],
+    13589: ["martinez", "emi"],
+    13588: ["macey"],
+    13586: ["iliev"],
+    13591: ["bellerin", "hector", "heccy"],
+    13601: ["tierney", "kt"],
+    13599: ["papastathopoulos", "sokratis"],
+    13594: ["holding", "holdinho"],
+    13598: ["mustafi"],
+    13592: ["chambers"],
+    13597: ["luiz"],
+    13595: ["kolasinac", "kola"],
+    13590: ["soares", "cedric"],
+    13596: ["mari"],
+    13600: ["saliba"],
+    13607: ["ozil", "mesut"],
+    13610: ["torreira"],
+    13605: ["maitland-niles", "amn"],
+    13611: ["willock"],
+    13604: ["guendouzi"],
+    13612: ["xhaka"],
+    13608: ["saka"],
+    13603: ["elneny"],
+    13615: ["lacazette", "laca"],
+    13613: ["aubameyang", "auba"],
+    13619: ["pepe"],
+    13617: ["nelson"],
+    13618: ["nketiah", "eddie"],
+    13616: ["martinelli", "gabi"],
+    13585: ["john-jules"],
+    13602: ["ceballos", "dani"],
+    13614: ["willian"],
+    13593: ["gabriel"]
 }
 
 team_nicknames = {
@@ -80,26 +80,38 @@ team_nicknames = {
     39: ["wolves", "wolverhampton"]
 }
 
-
 # 2020-2021 season
-pl_id = 2790
-cl_id = 2771
-el_id = 2777
+premier_league_id = 2790
+champions_league_id = 2771
+europa_league_id = 2777
 fa_cup_id = 2791
 league_cup_id = 2781
+
+utc = pytz.timezone("UTC")
 
 
 # source environment variables
 load_dotenv()
 
-utc = pytz.timezone("UTC")
+testing_mode = os.environ.get("TESTING", False)
+if testing_mode:
+    channel = 'test-predictions-bot'
+else:
+    channel = 'prediction-league'
+
 
 ### aws postgres stuff
 aws_dbuser = "postgres"
 aws_dbpass = os.environ.get("AWS_DBPASS", None)
 aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
 aws_db_ip = "3.15.92.33"
-aws_dbname = "predictions-bot-data"
+
+api_key = os.environ.get("API_KEY", None)
+
+if testing_mode:
+    aws_dbname = "predictions-bot-data-test"
+else:
+    aws_dbname = "predictions-bot-data"
 
 # team id of team in API to use as main team
 main_team = 42 # arsenal
@@ -110,6 +122,11 @@ match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goal
 
 # use the token env var
 token = os.environ.get("TOKEN", None)
+if not token:
+    print("Missing Discord bot token! Set TOKEN env value.")
+    sys.exit(1)
+
+
 channel_id = int(os.environ.get("CHANNELID", 0))
 
 # bot only responds to commands prepended with '+'
@@ -173,7 +190,7 @@ async def completedMatches(dbconn, count=1, offset=0):
     '''
     Return the array of completed fixtures records from Database 
     '''
-    matches = await dbconn.fetch(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1 OFFSET $2;", count, offset)
+    matches = await dbconn.fetch(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
 async def formatMatch(dbconn, match, user):
@@ -206,6 +223,9 @@ async def getUserPredictions(dbconn, user_id):
     predictions = await dbconn.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
     return predictions
 
+async def getMatch(dbconn, fixture_id):
+    match = await dbconn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
+    return match
 
 async def checkUserExists(dbconn, user_id, ctx):
     user = await dbconn.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
@@ -216,7 +236,9 @@ async def checkUserExists(dbconn, user_id, ctx):
                 try:
                     await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
                 except Exception as e:
+                    await bot.admin_id.send(f"Error inserting user {user_id} into database:\n{e}")
                     print(e)
+                    
         # return False
         # await ctx.send(f"{ctx.message.author.mention}\n\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
     else:
@@ -229,7 +251,8 @@ async def on_ready():
     # async connect to postgres
     await connectToDB()
     await getAdminDiscordId()
-    print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
+    print(f'connected to {channel} within {[ guild.name for guild in bot.guilds ]} as {bot.user}')
+    # print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
 
 
 # mostly for debugging in terminal, doesn't do anything on Discord
@@ -238,10 +261,8 @@ async def on_message(message):
     # if the bot sends messages to itself, don't return anything
     if message.author == bot.user:
         return
-    # if message.channel.name == 'test-predictions-bot': # TEST #kubernauts
-    if message.channel.name == 'prediction-league': # PROD #gunners
-        #todo print(f"{bot.guild} | @{message.author} | {message.author.id} | {message.content}")
-        print(f"@{message.author} | {message.author.id} | {message.content}")
+    if message.channel.name == channel: # PROD #gunners
+        print(f"{message.channel.name} | {message.author} | {message.author.id} | {message.content}")
         await bot.process_commands(message)
 
 
@@ -269,7 +290,6 @@ rules_set = """**Predict our next match against {0}**
 **Example:**
 `{1}`
 """
-#todo code block on prediction example above
 
 # rules
 @bot.command()
@@ -297,16 +317,21 @@ async def predict(ctx):
     Make a new prediction
     '''
     #checkUserExists inserts the user_id if not present
-    #todo should we split this into checkUserExists() and insertUser() ?
     await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
 
     current_match = await nextMatch(bot.pg_conn)
     user_tz = await getUserTimezone(bot.pg_conn, str(ctx.message.author.id))
 
-    #todo
-    # if premier league then timedelta(hours=1)
-    # elif europa league then timedelta(hours=1.5)
-    time_limit = current_match.get("event_date") - timedelta(hours=2)
+    time_limit_offset = {
+        europa_league_id: 1.5
+    }
+    # if europa league then timedelta(hours=1.5)
+    # else timedelta(hours=1)
+    time_offset = 1
+    if current_match.get("league_id") in time_limit_offset:
+        time_offset = time_limit_offset[current_match.get("league_id")]
+
+    time_limit = current_match.get("event_date") - timedelta(hours=time_offset)
     time_limit_str = prepareTimestamp(time_limit, user_tz)
     time_limit = prepareTimestamp(time_limit, user_tz, str=False)
 
@@ -377,11 +402,13 @@ async def predict(ctx):
 
     except Exception as e:
         print(f"{e}")
-        await ctx.send(f"FAILED: {e}")
+        await ctx.send(f"There was an error parsing this prediction:\n{e}")
+        return
     
     if not goals_match:
         # print("Missing goals")
-        await ctx.send(f"{ctx.message.author.mention}\n\nDid not provide a match score in your prediction.\n{ctx.message.content}")
+        await ctx.send(f"{ctx.message.author.mention}\n\nDid not provide a match score in your prediction.\n`{ctx.message.content}`")
+        return
     else:
         message_timestamp = datetime.utcnow()
         
@@ -409,7 +436,9 @@ async def predict(ctx):
     try:
         for scorer in scorer_properties:
             try:
-                getPlayerId(scorer.get('name'))
+                player_id = getPlayerId(scorer.get('name'))
+                player_real_name = await bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE uniq_id = $1;", player_id)
+                scorer["real_name"] = player_real_name.get("player_name")
                 # print(f"{getPlayerId(scorer.get('name'))}")
             except Exception as e:
                 await ctx.send(f"Please try again, {e}")
@@ -440,7 +469,7 @@ async def predict(ctx):
                     # await client.send_message(bot.admin_id, f"Error with prediction {prediction_string}")
                     return
 
-        goal_scorers_array = [f'{scorer.get("name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
+        goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
         goal_scorers = "\n".join(goal_scorers_array)
 
         # tell the user their prediction was logged and show it to them
@@ -451,18 +480,12 @@ async def predict(ctx):
         await ctx.send(output)
 
     except (Exception) as e:
-        print(f"{e}")
+        print(f"There was an error loading this prediction into the database:\n{e}")
+        await bot.admin_id.send(f"There was an error loading this prediction into the databse:\n{e}")
+        return
 
-
-
-# todo print real palyer name in prediction ouptut to user
 
 # todo add scoring function/scheduled task
-
-# todo fix sending errors to admin account
-
-
-
 
 # show user's predictions
 @bot.command()
@@ -470,16 +493,13 @@ async def predictions(ctx):
     '''
     Show your past predictions
     '''
-    #todo: format user predictions
-
     await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
-    discord_document = await getUserPredictions(bot.pg_conn, str(ctx.message.author.id))
+    predictions = await getUserPredictions(bot.pg_conn, str(ctx.message.author.id))
 
-    # pprint(discord_document)
     output = f"{ctx.message.author.mention}\n\n"
-    for prediction in discord_document:
-        # todo: get actual fixture vs and date?
-        output += f'Fixture ID: `{prediction.get("fixture_id")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`'
+    for prediction in predictions:
+        match = await getMatch(bot.pg_conn, prediction.get("fixture_id"))
+        output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`'
     await ctx.send(f"{output}")
 
 
@@ -559,7 +579,7 @@ async def fixtures(ctx):
 @bot.command()
 async def when(ctx):
     '''
-    Return next match against given team | +when <team>
+    Return next match against given team
     '''
     msg = ctx.message.content
     try:
@@ -581,14 +601,18 @@ async def when(ctx):
 # results
 @bot.command()
 async def results(ctx):
-    # todo get results from all leagues and cap results by season
     '''
     Return historical match results
     '''
+    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
+    user_tz = await getUserTimezone(bot.pg_conn, str(ctx.message.author.id))
+
     done_matches = await completedMatches(bot.pg_conn, count=10)
     done_matches_output = ""
     for match in done_matches:
-        done_matches_output += f'{match.get("event_date")} {match.get("home_name")} {match.get("goals_home")}-{match.get("goals_away")} {match.get("away_name")}\n'
+        match_time = match.get("event_date")
+        match_time = prepareTimestamp(match_time, user_tz)
+        done_matches_output += f'{match_time} {match.get("home_name")} {match.get("goals_home")}-{match.get("goals_away")} {match.get("away_name")}\n'
 
     done_matches_output = f"```\n{done_matches_output}\n```"
     await ctx.send(f"{ctx.message.author.mention}\n\n{done_matches_output}")
@@ -674,10 +698,70 @@ async def called_once_a_day():
     await message_channel.send("Test scheduled message")
 
 
-@called_once_a_day.before_loop
+
+# @bot.command(hidden=True)
+@tasks.loop(minutes=15)
+async def updateFixtures():
+    status_lookup = {
+        "TBD": False,
+        "NS": False,
+        "1H": False,
+        "HT": False,
+        "2H": False,
+        "ET": False,
+        "P": False,
+        "FT": True,
+        "AET": True,
+        "PEN": True,
+        "BT": False,
+        "SUSP": False,
+        "INT": False,
+        "PST": False,
+        "CANC": False,
+        "ABD": False,
+        "AWD": True,
+        "WO": True
+    }
+
+    # TBD : Time To Be Defined
+    # NS : Not Started
+    # 1H : First Half, Kick Off
+    # HT : Halftime
+    # 2H : Second Half, 2nd Half Started
+    # ET : Extra Time
+    # P : Penalty In Progress
+    # FT : Match Finished
+    # AET : Match Finished After Extra Time
+    # PEN : Match Finished After Penalty
+    # BT : Break Time (in Extra Time)
+    # SUSP : Match Suspended
+    # INT : Match Interrupted
+    # PST : Match Postponed
+    # CANC : Match Cancelled
+    # ABD : Match Abandoned
+    # AWD : Technical Loss
+    # WO : WalkOver
+
+    fixtures = await bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT match_completed")
+    for fixture in fixtures:
+        fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+        fixture_info = fixture_response.json()['api']['fixtures'][0]
+
+        match_completed = status_lookup[fixture_info.get("statusShort")]
+
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, match_completed = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
+    
+    print(f"Updated fixtures table, {len(fixtures)} were changed.")
+    await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
+
+            
+@updateFixtures.before_loop
 async def before():
     await bot.wait_until_ready()
-    print("Finished waiting")
+    # async sleep/wait here for bot to acquire db connection object
+    await asyncio.sleep(10)
 
 
 # 'token' is the bot token from Discord Developer config
@@ -685,6 +769,7 @@ try:
     # Scheduled task enabling only if channel is specified.
     if channel_id != 0:
         called_once_a_day.start()
+    updateFixtures.start()
     bot.run(token)
 except Exception as e:
     print(f"{e}")
