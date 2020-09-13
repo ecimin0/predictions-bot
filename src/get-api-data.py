@@ -163,6 +163,9 @@ def getFixtures(league_id):
     for fixture in parsed_fixtures:
         # todo make this update fixtures if it exists
         # fixture_exists = pgcursor.execute("SELECT * FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+
+        #todo add match_completed field on inserts
+
         try:
             # if fixture_exists:
                 # pgcursor.execute("UPDATE predictionsbot.fixtures SET (home, away, fixture_id, league_id, event_date, goals_home, goals_away) WHERE fixture_id = $1 VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
@@ -175,6 +178,9 @@ def getFixtures(league_id):
 
 
 def getStandings(league_id):
+    #todo get standings for other leagues
+    #todo fix db to track standings from all leagues
+    
     parsed_standings = []
 
     if not league:
