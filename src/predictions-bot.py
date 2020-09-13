@@ -474,7 +474,7 @@ async def predict(ctx):
 
         # tell the user their prediction was logged and show it to them
         output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} successful.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
-        output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} : {away_goals} {current_match.get('away_name')}\n\n"""
+        output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} - {away_goals} {current_match.get('away_name')}\n\n"""
         if goal_scorers:
             output += f"""**Goal Scorers**\n{goal_scorers}"""
         await ctx.send(output)
