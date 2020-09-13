@@ -5,6 +5,7 @@ import re
 import sys
 import os
 import json
+import logging 
 import requests
 import asyncio
 import asyncpg # postgres yay
@@ -18,6 +19,7 @@ from datetime import timedelta, datetime
 from dotenv import load_dotenv
 from pprint import pprint
 
+logging.basicConfig(level=logging.INFO)
 
 player_nicknames = {
     13606: ["olayinka"],
@@ -99,6 +101,10 @@ if testing_mode:
 else:
     channel = 'prediction-league'
 
+admin_ids = [
+    260908554758782977, 
+    249231078303203329
+]
 
 ### aws postgres stuff
 aws_dbuser = "postgres"
@@ -123,7 +129,7 @@ match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goal
 # use the token env var
 token = os.environ.get("TOKEN", None)
 if not token:
-    print("Missing Discord bot token! Set TOKEN env value.")
+    logging.error("Missing Discord bot token! Set TOKEN env value.")
     sys.exit(1)
 
 
@@ -136,6 +142,8 @@ prefix = "+"
 help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
 bot = commands.Bot(prefix, help_command=help_function)
 
+class IsNotAdmin(commands.CheckFailure):
+    pass
 
 def getPlayerId(userInput):
     for k,v in player_nicknames.items():
@@ -154,6 +162,12 @@ def get_random_alphanumeric_string(length):
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
+
+async def is_admin(ctx):
+    if ctx.message.author.id in admin_ids:
+        return True
+    else:
+        raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
 
 async def getUserTimezone(dbconn, user):
     user_tz = await dbconn.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
@@ -204,17 +218,18 @@ async def formatMatch(dbconn, match, user):
 async def connectToDB():
     try:
         bot.pg_conn = await asyncpg.create_pool(user=aws_dbuser, password=aws_dbpass, database=aws_dbname, host=aws_db_ip)
-        print("Connected to postgres")
+        logging.info("Connected to postgres")
     except Exception as e:
-        print(f"{e}")
+        logging.error(f"{e}")
         sys.exit(1)
 
 async def getAdminDiscordId():
     try:
         bot.admin_id = await bot.fetch_user("249231078303203329")
-        await bot.admin_id.send(f"found admin ID {bot.admin_id}")
+        if not testing_mode:
+            await bot.admin_id.send(f"found admin ID {bot.admin_id}")
     except Exception as e:
-        print(f"{e}")
+        logging.error(f"{e}")
 
 async def getUserPredictions(dbconn, user_id):
     '''
@@ -237,7 +252,7 @@ async def checkUserExists(dbconn, user_id, ctx):
                     await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
                 except Exception as e:
                     await bot.admin_id.send(f"Error inserting user {user_id} into database:\n{e}")
-                    print(e)
+                    logging.error(f"Error inserting user {user_id} into database: {e}")
                     
         # return False
         # await ctx.send(f"{ctx.message.author.mention}\n\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
@@ -251,7 +266,7 @@ async def on_ready():
     # async connect to postgres
     await connectToDB()
     await getAdminDiscordId()
-    print(f'connected to {channel} within {[ guild.name for guild in bot.guilds ]} as {bot.user}')
+    logging.info(f'connected to {channel} within {[ guild.name for guild in bot.guilds ]} as {bot.user}')
     # print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
 
 
@@ -262,7 +277,7 @@ async def on_message(message):
     if message.author == bot.user:
         return
     if message.channel.name == channel: # PROD #gunners
-        print(f"{message.channel.name} | {message.author} | {message.author.id} | {message.content}")
+        logging.info(f"{message.channel.name} | {message.author} | {message.author.id} | {message.content}")
         await bot.process_commands(message)
 
 
@@ -401,7 +416,7 @@ async def predict(ctx):
         # temp_msg = re.sub(player_regex, "", temp_msg)
 
     except Exception as e:
-        print(f"{e}")
+        logging.error(f"{e}")
         await ctx.send(f"There was an error parsing this prediction:\n{e}")
         return
     
@@ -464,7 +479,7 @@ async def predict(ctx):
                     else:
                         await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, str(ctx.message.author.id), prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                 except Exception as e:
-                    print(e)
+                    logging.error(e)
                     await ctx.send("There was an error adding your prediction, please try again later.")
                     # await client.send_message(bot.admin_id, f"Error with prediction {prediction_string}")
                     return
@@ -480,7 +495,7 @@ async def predict(ctx):
         await ctx.send(output)
 
     except (Exception) as e:
-        print(f"There was an error loading this prediction into the database:\n{e}")
+        logging.error(f"There was an error loading this prediction into the database: {e}")
         await bot.admin_id.send(f"There was an error loading this prediction into the databse:\n{e}")
         return
 
@@ -685,6 +700,44 @@ async def what_do_you_think_of_tottenham(ctx):
     spurs_status = "SHIT"
     await ctx.send(f"{ctx.message.author.mention}\n\n{spurs_status}\n{video}")
 
+#! testing
+@bot.command(hidden=True)
+@commands.check(is_admin)
+async def user_lookup(ctx, *input_str:str):
+    # input_user = ctx.message.content
+    # id_to_lookup = str(input_user.split()[1])
+
+    for input in input_str:
+        current_member = None
+        for member in bot.get_all_members():
+            if input.lower() in member.display_name.lower() or input.lower() in member.name.lower():
+                current_member = member
+        if not current_member:
+            await ctx.send(f"Could not find {input}.")
+        else:
+            await ctx.send(f"{current_member.display_name} | {current_member.id}")
+
+#! testing
+@bot.command(hidden=True)
+@commands.check(is_admin)
+async def message_lookup(ctx, input_id:int):
+    id_to_lookup = input_id
+    output = None
+    for chan in bot.get_all_channels():
+        if str(chan.type) == "text":
+            logging.debug(f"Searching channel: {chan}")
+            try:
+                output = await chan.fetch_message(id_to_lookup)
+            except (discord.NotFound):
+                continue
+            except discord.Forbidden:
+                logging.debug(f"Access to {chan} forbidden.")
+    if not output:
+        logging.debug("Could not find in any channels.")
+        await ctx.send(f"Could not find message id {id_to_lookup}.")
+    else:
+        await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
+
 
 # scheduled task configuration example
 @tasks.loop(minutes=1)
@@ -760,12 +813,22 @@ async def before():
     await asyncio.sleep(10)
 
 
+@bot.event
+async def on_command_error(ctx, error):
+    logging.warning(f"Handling error `{error}` for {ctx.message.content}")
+    if isinstance(error, IsNotAdmin):
+        await ctx.send(f"You do not have permission to run `{ctx.message.content}`")
+
+
 # 'token' is the bot token from Discord Developer config
 try:
     # Scheduled task enabling only if channel is specified.
     if channel_id != 0:
         called_once_a_day.start()
-    updateFixtures.start()
+
+    # Disabling fixture update during testing mode, may need to be further tunable for testing.
+    if not testing_mode:
+        updateFixtures.start()
     bot.run(token)
 except Exception as e:
     print(f"{e}")
