@@ -284,9 +284,9 @@ async def on_message(message):
 
 @bot.command(hidden=True)
 @commands.check(is_admin)
-async def calculatePredictionScore(ctx):
+async def calculatePredictionScores(ctx):
 # # @tasks.loop(minutes=5)
-# async def calculatePredictionScore():
+# async def calculatePredictionScores():
 
     # take all predictions that are not scored and check if fixture is complete.
     # if it is, gather values from fixture table score etc
@@ -411,16 +411,13 @@ async def calculatePredictionScore(ctx):
             print(f'{prediction.get("prediction_id")} | {prediction.get("user_id")} | {prediction.get("prediction_string")} | {prediction_score}')
             async with bot.pg_conn.acquire() as connection:
                 async with connection.transaction():
-                    await connection.execute("UPDATE...")
-
+                    await connection.execute("UPDATE predictionsbot.predictions SET prediction_score = $1 WHERE prediction_id = $2", prediction_score, prediction.get("prediction_id"))
 
     correct_scorers = [] # and correct fgs
-    
+
     # todo only accept positive ints on +next function
     # todo insert prediction_score into predictions table
     # todo create total league score and put in db
-    # 
-
 
 ### Bot Commands ###
 # Predict next match
@@ -556,7 +553,7 @@ async def predict(ctx):
 
             try:
                 player_id = getPlayerId(player.strip())
-                player_real_name = await bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE uniq_id = $1;", player_id)
+                player_real_name = await bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
                 real_name = player_real_name.get("player_name")
             except Exception as e:
                 await ctx.send(f"{ctx.message.author.mention}\n\nPlease try again, {e}")
@@ -658,6 +655,7 @@ async def predict(ctx):
         await bot.admin_id.send(f"There was an error loading this prediction into the databse:\n{e}")
         return
 
+        # \todo add better output to user in predict function
 
 # todo add scoring function/scheduled task
 
@@ -669,6 +667,9 @@ async def predictions(ctx):
     '''
     await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
     predictions = await getUserPredictions(bot.pg_conn, str(ctx.message.author.id))
+    if not predictions:
+        await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you have no predictions! Get started by typing `+predict`")
+        return
 
     output = f"{ctx.message.author.mention}\n\n"
     for prediction in predictions:
