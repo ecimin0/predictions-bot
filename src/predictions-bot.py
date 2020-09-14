@@ -866,6 +866,73 @@ async def what_do_you_think_of_tottenham(ctx):
     spurs_status = "SHIT"
     await ctx.send(f"{ctx.message.author.mention}\n\n{spurs_status}\n{video}")
 
+@bot.command(hidden=True)
+@commands.check(is_admin)
+async def testembed(ctx):
+    # log = logger.bind(content=ctx.message.content, author=ctx.message.author)
+    paginated_data = [
+        {"title": "Test 0", "msg": "TestMessage 0"}, 
+        {"title": "Test 1", "msg": "TestMessage 1"},
+        {"title": "Test 2", "msg": "TestMessage 2"}
+    ]
+    max_page = len(paginated_data) - 1
+    num = 0
+    first_run = True
+    while True:
+        # log.info(num=num, max_page=max_page)
+        if first_run:
+            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x00ff00)
+            embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
+
+            first_run = False
+            msg = await ctx.send(embed=embedVar)
+
+        reactmoji = []
+        if max_page == 0 and num == 0:
+            pass
+        elif num == 0:
+            reactmoji.append('⏩')
+        elif num == max_page:
+            reactmoji.append('⏪')
+        elif num > 0 and num < max_page:
+            reactmoji.extend(['⏪', '⏩'])
+        # reactmoji.append('✅')
+
+        for react in reactmoji:
+            await msg.add_reaction(react)
+
+        def check_react(reaction, user):
+            if reaction.message.id != msg.id:
+                return False
+            if user != ctx.message.author:
+                return False
+            if str(reaction.emoji) not in reactmoji:
+                return False
+            return True
+
+        try:
+            res, user = await bot.wait_for('reaction_add', timeout=30.0, check=check_react)
+        except asyncio.TimeoutError:
+            return await msg.clear_reactions()
+
+        if user != ctx.message.author:
+            pass
+        elif '⏪' in str(res.emoji):
+            print('<< Going backward')
+            num = num - 1
+            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x00ff00)
+            embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
+            await msg.clear_reactions()
+            await msg.edit(embed=embedVar)
+
+        elif '⏩' in str(res.emoji):
+            print('\t>> Going forward')
+            num = num + 1
+            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x00ff00)
+            embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
+            await msg.clear_reactions()
+            await msg.edit(embed=embedVar)
+
 #! testing
 @bot.command(hidden=True)
 @commands.check(is_admin)
