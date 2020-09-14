@@ -13,6 +13,7 @@ import pytz
 import argparse
 import random
 import string
+import traceback
 
 from discord.ext import commands, tasks
 from datetime import timedelta, datetime
@@ -22,41 +23,40 @@ from pprint import pprint
 logging.basicConfig(level=logging.INFO)
 
 player_nicknames = {
-    13606: ["olayinka"],
-    13609: ["smith-rowe", "esr"],
-    13587: ["leno"],
-    13589: ["martinez", "emi"],
-    13588: ["macey"],
-    13586: ["iliev"],
-    13591: ["bellerin", "hector", "heccy"],
-    13601: ["tierney", "kt"],
-    13599: ["papastathopoulos", "sokratis"],
-    13594: ["holding", "holdinho"],
-    13598: ["mustafi"],
-    13592: ["chambers"],
-    13597: ["luiz"],
-    13595: ["kolasinac", "kola"],
-    13590: ["soares", "cedric"],
-    13596: ["mari"],
-    13600: ["saliba"],
-    13607: ["ozil", "mesut"],
-    13610: ["torreira"],
-    13605: ["maitland-niles", "amn"],
-    13611: ["willock"],
-    13604: ["guendouzi"],
-    13612: ["xhaka"],
-    13608: ["saka"],
-    13603: ["elneny"],
-    13615: ["lacazette", "laca"],
-    13613: ["aubameyang", "auba"],
-    13619: ["pepe"],
-    13617: ["nelson"],
-    13618: ["nketiah", "eddie"],
-    13616: ["martinelli", "gabi"],
-    13585: ["john-jules"],
-    13602: ["ceballos", "dani"],
-    13614: ["willian"],
-    13593: ["gabriel"]
+    138784: ["olayinka"],
+    1161: ["smith-rowe", "esr"],
+    1438: ["leno"],
+    19599: ["martinez", "emi"],
+    20386: ["macey"],
+    1437: ["iliev"],
+    1439: ["bellerin", "hector", "heccy"],
+    1117: ["tierney", "kt"],
+    1450: ["papastathopoulos", "sokratis"],
+    1440: ["holding", "holdinho"],
+    1448: ["mustafi"],
+    19016: ["chambers"],
+    2283: ["luiz"],
+    1442: ["kolasinac", "kola"],
+    190: ["soares", "cedric"],
+    46792: ["mari"],
+    22090: ["saliba"],
+    1458: ["ozil", "mesut"],
+    1462: ["torreira"],
+    1456: ["maitland-niles", "amn"],
+    1463: ["willock"],
+    1454: ["guendouzi"],
+    1464: ["xhaka"],
+    1460: ["saka"],
+    1452: ["elneny"],
+    1467: ["lacazette", "laca"],
+    1465: ["aubameyang", "auba"],
+    3246: ["pepe"],
+    727: ["nelson"],
+    1468: ["nketiah", "eddie"],
+    127769: ["martinelli", "gabi"],
+    748: ["ceballos", "dani"],
+    2294: ["willian"],
+    22224: ["gabriel"]
 }
 
 team_nicknames = {
@@ -123,7 +123,7 @@ else:
 main_team = 42 # arsenal
 
 time_format = "%m/%d/%Y, %H:%M:%S %Z"
-match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {main_team} THEN 'away' ELSE 'home' END as home_or_away"
+match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable"
 
 
 # use the token env var
@@ -281,8 +281,151 @@ async def on_message(message):
         await bot.process_commands(message)
 
 
+
+@bot.command(hidden=True)
+@commands.check(is_admin)
+async def calculatePredictionScore(ctx):
+# # @tasks.loop(minutes=5)
+# async def calculatePredictionScore():
+
+    # take all predictions that are not scored and check if fixture is complete.
+    # if it is, gather values from fixture table score etc
+    # fetch scorers from api
+    # iterate through predictions assigning scores
+
+    scorable_fixtures = {}
+    async with bot.pg_conn.acquire() as connection:
+        async with connection.transaction():
+            await connection.set_type_codec(
+                'json',
+                encoder=json.dumps,
+                decoder=json.loads,
+                schema='pg_catalog'
+            )
+            unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions WHERE prediction_score is null")
+            unscored_fixtures = await connection.fetch("SELECT DISTINCT fixture_id FROM predictionsbot.predictions WHERE prediction_score is null")
+    
+    for fixture in unscored_fixtures:
+        fixture_status = await bot.pg_conn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1", fixture.get("fixture_id"))
+        if fixture_status.get("scorable"):
+            winner = "home"
+            if fixture_status.get("goals_away") > fixture_status.get("goals_home"):
+                winner = "away"
+            elif fixture_status.get("goals_away") == fixture_status.get("goals_home"):
+                winner = "draw"
+            scorable_fixtures[fixture.get("fixture_id")] = {"goals_home": fixture_status.get("goals_home"), "goals_away": fixture_status.get("goals_away"), "winner": winner, "home_or_away": fixture_status.get("home_or_away")}
+
+
+    # prep work - hit the api etc
+    for fix in scorable_fixtures:
+        fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+        fixture_info = fixture_response.json()['api']['fixtures'][0]
+        goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
+        scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
+        scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
+
+    pprint(scorable_fixtures)
+    for prediction in unscored_predictions:
+        if prediction.get("fixture_id") in scorable_fixtures:
+            match_results = scorable_fixtures[prediction.get("fixture_id")]
+            prediction_score = 0
+            # determine predicted winner
+            winner = "home"
+            if prediction.get("away_goals") > prediction.get("home_goals"):
+                winner = "away"
+            elif prediction.get("away_goals") == prediction.get("home_goals"):
+                winner = "draw"
+            
+            # 2 points – correct result (W/D/L)
+            if winner == match_results["winner"]:
+                prediction_score += 2
+            
+            # 2 points – correct number of Arsenal goals
+            # 1 point – correct number of goals conceded
+            opponent_goals = 0
+            arsenal_goals = 0
+            if match_results["home_or_away"] == "home":
+                opponent_predicted_goals = prediction.get("away_goals")
+                arsenal_predicted_goals = prediction.get("home_goals")
+                opponent_actual_goals = match_results.get("goals_away")
+                arsenal_actual_goals = match_results.get("goals_home")
+            elif match_results["home_or_away"] == "away":
+                opponent_predicted_goals = prediction.get("home_goals")
+                arsenal_predicted_goals = prediction.get("away_goals")
+                opponent_actual_goals = match_results.get("goals_home")
+                arsenal_actual_goals = match_results.get("goals_away")
+
+            if arsenal_predicted_goals == arsenal_actual_goals:
+                prediction_score += 2
+            if opponent_predicted_goals == opponent_actual_goals:
+                prediction_score += 1
+
+            for idx,player in enumerate(prediction.get("scorers")):
+                prediction.get("scorers")[idx]["player_id"] = getPlayerId(player.get("name"))
+
+            # 1 point – each correct scorer
+            actual_goal_scorers = {}
+            for goal in match_results.get("goals"):
+                if goal.get("player_id") not in actual_goal_scorers:
+                    actual_goal_scorers[goal.get("player_id")] = 1
+                else:
+                    actual_goal_scorers[goal.get("player_id")] += 1
+        
+            predicted_scorers = {v.get("player_id"):v.get("num_goals") for v in prediction.get("scorers")}
+
+            # print(prediction.get("prediction_id"))
+            # print(predicted_scorers)
+            # print(actual_goal_scorers)
+
+            absolutely_correct = True
+            for actual_scorer, count in actual_goal_scorers.items():
+                if actual_scorer in predicted_scorers:
+                    if count == predicted_scorers.get(actual_scorer):
+                        prediction_score += count
+                    elif count < predicted_scorers.get(actual_scorer):
+                        prediction_score += count
+                        absolutely_correct = False
+                    else:
+                        prediction_score += predicted_scorers.get(actual_scorer)
+                        absolutely_correct = False
+
+            actual_scorers_set = set(actual_goal_scorers.keys())
+            predicted_scorers_set = set(predicted_scorers.keys())
+
+            if predicted_scorers_set.symmetric_difference(actual_scorers_set):
+                absolutely_correct = False
+
+            # 1 point – correct FGS (first goal scorer, only Arsenal)
+            predicted_fgs = None
+            for player in prediction.get("scorers"):
+                if player.get("fgs"):
+                    predicted_fgs = player.get("player_id")
+            if predicted_fgs == match_results.get("fgs"):
+                prediction_score += 1
+            
+            # 2 points bonus – all scorers correct
+            if absolutely_correct:
+                predicted_score += 2
+
+
+            print(f'{prediction.get("prediction_id")} | {prediction.get("user_id")} | {prediction.get("prediction_string")} | {prediction_score}')
+            async with bot.pg_conn.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE...")
+
+
+    correct_scorers = [] # and correct fgs
+    
+    # todo only accept positive ints on +next function
+    # todo insert prediction_score into predictions table
+    # todo create total league score and put in db
+    # 
+
+
 ### Bot Commands ###
 # Predict next match
+
+#todo implement too many prediction goals no scorer points rule in scoring
 rules_set = """**Predict our next match against {0}**
 
 **Prediction League Rules:**
@@ -386,10 +529,13 @@ async def predict(ctx):
         # initial array to score scorer details
         scorer_properties = []
 
+        # id: <scores>
+        player_scores = {}
         # initialize fgs and num goals to False/1 for each scorer
         for player in scorers:
             if not player:
                 continue
+
             fgs = False
             num_goals = 1
 
@@ -408,12 +554,33 @@ async def predict(ctx):
             if fgs:
                 fgs_str = "fgs"
 
-            # append dictionary of scorer names, fgs status, goals predicted to properties array
-            scorer_dict = {"name": player.strip(), "fgs": fgs, "num_goals": num_goals, "fgs_string": fgs_str}
-            scorer_properties.append(scorer_dict)
+            try:
+                player_id = getPlayerId(player.strip())
+                player_real_name = await bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE uniq_id = $1;", player_id)
+                real_name = player_real_name.get("player_name")
+            except Exception as e:
+                await ctx.send(f"{ctx.message.author.mention}\n\nPlease try again, {e}")
+                return 
 
+            # append dictionary of scorer names, fgs status, goals predicted to properties array
+            if player_id not in player_scores:
+                player_scores[player_id] = {"name": player.strip(), "fgs": fgs, "num_goals": num_goals, "fgs_string": fgs_str, "real_name": real_name}
+            else:
+                player_scores[player_id]["num_goals"] += num_goals
+                if not player_scores[player_id]["fgs"] and fgs:
+                    player_scores[player_id]["fgs"] = True
+                    player_scores[player_id]["fgs_string"] = "fgs"
+
+
+        logging.debug(player_scores)
         # player_match = re.search(player_regex, temp_msg, re.IGNORECASE)
         # temp_msg = re.sub(player_regex, "", temp_msg)
+
+        scorer_properties = [player for player in player_scores.values()]
+        if len([player for player in player_scores.values() if player.get("fgs")]) > 1:
+            await ctx.send(f"{ctx.message.author.mention}\n\nWhy are you the way that you are?\nTwo players cannot be first goal scorer. Predict again.")
+            return
+
 
     except Exception as e:
         logging.error(f"{e}")
@@ -449,17 +616,6 @@ async def predict(ctx):
 
     # if prediction syntax was OK load it into the db
     try:
-        for scorer in scorer_properties:
-            try:
-                player_id = getPlayerId(scorer.get('name'))
-                player_real_name = await bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE uniq_id = $1;", player_id)
-                scorer["real_name"] = player_real_name.get("player_name")
-                # print(f"{getPlayerId(scorer.get('name'))}")
-            except Exception as e:
-                await ctx.send(f"{ctx.message.author.mention}\n\nPlease try again, {e}")
-                return 
-            
-
         prediction_id = get_random_alphanumeric_string(16)
         successful_or_updated = "successful"
 
@@ -477,9 +633,9 @@ async def predict(ctx):
                 try:
                     prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2", str(ctx.message.author.id), fixture_id)
                     if prev_prediction:
+                        successful_or_updated = "updated"
                         await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, str(ctx.message.author.id), fixture_id)
                     else:
-                        successful_or_updated = "updated"
                         await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, str(ctx.message.author.id), prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                 except Exception as e:
                     logging.error(e)
@@ -489,8 +645,7 @@ async def predict(ctx):
 
         goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
         goal_scorers = "\n".join(goal_scorers_array)
-
-        # todo dedupe users if they type "auba fs, auba" instead of "auba 2x"
+        
         # tell the user their prediction was logged and show it to them
         output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} {successful_or_updated}.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
         output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} - {away_goals} {current_match.get('away_name')}\n\n"""
@@ -718,14 +873,17 @@ async def user_lookup(ctx, *input_str:str):
     # id_to_lookup = str(input_user.split()[1])
 
     for input in input_str:
-        current_member = None
+        current_member = []
         for member in bot.get_all_members():
             if input.lower() in member.display_name.lower() or input.lower() in member.name.lower():
-                current_member = member
+                current_member.append(member)
         if not current_member:
-            await ctx.send(f"Could not find {input}.")
+            await ctx.send(f"Could not find any users matching {input}.")
         else:
-            await ctx.send(f"{current_member.display_name} | {current_member.id}")
+            output = f"Potential Matches for {input}:\n"
+            for user in current_member:
+                output += f"{user.display_name} | {user.id}\n"
+            await ctx.send(f"{output}")
 
 #! testing
 @bot.command(hidden=True)
@@ -800,7 +958,7 @@ async def updateFixtures():
     # AWD : Technical Loss
     # WO : WalkOver
 
-    fixtures = await bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT match_completed")
+    fixtures = await bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT scorable")
     for fixture in fixtures:
         fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
         fixture_info = fixture_response.json()['api']['fixtures'][0]
@@ -809,8 +967,8 @@ async def updateFixtures():
 
         async with bot.pg_conn.acquire() as connection:
             async with connection.transaction():
-                await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, match_completed = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
-    #todo put shortStatus in db?
+                await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
+    
     print(f"Updated fixtures table, {len(fixtures)} were changed.")
     await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
 
@@ -822,11 +980,12 @@ async def before():
     await asyncio.sleep(10)
 
 
-@bot.event
-async def on_command_error(ctx, error):
-    logging.warning(f"Handling error `{error}` for {ctx.message.content}")
-    if isinstance(error, IsNotAdmin):
-        await ctx.send(f"You do not have permission to run `{ctx.message.content}`")
+# @bot.event
+# async def on_command_error(ctx, error):
+#     logging.warning(f"Handling error `{error}` for {ctx.message.content}")
+#     if isinstance(error, IsNotAdmin):
+#         await ctx.send(f"You do not have permission to run `{ctx.message.content}`")
+
 
 
 # 'token' is the bot token from Discord Developer config

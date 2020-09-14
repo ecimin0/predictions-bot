@@ -1,26 +1,56 @@
 ID  ::  Timestamp           ::  Discord Name  ::  Score  ::  First Goal Scorer  ::  Goal Scorers
 DONE 754071601787568231    ::  9/11/2020 13:21:54  ::  Carter  ::  3-1    Arsenal  ::  Pepe  ::  Auba x2 
-DONE 754037639006388415    ::  9/11/2020 13:23:51  ::  OneSock  ::  3-0 arsenal   ::  Aubamayang   ::  Auba, Laca, pepe  ::  
-DONE 754121508133011527    ::  9/11/2020 13:24:56  ::  Bullwine85  ::  3-1 Arsenal  ::  Aubameyang  ::  Aubameyang x2, Lacazette
-DONE 754074668121587833    ::  9/11/2020 13:25:31  ::  zlecawiigo  ::  3-0 Arsenal  ::  Auba  ::  Ceballos, Pepe
-DONE 754187578361511997    ::  9/11/2020 13:29:19  ::  ash663  ::  3-1  ::  Auba  ::  Auba x2, Pepe
-DONE 214393224930918401    ::  9/11/2020 13:33:18  ::  marisa  ::  1-3 Arsenal  ::  Auba  ::  Lacazette, Luiz
+265918080759234561 DONE 754037639006388415    ::  9/11/2020 13:23:51  ::  OneSock  ::  3-0 arsenal   ::  Aubamayang   ::  Auba, Laca, pepe  ::  
+70197631992729600 DONE 754121508133011527    ::  9/11/2020 13:24:56  ::  Bullwine85  ::  3-1 Arsenal  ::  Aubameyang  ::  Aubameyang x2, Lacazette
+223490049113718784 DONE 754074668121587833    ::  9/11/2020 13:25:31  ::  zlecawiigo  ::  3-0 Arsenal  ::  Auba  ::  Ceballos, Pepe
+207430788659150848 DONE 754187578361511997    ::  9/11/2020 13:29:19  ::  ash663  ::  3-1  ::  Auba  ::  Auba x2, Pepe
+214393224930918401 DONE 214393224930918401    ::  9/11/2020 13:33:18  ::  marisa  ::  1-3 Arsenal  ::  Auba  ::  Lacazette, Luiz
 DONE 699057164932612137    ::  9/11/2020 13:36:23  ::  frankguerra  ::  4-0  ::  Pepe  ::  Pepe, Auba, Eddie
-DONE 754069615205679326    ::  9/11/2020 13:51:06  ::  Oth 🔥  ::  2-0  ::  Auba  ::  Auba x1 and FGS + holding
-DONE 754188157389504553    ::  9/11/2020 13:54:29  ::  Jimmy Gatete the Goat  ::  1-3  ::  Aubameyang  ::  Aubameyang x2 Pépé
-DONE 754001427000590466    ::  9/11/2020 14:09:18  ::  Rizal  ::  4-1  ::  Aubameyang  ::  Aubameyang 2x, Pepe, Holding
-DONE 662028777332801556    ::  9/11/2020 16:01:32  ::  ukafadar  ::  3-0 Arsenal  ::  Aubameyang  ::  Aubameyang x2 | Pepe x1
-DONE 437660341116338186    ::  9/11/2020 16:28:43  ::  ChiliSauce  ::  3-2  ::  Auba  ::  Auba X2, Pepe x1
-DONE 754180247561175211    ::  9/11/2020 16:30:46  ::  Blizzard  ::  4:0  ::  Aubameyang  ::  Aubameyang x2, Xhaka, Lacazette
-DONE 754184192115474513    ::  9/11/2020 18:13:10  ::  Fat guy welbz  ::  3-0  ::  Auba  ::  Auba two, Pepe one
-DONE 754168024470126593    ::  9/11/2020 18:14:44  ::  Emiltar  ::  1-3  ::  aubameyang  ::  2
-DONE 754176083452100648    ::  9/11/2020 22:08:23  ::  ChillRaider.007  ::  1-3  ::  Aubameyang  ::  Aubameyang, Lacazette, Saka
-DONE 754165335325802606    ::  9/11/2020 22:22:36  ::  TheStat  ::  2-0 Arsenal  ::  Pepe  ::  Pepe, Auba
-DONE 754187231161483354    ::  9/11/2020 22:29:39  ::  Vimes  ::  1-4  ::  Willian  ::  Willian 1x Auba 2x Pepe 1x Fulham no idea
-DONE 754185396962721795 9/11/2020 23:55:41	Andout (Ivan)	2-0	Auba	Pepe	Fulham Away
-DONE 399707509591375882 9/12/2020 0:17:24	dogbook	3-1	Auba	Auba, Laca, Pepe	Fulham Away
-754033879643586752 9/12/2020 0:32:43	Keefy Leafy	4-1 Arsenal	Auba	Auba x2, Saka, Laca	Fulham Away	
+355750765224263682 DONE 754069615205679326    ::  9/11/2020 13:51:06  ::  Oth 🔥  ::  2-0  ::  Auba  ::  Auba x1 and FGS + holding
+529183972681580544 DONE 754188157389504553    ::  9/11/2020 13:54:29  ::  Jimmy Gatete the Goat  ::  1-3  ::  Aubameyang  ::  Aubameyang x2 Pépé
+468771423377162270 DONE 754001427000590466    ::  9/11/2020 14:09:18  ::  Rizal  ::  4-1  ::  Aubameyang  ::  Aubameyang 2x, Pepe, Holding
+361539898957889541 DONE 662028777332801556    ::  9/11/2020 16:01:32  ::  ukafadar  ::  3-0 Arsenal  ::  Aubameyang  ::  Aubameyang x2 | Pepe x1
+437660341116338186 DONE 437660341116338186    ::  9/11/2020 16:28:43  ::  ChiliSauce  ::  3-2  ::  Auba  ::  Auba X2, Pepe x1
+619840871659208758 DONE 754180247561175211    ::  9/11/2020 16:30:46  ::  Blizzard  ::  4:0  ::  Aubameyang  ::  Aubameyang x2, Xhaka, Lacazette
+311252729412583424 DONE 754184192115474513    ::  9/11/2020 18:13:10  ::  Fat guy welbz  ::  3-0  ::  Auba  ::  Auba two, Pepe one
+548199601539252235 DONE 754168024470126593    ::  9/11/2020 18:14:44  ::  Emiltar  ::  1-3  ::  aubameyang  ::  2
+451109123728080907 DONE 754176083452100648    ::  9/11/2020 22:08:23  ::  ChillRaider.007  ::  1-3  ::  Aubameyang  ::  Aubameyang, Lacazette, Saka
+434981378736652288 DONE 754165335325802606    ::  9/11/2020 22:22:36  ::  TheStat  ::  2-0 Arsenal  ::  Pepe  ::  Pepe, Auba
+610956989211738112 DONE 754187231161483354    ::  9/11/2020 22:29:39  ::  Vimes  ::  1-4  ::  Willian  ::  Willian 1x Auba 2x Pepe 1x Fulham no idea
+218720801082310656 DONE 754185396962721795 9/11/2020 23:55:41	Andout (Ivan)	2-0	Auba	Pepe	Fulham Away
+399707509591375882 DONE 399707509591375882 9/12/2020 0:17:24	dogbook	3-1	Auba	Auba, Laca, Pepe	Fulham Away
+536123174950141962 DONE 536123174950141962 9/12/2020 0:32:43	Keefy Leafy	4-1 Arsenal	Auba	Auba x2, Saka, Laca	Fulham Away	
 
+
+
+9/13/2020 1:20:59	Bullwine85	3-0	Aubameyang	Aubameyang, Ceballos, Saka	West Ham Home
+[{"name": "auba", "fgs": false, "num_goals": 1, "fgs_string": ""}, {"name": "ceballos", "fgs": false, "num_goals": 1, "fgs_string": ""}, {"name": "saka", "fgs": false, "num_goals": 1, "fgs_string": ""}]
+
+
+DONE @Blizzard#2941 | 619840871659208758 | +predict 4:0 auba fgs x2, laca, xhaka
+
+DONE @Flandre Scarlet#0495 | 211799284398424064 | +predict 1-2 auba fgs, laca
+
+DONE @Keefy Leafy#0567 | 536123174950141962 | +predict 1-4 Auba FGS 2x, Saka, Laca
+
+DONE @Staraptor Kwan#4474 | 391756381683974144 | +predict 0-2 auba, eddie # i changed from 2-0 to 0-2
+
+DONE @Reza#8655 | 234800508798238721 | +predict 1-3 auba fgs 2x,  laca
+
+@Vaanir#5261 | 107930934241705984 | +predict 4-1 Auba 2x fgs pepe Tierney # i changed 4-1 to 1-4
+400830203984740352
+@JCase27#6405 | 400830203984740352 | +predict 3-0 Auba 2x fgs, Willian # i changed 3-0 to 0-3
+
+
+[{"name": "auba", "fgs": true, "num_goals": 2, "fgs_string": "fgs"}, {"name": "pepe", "fgs": false, "num_goals": 1, "fgs_string": ""},{"name": "Tierney", "fgs": false, "num_goals": 1, "fgs_string": ""}]
+
+
+25 9/12/2020 4:33:28	Ghant312	2-0 Arsenal	Auba	Auba, Auba	Fulham(a)
+[{"name": "auba", "fgs": true, "num_goals": 2, "fgs_string": "fgs"}]
+
+
+
+[{"name": "auba", "fgs": true, "num_goals": 1, "fgs_string": "fgs"}, {"name": "pepe", "fgs": false, "num_goals": 1, "fgs_string": ""},{"name": "xhaka", "fgs": false, "num_goals": 1, "fgs_string": ""}]
 
 
 

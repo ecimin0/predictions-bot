@@ -122,13 +122,13 @@ def getPlayers(season, full_season, league):
     
     for team, player_array in teams.items():
         for player in player_array:
-            delete_keys = [key for key in player if key not in ["player_name", "firstname", "lastname"]]
+            delete_keys = [key for key in player if key not in ["player_name", "firstname", "lastname", "player_id"]]
             for key in delete_keys: 
                 del player[key]
     for team, player_array in teams.items():
         for player in player_array:
             try:
-                pgcursor.execute("INSERT INTO predictionsbot.players (season, team_id, player_name, firstname, lastname) VALUES (%s, %s, %s, %s, %s);", (season, team, player.get("player_name"), player.get("firstname"), player.get("lastname")))
+                pgcursor.execute("INSERT INTO predictionsbot.players (player_id, season, team_id, player_name, firstname, lastname) VALUES (%s, %s, %s, %s, %s, %s);", (player.get("player_id"), season, team, player.get("player_name"), player.get("firstname"), player.get("lastname")))
             except (Exception) as e:    
                 print(f"{e}")
                 postgresconnection.rollback()
@@ -164,13 +164,12 @@ def getFixtures(league_id):
         # todo make this update fixtures if it exists
         # fixture_exists = pgcursor.execute("SELECT * FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
 
-        #todo add match_completed field on inserts
 
         try:
             # if fixture_exists:
                 # pgcursor.execute("UPDATE predictionsbot.fixtures SET (home, away, fixture_id, league_id, event_date, goals_home, goals_away) WHERE fixture_id = $1 VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
             # else: 
-            pgcursor.execute("INSERT INTO predictionsbot.fixtures (home, away, fixture_id, league_id, event_date, goals_home, goals_away) VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam'))) 
+            pgcursor.execute("INSERT INTO predictionsbot.fixtures (home, away, fixture_id, league_id, event_date, goals_home, goals_away, scorable) VALUES (%s, %s, %s, %s, %s, %s, %s, false);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
         except (Exception) as e:    
             print(f"{e}")
             postgresconnection.rollback()
@@ -238,6 +237,7 @@ aws_dbuser = "postgres"
 aws_dbpass = os.environ.get("AWS_DBPASS", None)
 aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
 aws_db_ip = "3.15.92.33"
+# aws_dbname = "predictions-bot-data-test"
 aws_dbname = "predictions-bot-data"
 
 ### API stuff ###
@@ -277,9 +277,9 @@ try:
         
         # getTeams(league)
     
-        # getPlayers(season, full_season, league)
+        getPlayers(season, full_season, league)
     
-        getFixtures(league)
+        # getFixtures(league)
     
         # getStandings(league)
 
