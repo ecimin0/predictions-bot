@@ -314,6 +314,16 @@ async def checkUserExists(dbconn, user_id, ctx):
     else:
         return True
 
+# Convert an integer into its ordinal representation::
+# https://stackoverflow.com/questions/9647202/ordinal-numbers-replacement
+def makeOrdinal(n):
+    n = int(n)
+    suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    return str(n) + suffix
+
+
 ### Bot Events ###
 # on_ready = connected to server
 @bot.event
@@ -739,8 +749,10 @@ async def leaderboard(ctx):
     '''
     Show leaderboard
     '''  
-
-    embed = discord.Embed(title="Leaderboard", description="Arsenal Prediction League Leaderboard", color=0x9c824a)
+    embed_colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
+    embed_color = random.choice(embed_colors)
+    embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description="", color=embed_color)
+    embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png")
 
     # # if need to change the way the tied user are displayed change "RANK()" to "DENSE_RANK()"
     leaderboard = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
@@ -755,7 +767,8 @@ async def leaderboard(ctx):
             prediction_dictionary[prediction.get("rank")].append(prediction)
     
     # # all_members = bot.get_all_members()
-
+    
+    rank_num = 1
     for k,v in prediction_dictionary.items():
         # current_embed = embed_dictionary.get(k)
         output_array = []
@@ -765,12 +778,13 @@ async def leaderboard(ctx):
                 #     if user.id == user_prediction.get("user_id"):
                 user = bot.get_user(user_prediction.get("user_id"))
                 if user:
-                    output_array.append(f'{user.display_name} - {user_prediction.get("score")} points')
+                    output_array.append(f'{user.display_name}')
                     # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
             except discord.NotFound:
                 logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
         output_str = "\n".join(output_array)
-        embed.add_field(name=f"Rank: {k}", value=f"```{output_str}```", inline=False)
+        embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```{output_str}```", inline=False)
+        rank_num += 1
 
     await ctx.send(f"{ctx.message.author.mention}", embed=embed)
 
@@ -862,12 +876,12 @@ async def next(ctx):
 
 #todo paginate some functions from +help
 
-# list fixtures
-@bot.command()
-async def fixtures(ctx):
-    '''
-    Full fixture list
-    '''
+# # list fixtures
+# @bot.command()
+# async def fixtures(ctx):
+#     '''
+#     Full fixture list
+#     '''
 
 # show match vs specific team
 @bot.command()
@@ -911,50 +925,50 @@ async def results(ctx):
     done_matches_output = f"```\n{done_matches_output}\n```"
     await ctx.send(f"{ctx.message.author.mention}\n\n{done_matches_output}")
 
-# PL table
-@bot.command()
-async def pltable(ctx):
-    '''
-    Current Premier League table
-    '''
-    pl_id = 524
+# # PL table
+# @bot.command()
+# async def pltable(ctx):
+#     '''
+#     Current Premier League table
+#     '''
+#     pl_id = 524
 
-# CL table
-@bot.command()
-async def cltable(ctx):
-    '''
-    Current Champion's League table
-    '''        
-    cl_id = 530
+# # CL table
+# @bot.command()
+# async def cltable(ctx):
+#     '''
+#     Current Champion's League table
+#     '''        
+#     cl_id = 530
 
-# EL table
-@bot.command()
-async def eltable(ctx):
-    '''
-    Current Europa League table
-    '''
-    el_id = 514
+# # EL table
+# @bot.command()
+# async def eltable(ctx):
+#     '''
+#     Current Europa League table
+#     '''
+#     el_id = 514
 
-# FA Cup table
-@bot.command()
-async def fatable(ctx):
-    '''
-    Current FA Cup table
-    '''        
-    fa_id = 956
+# # FA Cup table
+# @bot.command()
+# async def fatable(ctx):
+#     '''
+#     Current FA Cup table
+#     '''        
+#     fa_id = 956
 
-# League Cup table
-@bot.command()
-async def efltable(ctx):
-    '''
-    Current League Cup table
-    '''            
+# # League Cup table
+# @bot.command()
+# async def efltable(ctx):
+#     '''
+#     Current League Cup table
+#     '''            
 
 
-# fixtures in progess
-@bot.command()
-async def inProgress(ctx):
-    pass
+# # fixtures in progess
+# @bot.command()
+# async def inProgress(ctx):
+#     pass
 
 
 # ping
@@ -987,6 +1001,7 @@ async def what_do_you_think_of_tottenham(ctx):
     video = "https://www.youtube.com/watch?v=w0R7gWf-nSA"
     spurs_status = "SHIT"
     await ctx.send(f"{ctx.message.author.mention}\n\n{spurs_status}\n{video}")
+
 
 @bot.command(hidden=True)
 @commands.check(is_admin)
