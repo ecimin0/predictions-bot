@@ -767,35 +767,41 @@ async def timezone(ctx):
 
 # next matches
 @bot.command()
-async def next(ctx):
+async def next(ctx, count:int):
     '''
     Next matches
     '''
-    msg = ctx.message.content
+    # msg = ctx.message.content
 
-    split_msg = msg.split()
+    # split_msg = msg.split()
     
-    if len(split_msg) > 2:
-        await ctx.send(f"{ctx.message.author.mention}\n\nToo many arguments; should be '+next 2' or similar")
-        return
+    # if len(split_msg) > 2:
+    #     await ctx.send(f"{ctx.message.author.mention}\n\nToo many arguments; should be '+next 2' or similar")
+    #     return
 
-    elif len(split_msg) > 1:
-        count = split_msg[1]
-        try:
-            count = int(count)
-        except:
-            await ctx.send(f"{ctx.message.author.mention}\n\nExpected usage:\n`+next <number>`")
-            return
-    else: 
-        count = 2
+    # elif len(split_msg) > 1:
+    #     count = split_msg[1]
+    #     try:
+    #         count = int(count)
+    #     except:
+    #         await ctx.send(f"{ctx.message.author.mention}\n\nExpected usage:\n`+next <number>`")
+    #         return
+    # else: 
+    #     count = 2
+        
     
-    next_matches = await nextMatches(bot.pg_conn, count=count)
-    output = f"{ctx.message.author.mention}\n\n**Next {count} matches:**\n\n"
-    for match in next_matches:
-    # await ctx.send(f"{[match for match in next_matches]}")
-    # todo: embed icons here
-        output += await formatMatch(bot.pg_conn, match, str(ctx.message.author.id))
-    await ctx.send(f"{output}")
+    if count < 0:
+        await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be a negative number.")
+    elif count > 10:
+        await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be greater than 10.")
+    else:
+        next_matches = await nextMatches(bot.pg_conn, count=count)
+        output = f"{ctx.message.author.mention}\n\n**Next {count} matches:**\n\n"
+        for match in next_matches:
+        # await ctx.send(f"{[match for match in next_matches]}")
+        # todo: embed icons here
+            output += await formatMatch(bot.pg_conn, match, str(ctx.message.author.id))
+        await ctx.send(f"{output}")
 
 
 # list fixtures
@@ -1096,8 +1102,8 @@ async def updateFixtures():
             async with connection.transaction():
                 await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
     
-    print(f"Updated fixtures table, {len(fixtures)} were changed.")
-    await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
+    logger.info(f"Updated fixtures table, {len(fixtures)} were changed.")
+    # await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
 
             
 @updateFixtures.before_loop
