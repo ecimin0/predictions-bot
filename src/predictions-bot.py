@@ -58,21 +58,6 @@ def createLogger(level):
     logger.setLevel(level)
     return logger
 
-# Not in json
-# def createLogger(level):
-#     logger = logging.getLogger("predictions-bot")
-#     logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
-
-#     discord_logger = logging.getLogger('discord')
-#     discord_logger.setLevel(logging.INFO)
-#     ch = logging.StreamHandler()
-#     ch.setLevel(logging.DEBUG)
-#     formatter = logging.Formatter('%(asctime)s %(levelname)s [%(name)s] %(message)s')
-#     ch.setFormatter(formatter)
-#     logger.addHandler(ch)
-#     discord_logger.addHandler(ch)
-#     return logger
-
 logger = createLogger(os.environ.get("LOGLEVEL", "INFO"))
 
 
@@ -185,6 +170,7 @@ if not token:
     logger.error("Missing Discord bot token! Set TOKEN env value.")
     sys.exit(1)
 
+last_run = datetime.utcnow() - timedelta(hours=1)
 
 channel_id = int(os.environ.get("CHANNELID", 0))
 
@@ -196,6 +182,9 @@ help_function = commands.DefaultHelpCommand(no_category="Available Commands", in
 bot = commands.Bot(prefix, help_command=help_function)
 
 class IsNotAdmin(commands.CheckFailure):
+    pass
+
+class RateLimit(commands.CheckFailure):
     pass
 
 def getPlayerId(userInput):
@@ -215,6 +204,19 @@ def get_random_alphanumeric_string(length):
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
+
+
+def rate_limit(seconds):
+    async def predicate(ctx):
+        global last_run
+        seconds_since_last_run = (datetime.utcnow() - last_run).total_seconds()
+        if seconds_since_last_run > seconds:
+            last_run = datetime.utcnow()
+            return True
+        else:
+            raise RateLimit(f"Leaderboard command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
+    return commands.check(predicate)
+
 
 async def is_admin(ctx):
     if ctx.message.author.id in admin_ids:
@@ -336,11 +338,11 @@ async def on_message(message):
 
 
 
-@bot.command(hidden=True)
-@commands.check(is_admin)
-async def calculatePredictionScores(ctx):
-# # @tasks.loop(minutes=5)
-# async def calculatePredictionScores():
+# @bot.command(hidden=True)
+# @commands.check(is_admin)
+# async def calculatePredictionScores(ctx):
+@tasks.loop(minutes=5)
+async def calculatePredictionScores():
 
     # take all predictions that are not scored and check if fixture is complete.
     # if it is, gather values from fixture table score etc
@@ -430,24 +432,30 @@ async def calculatePredictionScores(ctx):
             # print(prediction.get("prediction_id"))
             # print(predicted_scorers)
             # print(actual_goal_scorers)
-
             absolutely_correct = True
-            for actual_scorer, count in actual_goal_scorers.items():
-                if actual_scorer in predicted_scorers:
-                    if count == predicted_scorers.get(actual_scorer):
-                        prediction_score += count
-                    elif count < predicted_scorers.get(actual_scorer):
-                        prediction_score += count
-                        absolutely_correct = False
-                    else:
-                        prediction_score += predicted_scorers.get(actual_scorer)
-                        absolutely_correct = False
+            
+            # - No points for scorers if your prediction's goals exceed the actual goals by 4+
+            # Do not evaluate if you were a fuckstick and predicted too many goals
+            if arsenal_predicted_goals < arsenal_actual_goals + 4:
+                for actual_scorer, count in actual_goal_scorers.items():
+                    if actual_scorer in predicted_scorers:
+                        if count == predicted_scorers.get(actual_scorer):
+                            prediction_score += count
+                        elif count < predicted_scorers.get(actual_scorer):
+                            prediction_score += count
+                            absolutely_correct = False
+                        else:
+                            prediction_score += predicted_scorers.get(actual_scorer)
+                            absolutely_correct = False
 
-            actual_scorers_set = set(actual_goal_scorers.keys())
-            predicted_scorers_set = set(predicted_scorers.keys())
+                actual_scorers_set = set(actual_goal_scorers.keys())
+                predicted_scorers_set = set(predicted_scorers.keys())
+                if predicted_scorers_set.symmetric_difference(actual_scorers_set):
+                    absolutely_correct = False
 
-            if predicted_scorers_set.symmetric_difference(actual_scorers_set):
-                absolutely_correct = False
+                # 2 points bonus – all scorers correct
+                if absolutely_correct:
+                    predicted_score += 2
 
             # 1 point – correct FGS (first goal scorer, only Arsenal)
             predicted_fgs = None
@@ -456,11 +464,6 @@ async def calculatePredictionScores(ctx):
                     predicted_fgs = player.get("player_id")
             if predicted_fgs == match_results.get("fgs"):
                 prediction_score += 1
-            
-            # 2 points bonus – all scorers correct
-            if absolutely_correct:
-                predicted_score += 2
-
 
             print(f'{prediction.get("prediction_id")} | {prediction.get("user_id")} | {prediction.get("prediction_string")} | {prediction_score}')
             async with bot.pg_conn.acquire() as connection:
@@ -469,14 +472,9 @@ async def calculatePredictionScores(ctx):
 
     correct_scorers = [] # and correct fgs
 
-    # todo only accept positive ints on +next function
-    # todo insert prediction_score into predictions table
-    # todo create total league score and put in db
 
 ### Bot Commands ###
 # Predict next match
-
-#todo implement too many prediction goals no scorer points rule in scoring
 rules_set = """**Predict our next match against {0}**
 
 **Prediction League Rules:**
@@ -528,10 +526,10 @@ async def predict(ctx):
     log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
     #checkUserExists inserts the user_id if not present
-    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
+    await checkUserExists(bot.pg_conn, ctx.message.author.id, ctx)
 
     current_match = await nextMatch(bot.pg_conn)
-    user_tz = await getUserTimezone(bot.pg_conn, str(ctx.message.author.id))
+    user_tz = await getUserTimezone(bot.pg_conn, ctx.message.author.id)
 
     time_limit_offset = {
         europa_league_id: 1.5
@@ -557,6 +555,9 @@ async def predict(ctx):
 
     # raw incoming messaged typed by user
     temp_msg = ctx.message.content
+    if len(temp_msg.split()) < 2:
+        await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you didn't actually predict anything!\nTry something like `+predict 3-2 auba fgs, laca`")
+        return 
 
     goals_regex = r"((\d) ?[:-] ?(\d))"
     player_regex = r"[A-Za-z]{1,18}[,]? ?(\dx|x\d)?"
@@ -684,12 +685,12 @@ async def predict(ctx):
                     schema='pg_catalog'
                 )
                 try:
-                    prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2", str(ctx.message.author.id), fixture_id)
+                    prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2", ctx.message.author.id, fixture_id)
                     if prev_prediction:
                         successful_or_updated = "updated"
-                        await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, str(ctx.message.author.id), fixture_id)
+                        await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, ctx.message.author.id, fixture_id)
                     else:
-                        await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, str(ctx.message.author.id), prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
+                        await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                 except Exception as e:
                     log.exception(e)
                     await ctx.send("There was an error adding your prediction, please try again later.")
@@ -711,9 +712,6 @@ async def predict(ctx):
         await bot.admin_id.send(f"There was an error loading this prediction into the databse:\n{e}")
         return
 
-        # \todo add better output to user in predict function
-
-# todo add scoring function/scheduled task
 
 # show user's predictions
 @bot.command()
@@ -721,8 +719,8 @@ async def predictions(ctx):
     '''
     Show your past predictions
     '''
-    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
-    predictions = await getUserPredictions(bot.pg_conn, str(ctx.message.author.id))
+    await checkUserExists(bot.pg_conn, ctx.message.author.id, ctx)
+    predictions = await getUserPredictions(bot.pg_conn, ctx.message.author.id)
     if not predictions:
         await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you have no predictions! Get started by typing `+predict`")
         return
@@ -736,10 +734,69 @@ async def predictions(ctx):
 
 # show leaderboard
 @bot.command()
+@rate_limit(60)
 async def leaderboard(ctx):
     '''
     Show leaderboard
-    '''        
+    '''  
+
+    embed = discord.Embed(title="Leaderboard", description="Arsenal Prediction League Leaderboard", color=0x9c824a)
+
+    # # if need to change the way the tied user are displayed change "RANK()" to "DENSE_RANK()"
+    leaderboard = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+
+    prediction_dictionary = {}
+    embed_dictionary = {}
+    for prediction in leaderboard:
+        if prediction.get("rank") not in prediction_dictionary:
+            # embed_dictionary[prediction.get("rank")] = discord.Embed(title=f'Rank: {prediction.get("rank")}', description="", color=0x9c824a)
+            prediction_dictionary[prediction.get("rank")] = [prediction]
+        else:
+            prediction_dictionary[prediction.get("rank")].append(prediction)
+    
+    # # all_members = bot.get_all_members()
+
+    for k,v in prediction_dictionary.items():
+        # current_embed = embed_dictionary.get(k)
+        output_array = []
+        for user_prediction in v:
+            try:
+                # for user in all_members:
+                #     if user.id == user_prediction.get("user_id"):
+                user = bot.get_user(user_prediction.get("user_id"))
+                if user:
+                    output_array.append(f'{user.display_name} - {user_prediction.get("score")} points')
+                    # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
+            except discord.NotFound:
+                logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
+        output_str = "\n".join(output_array)
+        embed.add_field(name=f"Rank: {k}", value=f"```{output_str}```", inline=False)
+
+    await ctx.send(f"{ctx.message.author.mention}", embed=embed)
+
+    # embeds = [v for k,v in embed_dictionary.items()]
+    # first_embed = True
+    # for embed_fin in embeds:
+    #     if first_embed:
+    #         await ctx.send(f"{ctx.message.author.mention}", embed=embed_fin)
+    #         first_embed = False
+    #     else:
+    #         await ctx.send(embed=embed_fin)
+    
+    # for prediction in leaderboard:
+    #         if first:
+    #             embed.add_field(name=prediction.get("rank"), value="test", inline=False)
+    #             embed.add_field(name=f"{user.display_name}", value=f'{prediction.get("score")}', inline=True)
+    #             first = False
+    #         elif rank == prediction.get("rank"):
+    #             embed.add_field(name=f"{user.display_name}", value=f'{prediction.get("score")}', inline=True)
+    #         else:
+    #             rank = prediction.get("rank")
+    #             embed.add_field(name=prediction.get("rank"), value="test", inline=False)
+    #             embed.add_field(name=f"{user.display_name}", value=f'{prediction.get("score")}', inline=True)
+    #     except discord.NotFound as e:
+    #         logger.exception(e, user=prediction.get('user_id'), method="leaderboard")
+
 
 # change timezone
 @bot.command()
@@ -747,7 +804,7 @@ async def timezone(ctx):
     '''
     Change timezone
     '''
-    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
+    await checkUserExists(bot.pg_conn, ctx.message.author.id, ctx)
 
     msg = ctx.message.content
     try:
@@ -759,7 +816,7 @@ async def timezone(ctx):
     if tz in pytz.all_timezones:
         async with bot.pg_conn.acquire() as connection:
             async with connection.transaction():
-                await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, str(ctx.message.author.id))
+                await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, ctx.message.author.id)
         await ctx.send(f"{ctx.message.author.mention}\n\nYour timezone has been set to {tz}")
     else:
         await ctx.send(f"{ctx.message.author.mention}\n\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'")
@@ -767,30 +824,29 @@ async def timezone(ctx):
 
 # next matches
 @bot.command()
-async def next(ctx, count:int):
+async def next(ctx):
     '''
     Next matches
     '''
-    # msg = ctx.message.content
+    msg = ctx.message.content
 
-    # split_msg = msg.split()
+    split_msg = msg.split()
     
-    # if len(split_msg) > 2:
-    #     await ctx.send(f"{ctx.message.author.mention}\n\nToo many arguments; should be '+next 2' or similar")
-    #     return
+    if len(split_msg) > 2:
+        await ctx.send(f"{ctx.message.author.mention}\n\nToo many arguments; should be '+next 2' or similar")
+        return
 
-    # elif len(split_msg) > 1:
-    #     count = split_msg[1]
-    #     try:
-    #         count = int(count)
-    #     except:
-    #         await ctx.send(f"{ctx.message.author.mention}\n\nExpected usage:\n`+next <number>`")
-    #         return
-    # else: 
-    #     count = 2
+    elif len(split_msg) > 1:
+        count = split_msg[1]
+        try:
+            count = int(count)
+        except:
+            await ctx.send(f"{ctx.message.author.mention}\n\nExpected usage:\n`+next [1-10]`")
+            return
+    else: 
+        count = 2
         
-    
-    if count < 0:
+    if count <= 0:
         await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be a negative number.")
     elif count > 10:
         await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be greater than 10.")
@@ -800,9 +856,11 @@ async def next(ctx, count:int):
         for match in next_matches:
         # await ctx.send(f"{[match for match in next_matches]}")
         # todo: embed icons here
-            output += await formatMatch(bot.pg_conn, match, str(ctx.message.author.id))
+            output += await formatMatch(bot.pg_conn, match, ctx.message.author.id)
         await ctx.send(f"{output}")
 
+
+#todo paginate some functions from +help
 
 # list fixtures
 @bot.command()
@@ -831,7 +889,7 @@ async def when(ctx):
         return
 
     next_match = await bot.pg_conn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {main_team} AND away = $1) OR (away = {main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
-    next_match = await formatMatch(bot.pg_conn, next_match, str(ctx.message.author.id))
+    next_match = await formatMatch(bot.pg_conn, next_match, ctx.message.author.id)
     await ctx.send(f"{ctx.message.author.mention}\n\n{next_match}")
 
 # results
@@ -840,8 +898,8 @@ async def results(ctx):
     '''
     Return historical match results
     '''
-    await checkUserExists(bot.pg_conn, str(ctx.message.author.id), ctx)
-    user_tz = await getUserTimezone(bot.pg_conn, str(ctx.message.author.id))
+    await checkUserExists(bot.pg_conn, ctx.message.author.id, ctx)
+    user_tz = await getUserTimezone(bot.pg_conn, ctx.message.author.id)
 
     done_matches = await completedMatches(bot.pg_conn, count=10)
     done_matches_output = ""
@@ -907,7 +965,6 @@ async def ping(ctx):
     '''
     log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
     latency = bot.latency
-    raise Exception
     log.info(latency=latency)
     await ctx.send(f"{ctx.message.author.mention}\n\nBot latency is {latency * 1000} milliseconds")
 
@@ -946,7 +1003,7 @@ async def testembed(ctx):
     while True:
         # log.info(num=num, max_page=max_page)
         if first_run:
-            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x00ff00)
+            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x9c824a)
             embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
 
             first_run = False
@@ -985,7 +1042,7 @@ async def testembed(ctx):
         elif '⏪' in str(res.emoji):
             print('<< Going backward')
             num = num - 1
-            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x00ff00)
+            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x9c824a)
             embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
             await msg.clear_reactions()
             await msg.edit(embed=embedVar)
@@ -993,7 +1050,7 @@ async def testembed(ctx):
         elif '⏩' in str(res.emoji):
             print('\t>> Going forward')
             num = num + 1
-            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x00ff00)
+            embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x9c824a)
             embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
             await msg.clear_reactions()
             await msg.edit(embed=embedVar)
@@ -1105,9 +1162,14 @@ async def updateFixtures():
     logger.info(f"Updated fixtures table, {len(fixtures)} were changed.")
     # await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
 
-            
+@calculatePredictionScores.before_loop
+async def before_calculatePredictionScores():
+    await bot.wait_until_ready()
+    # async sleep/wait here for bot to acquire db connection object
+    await asyncio.sleep(10)
+
 @updateFixtures.before_loop
-async def before():
+async def before_updateFixtures():
     await bot.wait_until_ready()
     # async sleep/wait here for bot to acquire db connection object
     await asyncio.sleep(10)
@@ -1118,6 +1180,8 @@ async def on_command_error(ctx, error):
     logger.exception(f"Handling error `{error}` for {ctx.message.content}")
     if isinstance(error, IsNotAdmin):
         await ctx.send(f"You do not have permission to run `{ctx.message.content}`")
+    if isinstance(error, RateLimit):
+        await ctx.send(error)
 
 
 
@@ -1130,6 +1194,7 @@ try:
     # Disabling fixture update during testing mode, may need to be further tunable for testing.
     if not testing_mode:
         updateFixtures.start()
+        calculatePredictionScores.start()
     logger.debug("test")
     logger.error("test error")
     bot.run(token)
