@@ -313,9 +313,9 @@ def makeOrdinal(n):
         suffix = 'th'
     return str(n) + suffix
 
-# onReady = when bot is connected to server
+# on_ready = when bot is connected to server
 @bot.event
-async def onReady(): 
+async def on_ready(): 
     await connectToDB()
     await getAdminDiscordId()
     logger.info(f'connected to {channel} within {[ guild.name for guild in bot.guilds ]} as {bot.user}')
@@ -323,7 +323,7 @@ async def onReady():
 
 # print events and debug messsages from users in terminal, doesn't do anything on Discord
 @bot.event
-async def onMessage(message):
+async def on_message(message):
     # if the bot sends messages to itself don't return anything
     if message.author == bot.user:
         return
