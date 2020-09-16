@@ -135,47 +135,49 @@ def getPlayers(season, full_season, league):
     print("done\n")
         
 
-def getFixtures(league_id):
-    parsed_fixtures = []
+# this functionality is replicated by the predictions bot script when it runs, and runs once per hour
+# def getFixtures(league_id):
+#     parsed_fixtures = []
     
-    if not league:
-        print("No team IDs generated. Pass in a --league <league_id>")
-        sys.exit(1)
+#     if not league:
+#         print("No team IDs generated. Pass in a --league <league_id>")
+#         sys.exit(1)
 
-    print(f"generating fixtures in league {league}")
-    response = requests.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key})
-    fixtures = response.json().get("api").get("fixtures")
+#     print(f"generating fixtures in league {league}")
+#     response = requests.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key})
+#     fixtures = response.json().get("api").get("fixtures")
 
-    for match in fixtures:
-        home = match.get("homeTeam").get("team_id")
-        away = match.get("awayTeam").get("team_id")
+#     for match in fixtures:
+#         home = match.get("homeTeam").get("team_id")
+#         away = match.get("awayTeam").get("team_id")
 
-        delete_keys = [key for key in match if key not in ["fixture_id", "league_id", "event_date", "goalsHomeTeam", "goalsAwayTeam"]]
+#         delete_keys = [key for key in match if key not in ["fixture_id", "league_id", "event_date", "goalsHomeTeam", "goalsAwayTeam"]]
     
-        for key in delete_keys:
-            del match[key]
+#         for key in delete_keys:
+#             del match[key]
         
-        match["home"] = home
-        match["away"] = away
+#         match["home"] = home
+#         match["away"] = away
 
-        parsed_fixtures.append(match)
+#         parsed_fixtures.append(match)
     
-    for fixture in parsed_fixtures:
-        # todo make this update fixtures if it exists
-        # fixture_exists = pgcursor.execute("SELECT * FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+#     for fixture in parsed_fixtures:
+#         fixture_exists = pgcursor.execute("SELECT * FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
 
 
-        try:
-            # if fixture_exists:
-                # pgcursor.execute("UPDATE predictionsbot.fixtures SET (home, away, fixture_id, league_id, event_date, goals_home, goals_away) WHERE fixture_id = $1 VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
-            # else: 
-            pgcursor.execute("INSERT INTO predictionsbot.fixtures (home, away, fixture_id, league_id, event_date, goals_home, goals_away, scorable) VALUES (%s, %s, %s, %s, %s, %s, %s, false);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
-        except (Exception) as e:    
-            print(f"{e}")
-            postgresconnection.rollback()
-    print("done\n")
+#         try:
+#             # if fixture_exists:
+#                 # pgcursor.execute("UPDATE predictionsbot.fixtures SET (home, away, fixture_id, league_id, event_date, goals_home, goals_away) WHERE fixture_id = $1 VALUES (%s, %s, %s, %s, %s, %s, %s);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
+#             # else: 
+#             pgcursor.execute("INSERT INTO predictionsbot.fixtures (home, away, fixture_id, league_id, event_date, goals_home, goals_away, scorable) VALUES (%s, %s, %s, %s, %s, %s, %s, false);", (fixture.get('home'), fixture.get('away'), fixture.get('fixture_id'), league_id, fixture.get('event_date'), fixture.get('goalsHomeTeam'), fixture.get('goalsAwayTeam')))
+#         except (Exception) as e:    
+#             print(f"{e}")
+#             postgresconnection.rollback()
+#     print("done\n")
 
 
+
+# not used anymore, table dropped from db
 def getStandings(league_id):
     #todo get standings for other leagues
     #todo fix db to track standings from all leagues

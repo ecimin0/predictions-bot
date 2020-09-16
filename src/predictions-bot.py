@@ -16,8 +16,10 @@ import string
 import structlog
 import traceback
 
+from tabulate import tabulate
 from pythonjsonlogger import jsonlogger
 from discord.ext import commands, tasks
+from discord.ext.commands import CommandNotFound
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 from pprint import pprint
@@ -119,11 +121,53 @@ team_nicknames = {
 }
 
 # 2020-2021 season league IDs
-premier_league_id = 2790
-champions_league_id = 2771
-europa_league_id = 2777
-fa_cup_id = 2791
-league_cup_id = 2781
+league_dict = {
+    "premier_league": 2790,
+    "champions_league": 2771,
+    "europa_league": 2777,
+    "fa_cup": 2791,
+    "league_cup": 2781
+}
+
+status_lookup = {
+    "TBD": False,
+    "NS": False,
+    "1H": False,
+    "HT": False,
+    "2H": False,
+    "ET": False,
+    "P": False,
+    "FT": True,
+    "AET": True,
+    "PEN": True,
+    "BT": False,
+    "SUSP": False,
+    "INT": False,
+    "PST": False,
+    "CANC": False,
+    "ABD": False,
+    "AWD": True,
+    "WO": True
+}
+
+# TBD : Time To Be Defined
+# NS : Not Started
+# 1H : First Half, Kick Off
+# HT : Halftime
+# 2H : Second Half, 2nd Half Started
+# ET : Extra Time
+# P : Penalty In Progress
+# FT : Match Finished
+# AET : Match Finished After Extra Time
+# PEN : Match Finished After Penalty
+# BT : Break Time (in Extra Time)
+# SUSP : Match Suspended
+# INT : Match Interrupted
+# PST : Match Postponed
+# CANC : Match Cancelled
+# ABD : Match Abandoned
+# AWD : Technical Loss
+# WO : WalkOver
 
 utc = pytz.timezone("UTC")
 
@@ -198,6 +242,8 @@ def randomAlphanumericString(length):
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
 
+# todo separate rate limits
+
 def rateLimit(seconds):
     async def predicate(ctx):
         global last_run
@@ -206,7 +252,7 @@ def rateLimit(seconds):
             last_run = datetime.utcnow()
             return True
         else:
-            raise RateLimit(f"Leaderboard command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
+            raise RateLimit(f"Command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
     return commands.check(predicate)
 
 async def isAdmin(ctx):
@@ -265,6 +311,7 @@ async def connectToDB():
     try:
         bot.pg_conn = await asyncpg.create_pool(user=aws_dbuser, password=aws_dbpass, database=aws_dbname, host=aws_db_ip)
         logger.info("Connected to postgres")
+        bot.pg_conn_ready = True
     except Exception as e:
         logger.error(f"{e}")
         sys.exit(1)
@@ -338,6 +385,7 @@ async def on_message(message):
 # async def calculatePredictionScores(ctx):
 @tasks.loop(minutes=5)
 async def calculatePredictionScores():
+    await checkBotReady()
     scorable_fixtures = {}
     async with bot.pg_conn.acquire() as connection:
         async with connection.transaction():
@@ -506,7 +554,7 @@ async def predict(ctx):
     user_tz = await getUserTimezone(bot.pg_conn, ctx.message.author.id)
 
     time_limit_offset = {
-        europa_league_id: 1.5
+        league_dict["europa_league"]: 1.5
     }
     # if europa league then timedelta(hours=1.5)
     # else timedelta(hours=1)
@@ -675,11 +723,19 @@ async def predictions(ctx):
         await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you have no predictions! Get started by typing `+predict`")
         return
 
-    output = f"{ctx.message.author.mention}\n\n"
+    embed = discord.Embed(title=f"Predictions for {ctx.message.author.display_name}")
+
+    # output = f"{ctx.message.author.mention}\n"
+
+    total = 0
     for prediction in predictions:
+        if prediction.get("prediction_score"):
+            total += prediction.get("prediction_score")
         match = await getMatch(bot.pg_conn, prediction.get("fixture_id"))
-        output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
-    await ctx.send(f"{output}")
+        embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value=f'Score: {prediction.get("prediction_score")} | `{prediction.get("prediction_string")}`\n\n', inline=False)
+        # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
+    embed.description=f"Your total is {total}"
+    await ctx.send(embed=embed)
 
 
 @bot.command()
@@ -690,7 +746,7 @@ async def leaderboard(ctx):
     '''  
     embed_colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
     embed_color = random.choice(embed_colors)
-    embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description="", color=embed_color)
+    embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description="\u200b", color=embed_color)
     embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png")
 
     # if need to change the way the tied users are displayed change "RANK()" to "DENSE_RANK()"
@@ -760,7 +816,7 @@ async def timezone(ctx):
     msg = ctx.message.content
     try:
         tz = re.search("\+timezone (.*)", msg).group(1)
-    except Exception as e:
+    except Exception:
         await ctx.send(f"{ctx.message.author.mention}\n\nYou didn't include a timezone!")
         return
     
@@ -808,15 +864,7 @@ async def next(ctx):
             output += await formatMatch(bot.pg_conn, match, ctx.message.author.id)
         await ctx.send(f"{output}")
 
-
 #todo paginate some functions from +help
-
-# # list fixtures
-# @bot.command()
-# async def fixtures(ctx):
-#     '''
-#     Full fixture list
-#     '''
 
 @bot.command()
 async def when(ctx):
@@ -858,51 +906,89 @@ async def results(ctx):
     done_matches_output = f"```\n{done_matches_output}\n```"
     await ctx.send(f"{ctx.message.author.mention}\n\n{done_matches_output}")
 
-# # PL table
-# @bot.command()
-# async def pltable(ctx):
-#     '''
-#     Current Premier League table
-#     '''
-#     pl_id = 524
+def formatStandings(standings):
 
-# # CL table
+    standings_formatted = []
+    for standing in standings:
+        # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
+        standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], standing["win"], standing["draw"], standing["loss"], standing["goals_for"], standing["goals_against"], standing["goalsDiff"]])
+
+    return tabulate(standings_formatted, headers=["Rank", "Team", "Points", "Played", "W", "D", "L", "GF", "GA", "GD"], tablefmt="simple")
+
+# # PL table
+@bot.command()
+@rateLimit(60)
+async def pltable(ctx):
+    '''
+    Current Premier League table
+    '''
+    standings = getStandings(league_dict["premier_league"])
+
+    output = formatStandings(standings)
+    # \u200b  null space/break char
+    # embed = discord.Embed(title=f"Premier League Leaderboard", description="", color=0x3d195b)
+    # embed.set_thumbnail(url="https://media.api-sports.io/leagues/2.png")
+    # embed.set_footer(text="\u200b", icon_url="https://media.api-sports.io/leagues/2.png")
+    # embed.add_field(name="\u200b", value=output, inline=False)
+    # embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```{output_str}```", inline=False)
+    # await ctx.send(embed=embed)
+    await ctx.send(f"{ctx.message.author.mention}\n\n**Premier League Leaderboard**\n```{output}```")
+
+# # # CL table
 # @bot.command()
 # async def cltable(ctx):
 #     '''
 #     Current Champion's League table
 #     '''        
-#     cl_id = 530
+#     standings = getStandings(league_dict["champions_league"])
+#     output = f"{ctx.message.author.mention}\n\n"
+#     output += formatStandings(standings)
+#     await ctx.send(f"{output}")
 
-# # EL table
+# # # EL table
 # @bot.command()
 # async def eltable(ctx):
 #     '''
 #     Current Europa League table
 #     '''
-#     el_id = 514
+#     standings = getStandings(league_dict["europa_league"])
+#     output = f"{ctx.message.author.mention}\n\n"
+#     output += formatStandings(standings)
+#     await ctx.send(f"{output}")
 
-# # FA Cup table
+# # # FA Cup table
 # @bot.command()
 # async def fatable(ctx):
 #     '''
 #     Current FA Cup table
-#     '''        
-#     fa_id = 956
+#     '''
+#     try:            
+#         standings = getStandings(league_dict["fa_cup"])
+#     except:
+#         ctx.send("No matches for the FA Cup yet!")
+#         return
 
-# # League Cup table
+#     output = f"{ctx.message.author.mention}\n\n"
+#     output += formatStandings(standings)
+#     await ctx.send(f"{output}")
+
+# # # League Cup table
 # @bot.command()
 # async def efltable(ctx):
 #     '''
 #     Current League Cup table
-#     '''            
+#     '''
+#     try:            
+#         standings = getStandings(league_dict["europa_league"])
+#     except:
+#         ctx.send("No matches for the Europa League yet!")
+#         return
+#     output = f"{ctx.message.author.mention}\n\n"
+#     output += formatStandings(standings)
+#     await ctx.send(f"{output}")
 
-
-# # fixtures in progess
-# @bot.command()
-# async def inProgress(ctx):
-#     pass
-
+async def checkBotReady():
+    await asyncio.sleep(5)
 
 @bot.command()
 async def ping(ctx):
@@ -1033,56 +1119,10 @@ async def messageLookup(ctx, input_id:int):
     else:
         await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
 
-# scheduled task configuration example
-@tasks.loop(minutes=1)
-async def loopOncePerDay():
-    message_channel = bot.get_channel(channel_id)
-    print(f"Got channel {message_channel}")
-    await message_channel.send("Test scheduled message")
-
-
 # @bot.command(hidden=True)
 @tasks.loop(minutes=15)
 async def updateFixtures():
-    status_lookup = {
-        "TBD": False,
-        "NS": False,
-        "1H": False,
-        "HT": False,
-        "2H": False,
-        "ET": False,
-        "P": False,
-        "FT": True,
-        "AET": True,
-        "PEN": True,
-        "BT": False,
-        "SUSP": False,
-        "INT": False,
-        "PST": False,
-        "CANC": False,
-        "ABD": False,
-        "AWD": True,
-        "WO": True
-    }
-
-    # TBD : Time To Be Defined
-    # NS : Not Started
-    # 1H : First Half, Kick Off
-    # HT : Halftime
-    # 2H : Second Half, 2nd Half Started
-    # ET : Extra Time
-    # P : Penalty In Progress
-    # FT : Match Finished
-    # AET : Match Finished After Extra Time
-    # PEN : Match Finished After Penalty
-    # BT : Break Time (in Extra Time)
-    # SUSP : Match Suspended
-    # INT : Match Interrupted
-    # PST : Match Postponed
-    # CANC : Match Cancelled
-    # ABD : Match Abandoned
-    # AWD : Technical Loss
-    # WO : WalkOver
+    await checkBotReady()
 
     fixtures = await bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT scorable")
     for fixture in fixtures:
@@ -1098,38 +1138,128 @@ async def updateFixtures():
     logger.info(f"Updated fixtures table, {len(fixtures)} were changed.")
     # await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
 
-@calculatePredictionScores.before_loop
-async def before_calculatePredictionScores():
-    await bot.wait_until_ready()
-    # async sleep/wait here for bot to acquire db connection object
-    await asyncio.sleep(10)
+def changesExist(fixture1, fixture2):
+    # likeness of bools of these comparisons
+    # all() returns True if all elements of likeness are True
+    likeness = [
+        fixture1.get("home") == fixture2.get("home"),
+        fixture1.get("away") == fixture2.get("away"),
+        fixture1.get("event_date") == fixture2.get("event_date"),
+        fixture1.get("goalsHomeTeam") == fixture2.get("goals_home"),
+        fixture1.get("goalsAwayTeam") == fixture2.get("goals_away"),
+        fixture1.get("league_id") == fixture2.get("league_id")
+    ]
+    return not all(likeness)
 
-@updateFixtures.before_loop
-async def before_updateFixtures():
-    await bot.wait_until_ready()
-    # async sleep/wait here for bot to acquire db connection object
-    await asyncio.sleep(10)
+@tasks.loop(hours=1)
+async def updateFixturesbyLeague():
+    await checkBotReady()
+    # if datetime.utcnow.hour % 8 == 0:
+        # logger.info("Not running fixture update script")
+    logger.info("Running fixture update script")
+    updated_fixtures = 0
+
+    # if not league:
+    #     print("No team IDs generated. Pass in a --league <league_id>")
+    #     sys.exit(1)
+    for league_name, league_id in league_dict.items():
+        logger.info(f"generating fixtures", league_id=league_id, league_name=league_name)
+        response = requests.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20)
+        fixtures = response.json().get("api").get("fixtures")
+        
+        # reset parsed fixtures to empty for each league
+        parsed_fixtures = []
+        for match in fixtures:
+            home = match.get("homeTeam").get("team_id")
+            away = match.get("awayTeam").get("team_id")
+            event_date = match.get("event_date")
+
+            delete_keys = [key for key in match if key not in ["fixture_id", "league_id", "goalsHomeTeam", "goalsAwayTeam", "statusShort"]]
+        
+            for key in delete_keys:
+                del match[key]
+
+            match["event_date"] = datetime.strptime(event_date, "%Y-%m-%dT%H:%M:%S+00:00") 
+            match["home"] = home
+            match["away"] = away
+
+            parsed_fixtures.append(match)
+        
+        for fixture in parsed_fixtures:
+            fixture_exists = await bot.pg_conn.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+            
+            if fixture_exists:
+                if changesExist(fixture, fixture_exists):
+                    updated_fixtures += 1
+                    logger.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=league_id)
+                    async with bot.pg_conn.acquire() as connection:
+                        async with connection.transaction():
+                            await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7 WHERE fixture_id = $8", 
+                                                        fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
+                                                        fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+            else:
+                logger.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=league_id)
+                updated_fixtures += 1
+                async with bot.pg_conn.acquire() as connection:
+                    async with connection.transaction():
+                        await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", 
+                                                    fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
+                                                    fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+         
+    if updated_fixtures:
+        await bot.admin_id.send(f"Updated/Inserted {updated_fixtures} fixtures!")
+
+def getStandings(league_id):
+    parsed_standings = []
+
+    logger.info("Generating standings", league=league_id)
+    response = requests.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+    standings = response.json().get("api").get("standings")
+    
+    for rank in standings[0]:
+        played = rank.get("all").get("matchsPlayed")
+        win = rank.get("all").get("win")
+        draw = rank.get("all").get("draw")
+        lose = rank.get("all").get("lose")
+        gf = rank.get("all").get("goalsFor")
+        ga = rank.get("all").get("goalsAgainst")
+
+        delete_keys = [key for key in rank if key not in ["rank", "team_id", "teamName", "goalsDiff", "points"]]
+        
+        for key in delete_keys:
+            del rank[key]
+
+        rank["played"] = played
+        rank["win"] = win
+        rank["draw"] = draw
+        rank["loss"] = lose
+        rank["goals_for"] = gf
+        rank["goals_against"] = ga
+        parsed_standings.append(rank)
+
+    return parsed_standings
+
+
+
 
 @bot.event
-async def onCommandError(ctx, error):
-    logger.exception(f"Handling error `{error}` for {ctx.message.content}")
+async def on_command_error(ctx, error):
+    logger.error(f"Handling error for {ctx.message.content}", exception=error)
     if isinstance(error, IsNotAdmin):
         await ctx.send(f"You do not have permission to run `{ctx.message.content}`")
     if isinstance(error, RateLimit):
         await ctx.send(error)
+    if isinstance(error, CommandNotFound):
+        await ctx.send(f"`{ctx.message.content}` is not a recognized command, try `+help` to see available commands")
 
-#todo what is channel_id stuff doing
+
 try:
-    # scheduled task enabling only if channel is specified
-    if channel_id != 0:
-        loopOncePerDay.start()
-
     # disabling fixture update during testing mode, may need to be further tunable for testing.
     if not testing_mode:
         updateFixtures.start()
         calculatePredictionScores.start()
-    logger.debug("test")
-    logger.error("test error")
+        updateFixturesbyLeague.start()
+
     bot.run(token)
 except Exception as e:
     print(f"{e}")
