@@ -27,8 +27,6 @@ from pprint import pprint
 # bot token, API key, other stuff 
 load_dotenv()
 
-tabulate.PRESERVE_WHITESPACE = True
-
 def createLogger(level):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(jsonlogger.JsonFormatter(fmt='%(asctime)s %(levelname)s %(name)s %(message)s'))
