@@ -14,8 +14,6 @@ from dotenv import load_dotenv
 from pprint import pprint
 import argparse
 
-
-
 def getCountries():
     print("generating countries")
     response = requests.get(f"http://v2.api-football.com/countries", headers={'X-RapidAPI-Key': api_key})
@@ -28,7 +26,6 @@ def getCountries():
             print(f"{e}")
             postgresconnection.rollback()
     print("done\n")
-
 
 def getLeagues(season):
     if not season:
@@ -63,7 +60,6 @@ def getLeagues(season):
             postgresconnection.rollback()
     print("done\n")
 
-
 def generateTeamIDList(league_id):
     if not league:
         print("No team IDs generated. Pass in a --league <league_id>")
@@ -77,7 +73,6 @@ def generateTeamIDList(league_id):
         team_ids_list.append(team.get("team_id"))
     print(team_ids_list)
     print("done\n")
-
 
 def getTeams(league):
     parsed_teams = []
@@ -106,7 +101,6 @@ def getTeams(league):
             postgresconnection.rollback()
     print("done\n")
 
-
 def getPlayers(season, full_season, league):
     teams = {}
 
@@ -134,7 +128,6 @@ def getPlayers(season, full_season, league):
                 postgresconnection.rollback()
     print("done\n")
         
-
 # this functionality is replicated by the predictions bot script when it runs, and runs once per hour
 # def getFixtures(league_id):
 #     parsed_fixtures = []
@@ -175,13 +168,8 @@ def getPlayers(season, full_season, league):
 #             postgresconnection.rollback()
 #     print("done\n")
 
-
-
 # not used anymore, table dropped from db
 def getStandings(league_id):
-    #todo get standings for other leagues
-    #todo fix db to track standings from all leagues
-
     parsed_standings = []
 
     if not league:
@@ -221,11 +209,9 @@ def getStandings(league_id):
             postgresconnection.rollback()
     print("done\n")
 
-
 load_dotenv()
 
 api_key = os.environ.get("API_KEY", None)
-
 
 # Command line arguments #
 parser = argparse.ArgumentParser(description="Populate database with football API data for a given season", formatter_class=argparse.RawTextHelpFormatter, add_help=False)
@@ -255,7 +241,6 @@ team_ids_list = []
 season = option.season
 league = option.league
 
-
 if option.season:
     season_YYYY = int(season) + 1
     full_season = f"{season}-{season_YYYY}"
@@ -263,7 +248,6 @@ if option.season:
 current_year = datetime.datetime.now().year
 prev_year = current_year - 1
 next_year = current_year + 1 
-
 
 try:
     with psycopg2.connect("postgres://{0}:{1}@{2}:5432/{3}".format(aws_dbuser, aws_dbpass, aws_dbhost, aws_dbname)) as postgresconnection:
@@ -279,7 +263,7 @@ try:
         
         # getTeams(league)
     
-        getPlayers(season, full_season, league)
+        # getPlayers(season, full_season, league)
     
         # getFixtures(league)
     
@@ -288,5 +272,4 @@ try:
 except Exception as e:
     print(f"{e}")
 
-# todo cron this script for getFixtures()
 # todo make args for function calls

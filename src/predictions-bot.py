@@ -27,6 +27,8 @@ from pprint import pprint
 # bot token, API key, other stuff 
 load_dotenv()
 
+tabulate.PRESERVE_WHITESPACE = True
+
 def createLogger(level):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(jsonlogger.JsonFormatter(fmt='%(asctime)s %(levelname)s %(name)s %(message)s'))
@@ -60,65 +62,10 @@ def createLogger(level):
 
 logger = createLogger(os.environ.get("LOGLEVEL", "INFO"))
 
-player_nicknames = {
-    138784: ["olayinka"],
-    1161: ["smith-rowe", "esr"],
-    1438: ["leno"],
-    19599: ["martinez", "emi"],
-    20386: ["macey"],
-    1437: ["iliev"],
-    1439: ["bellerin", "hector", "heccy"],
-    1117: ["tierney", "kt"],
-    1450: ["papastathopoulos", "sokratis"],
-    1440: ["holding", "holdinho"],
-    1448: ["mustafi"],
-    19016: ["chambers"],
-    2283: ["luiz"],
-    1442: ["kolasinac", "kola"],
-    190: ["soares", "cedric"],
-    46792: ["mari"],
-    22090: ["saliba"],
-    1458: ["ozil", "mesut"],
-    1462: ["torreira"],
-    1456: ["maitland-niles", "amn"],
-    1463: ["willock"],
-    1454: ["guendouzi"],
-    1464: ["xhaka"],
-    1460: ["saka"],
-    1452: ["elneny"],
-    1467: ["lacazette", "laca"],
-    1465: ["aubameyang", "auba"],
-    3246: ["pepe"],
-    727: ["nelson"],
-    1468: ["nketiah", "eddie"],
-    127769: ["martinelli", "gabi"],
-    748: ["ceballos", "dani"],
-    2294: ["willian"],
-    22224: ["gabriel"]
-}
-
-team_nicknames = {
-    44: ["burnley"], 
-    33: ["manchester united", "man u", "man united", "united"], 
-    52: ["crystal palace", "palace"], 
-    41: ["southampton", "saints"],
-    36: ["fulham"], 
-    42: ["arsenal"], 
-    40: ["liverpool"], 
-    63: ["leeds", "leeds united"], 
-    50: ["manchester city", "man city", "city"], 
-    66: ["aston villa", "villa"], 
-    47: ["tottenham", "tottenham hotspur", "spurs", "spuds", "the shit", "shit", "shite"], 
-    45: ["everton", "toffees"], 
-    60: ["west brom", "west bromwich albion", "baggies"], 
-    46: ["leicester", "leicester city"], 
-    48: ["west ham", "west ham united", "hammers"], 
-    34: ["newcastle", "newcastle united"], 
-    51: ["brighton", "brighton and hove albion"], 
-    49: ["chelsea"], 
-    62: ["sheffield united", "sheffield"],
-    39: ["wolves", "wolverhampton"]
-}
+#todo make script accept stuff like nicknames as a config file
+# initialize db on "first launch" by adding initial team name as nickname to teams table, by league of main team (42 == arsenal == premier league == 2790)
+# todo ask team, country, league, setup config in database?
+# todo config in db/vs file 
 
 # 2020-2021 season league IDs
 league_dict = {
@@ -198,6 +145,7 @@ else:
 
 # API team id to use as 'main' team
 main_team = 42 # arsenal
+main_league = 2790
 
 time_format = "%m/%d/%Y, %H:%M:%S %Z"
 
@@ -208,51 +156,53 @@ if not token:
     logger.error("Missing Discord bot token! Set TOKEN env value.")
     sys.exit(1)
 
-last_run = datetime.utcnow() - timedelta(hours=1)
-
-channel_id = int(os.environ.get("CHANNELID", 0))
+last_run = {}
 
 # bot only responds to commands prepended with {prefix}
 prefix = "+"
 
 # cleaner output of help function(s)
-help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4)
+help_function = commands.DefaultHelpCommand(no_category="Available Commands", indent=4, dm_help=True)
 bot = commands.Bot(prefix, help_command=help_function)
+bot.remove_command('help')
 
 class IsNotAdmin(commands.CheckFailure):
     pass
 
 class RateLimit(commands.CheckFailure):
-    pass
+    pass    
 
-def getPlayerId(userInput):
-    for k,v in player_nicknames.items():
-        if userInput.lower() in v:
-            return k
-    raise Exception(f"no player named {userInput}")
+async def getPlayerId(dbconn, userInput):
+    player = await dbconn.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), main_team)
+    if not player:
+        raise Exception(f"no player named {userInput}")
+    return player.get("player_id")
 
-def getTeamId(userInput):
-    for k,v in team_nicknames.items():
-        if userInput.lower() in v:
-            return k
-    raise Exception(f"no team named {userInput}")
+async def getTeamId(dbconn, userInput):
+    player = await dbconn.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
+    if not player:
+        raise Exception(f"no team named {userInput}")
+    return player.get("team_id")
 
 def randomAlphanumericString(length):
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
 
-# todo separate rate limits
 
-def rateLimit(seconds):
+def rateLimit(seconds, name):
     async def predicate(ctx):
         global last_run
-        seconds_since_last_run = (datetime.utcnow() - last_run).total_seconds()
-        if seconds_since_last_run > seconds:
-            last_run = datetime.utcnow()
+        if name not in last_run:
+            last_run[name] = datetime.utcnow()
             return True
         else:
-            raise RateLimit(f"Command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
+            seconds_since_last_run = (datetime.utcnow() - last_run[name]).total_seconds()
+            if seconds_since_last_run > seconds:
+                last_run[name] = datetime.utcnow()
+                return True
+            else:
+                raise RateLimit(f"+{name} command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
     return commands.check(predicate)
 
 async def isAdmin(ctx):
@@ -279,24 +229,16 @@ def prepareTimestamp(timestamp, tz, str=True):
 
 # nextMatches returns array of fixtures (even for one)
 async def nextMatches(dbconn, count=1):
-    '''
-    Return the array of next fixtures records from Database 
-    '''
     matches = await dbconn.fetch(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT $1;", count)
     return matches
 
 # nextMatch returns record (no array)
 async def nextMatch(dbconn):
-    '''
-    Return the next fixture record from Database 
-    '''
     match = await dbconn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date LIMIT 1;")
     return match
 
+# array of completed fixtures records
 async def completedMatches(dbconn, count=1, offset=0):
-    '''
-    Return the array of completed fixtures records from Database 
-    '''
     matches = await dbconn.fetch(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {main_team} OR away = {main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
@@ -305,7 +247,8 @@ async def formatMatch(dbconn, match, user):
     match_time = prepareTimestamp(match.get('event_date'), tz)
 
     time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
-    return f"{match.get('league_name')}\n\({match.get('home_or_away')}\) vs {match.get('opponent_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
+
+    return f"{match.get('league_name')}\n{match.get('home_name')} vs {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
 
 async def connectToDB():
     try:
@@ -334,6 +277,10 @@ async def getUserPredictions(dbconn, user_id):
 async def getMatch(dbconn, fixture_id):
     match = await dbconn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
     return match
+
+async def getRandomTeam(dbconn):
+    team = await dbconn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
+    return team.get("name")
 
 async def checkUserExists(dbconn, user_id, ctx):
     user = await dbconn.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
@@ -379,7 +326,6 @@ async def on_message(message):
         # logger.info(f"{message.channel.name} | {message.author} | {message.author.id} | {message.content}")
         await bot.process_commands(message)
 
-
 # @bot.command(hidden=True)
 # @commands.check(isAdmin)
 # async def calculatePredictionScores(ctx):
@@ -415,7 +361,6 @@ async def calculatePredictionScores():
         scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
         scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
 
-    pprint(scorable_fixtures)
     for prediction in unscored_predictions:
         if prediction.get("fixture_id") in scorable_fixtures:
             match_results = scorable_fixtures[prediction.get("fixture_id")]
@@ -432,8 +377,6 @@ async def calculatePredictionScores():
             
             # 2 points – correct number of Arsenal goals
             # 1 point – correct number of goals conceded
-            opponent_goals = 0
-            arsenal_goals = 0
             if match_results["home_or_away"] == "home":
                 opponent_predicted_goals = prediction.get("away_goals")
                 arsenal_predicted_goals = prediction.get("home_goals")
@@ -451,7 +394,7 @@ async def calculatePredictionScores():
                 prediction_score += 1
 
             for idx,player in enumerate(prediction.get("scorers")):
-                prediction.get("scorers")[idx]["player_id"] = getPlayerId(player.get("name"))
+                prediction.get("scorers")[idx]["player_id"] = await getPlayerId(bot.pg_conn, player.get("name"))
 
             # 1 point – each correct scorer
             actual_goal_scorers = {}
@@ -523,6 +466,114 @@ rules_set = """**Predict our next match against {0}**
 `{1}`
 """
 
+#send database errors for updater functions to admin accounts
+
+#todo add helpful desc of admin commands
+
+#todo way to list players and team nicknames (by league)
+# add league id field to teams table
+## get player ids and team ids
+
+# todo first move get-api-data.py functionality into predictions-bot.py
+# todo be able to turn on and off scheduled tasks and updater functions
+
+@bot.command()
+async def help(ctx):
+    '''
+    This help message
+    '''
+    output = []
+    adminOutput = []
+    tabulate.PRESERVE_WHITESPACE = True
+    for com, value in bot.all_commands.items():
+        if not value.hidden:
+            output.append(["\t", com, value.help])
+        elif value.hidden:
+            adminOutput.append(["\t", com, value.help])
+
+    output = tabulate(output, tablefmt="plain")
+    adminOutput = tabulate(adminOutput, tablefmt="plain")
+    
+    user = bot.get_user(ctx.author.id)
+
+    if ctx.author.id in admin_ids:
+        await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
+    else:
+        await user.send(f"```Available Commands:\n{output}```")
+
+# need these to bulk add nicknames with the bot
+# @bot.command(hidden=True)
+# @commands.check(isAdmin)
+# async def updateNicknames(ctx):
+#     '''
+#     Add player nickname to database
+#     '''
+#     for k,v in player_nicknames.items():
+#         async with bot.pg_conn.acquire() as connection:
+#             async with connection.transaction():
+#                 await connection.execute("UPDATE predictionsbot.players SET nicknames = '{{ {0} }}' WHERE player_id = $1".format(", ".join(v)), k)
+
+# @bot.command(hidden=True)
+# @commands.check(isAdmin)
+# async def updateTeamNickNames(ctx):
+#     '''
+#     Add team nickname to database
+#     '''
+#     for k,v in team_nicknames.items():
+#         async with bot.pg_conn.acquire() as connection:
+#             async with connection.transaction():
+#                 await connection.execute("UPDATE predictionsbot.teams SET nicknames = '{{ {0} }}' WHERE team_id = $1".format(", ".join(v)), k)
+
+
+@bot.command(hidden=True)
+@commands.check(isAdmin)
+async def addNickname(ctx, nicknameType:str, id:int, nickname:str):
+    '''
+    Add a nickname to database | +addNickname (player|team) <id> <nickname string>
+    '''
+    if nicknameType == "team":
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_append(nicknames, $1) WHERE team_id = $2", nickname, id)
+    elif nicknameType == "player":
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute("UPDATE predictionsbot.players SET nicknames = array_append(nicknames, $1) WHERE player_id = $2", nickname, id)
+    else:
+        await ctx.send("Can only update nicknames for `player` and `team`.")
+
+@bot.command(hidden=True)
+@commands.check(isAdmin)
+async def removeNickname(ctx, nicknameType:str, id:int, nickname:str):
+    '''
+    Remove a nickname from database | +removeNickname (player|team) <id> <nickname string>
+    '''
+    if nicknameType == "team":
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
+    elif nicknameType == "player":
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute("UPDATE predictionsbot.players SET nicknames = array_remove(nicknames, $1) WHERE player_id = $2", nickname, id)
+    else:
+        await ctx.send("Can only update nicknames for `player` and `team`.")
+
+# @bot.command(hidden=True)
+# @commands.check(isAdmin)
+# async def listNicknames(ctx, nicknameType:str):
+#     '''
+#     list nicknames in database
+#     '''
+#     if nicknameType == "team":
+#         # async with bot.pg_conn.acquire() as connection:
+#         #     async with connection.transaction():
+#         #         await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
+#     elif nicknameType == "player":
+#         await bot.pg_conn.fetch("UPDATE predictionsbot.players SET nicknames = array_remove(nicknames, $1) WHERE player_id = $2", nickname, id)
+#     else:
+#         await ctx.send("Can only update nicknames for `player` and `team`.")
+
 @bot.command()
 async def rules(ctx):
     # these 3 quote blocks in all of the commands are returned when user enters +help
@@ -535,10 +586,6 @@ async def rules(ctx):
 
     rules_set_filled = rules_set.format(opponent, predict_example)
     await ctx.send(f"{ctx.message.author.mention}\n\n{rules_set_filled}")
-
-async def getRandomTeam(dbconn):
-    team = await dbconn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
-    return team.get("name")
 
 @bot.command()
 async def predict(ctx):
@@ -581,7 +628,7 @@ async def predict(ctx):
         return 
 
     goals_regex = r"((\d) ?[:-] ?(\d))"
-    player_regex = r"[A-Za-z]{1,18}[,]? ?(\d[xX]|[xX]\d)?"
+    # player_regex = r"[A-Za-z]{1,18}[,]? ?(\d[xX]|[xX]\d)?"
 
     try:
         prediction_string = temp_msg
@@ -620,7 +667,7 @@ async def predict(ctx):
                 fgs_str = "fgs"
 
             try:
-                player_id = getPlayerId(player.strip())
+                player_id = await getPlayerId(bot.pg_conn, player.strip())
                 player_real_name = await bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
                 real_name = player_real_name.get("player_name")
             except Exception as e:
@@ -650,9 +697,7 @@ async def predict(ctx):
     if not goals_match:
         await ctx.send(f"{ctx.message.author.mention}\n\nDid not provide a match score in your prediction.\n`{ctx.message.content}`")
         return
-    else:
-        message_timestamp = datetime.utcnow()
-        
+    else:        
         # football home teams listed first
         home_goals = int(goals_match.group(2))
         # football away teams listed second
@@ -737,9 +782,8 @@ async def predictions(ctx):
     embed.description=f"Your total is {total}"
     await ctx.send(embed=embed)
 
-
 @bot.command()
-@rateLimit(60)
+@rateLimit(60, "leaderboard")
 async def leaderboard(ctx):
     '''
     Show leaderboard
@@ -753,7 +797,7 @@ async def leaderboard(ctx):
     leaderboard = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
 
     prediction_dictionary = {}
-    embed_dictionary = {}
+    # embed_dictionary = {}
     for prediction in leaderboard:
         if prediction.get("rank") not in prediction_dictionary:
             # embed_dictionary[prediction.get("rank")] = discord.Embed(title=f'Rank: {prediction.get("rank")}', description="", color=0x9c824a)
@@ -764,7 +808,7 @@ async def leaderboard(ctx):
     # all_members = bot.get_all_members()
     
     rank_num = 1
-    for k,v in prediction_dictionary.items():
+    for v in prediction_dictionary.values():
         # current_embed = embed_dictionary.get(k)
         output_array = []
         for user_prediction in v:
@@ -815,7 +859,7 @@ async def timezone(ctx):
 
     msg = ctx.message.content
     try:
-        tz = re.search("\+timezone (.*)", msg).group(1)
+        tz = re.search(r"\+timezone (.*)", msg).group(1)
     except Exception:
         await ctx.send(f"{ctx.message.author.mention}\n\nYou didn't include a timezone!")
         return
@@ -865,6 +909,8 @@ async def next(ctx):
         await ctx.send(f"{output}")
 
 #todo paginate some functions from +help
+#todo indicate prediction has yet to be scored instead of points 
+# todo show missed matches in +predictions
 
 @bot.command()
 async def when(ctx):
@@ -879,7 +925,10 @@ async def when(ctx):
         return
 
     try:
-        team_id = getTeamId(team)
+        team_id = await getTeamId(bot.pg_conn, team)
+        if team_id == main_team:
+            await ctx.send(f"You are on the channel for the {team}, we cannot play against ourselves.")
+            return
     except:
         await ctx.send(f"{ctx.message.author.mention}\n\n{team} does not seem to be a team I recognize.")
         return
@@ -897,27 +946,26 @@ async def results(ctx):
     user_tz = await getUserTimezone(bot.pg_conn, ctx.message.author.id)
 
     done_matches = await completedMatches(bot.pg_conn, count=10)
-    done_matches_output = ""
+    done_matches_output = []
     for match in done_matches:
         match_time = match.get("event_date")
-        match_time = prepareTimestamp(match_time, user_tz)
-        done_matches_output += f'{match_time} {match.get("home_name")} {match.get("goals_home")}-{match.get("goals_away")} {match.get("away_name")}\n'
+        match_time = prepareTimestamp(match_time, user_tz, str=False)
+        done_matches_output.append([match_time.strftime("%m/%d/%Y"), match.get("home_name"), f'{match.get("goals_home")}-{match.get("goals_away")}', match.get("away_name")])
 
-    done_matches_output = f"```\n{done_matches_output}\n```"
-    await ctx.send(f"{ctx.message.author.mention}\n\n{done_matches_output}")
+    done_matches_output = f'```{tabulate(done_matches_output, headers=["Date", "Home", "Score", "Away"], tablefmt="github", colalign=("center","center","center","center"))}```'
+    await ctx.send(f"{ctx.message.author.mention}\n\n**Past Match Results**\n{done_matches_output}")
 
 def formatStandings(standings):
-
     standings_formatted = []
     for standing in standings:
         # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
-        standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], standing["win"], standing["draw"], standing["loss"], standing["goals_for"], standing["goals_against"], standing["goalsDiff"]])
+        standings_formatted.append([standing["rank"], standing["teamName"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["played"]])
 
-    return tabulate(standings_formatted, headers=["Rank", "Team", "Points", "Played", "W", "D", "L", "GF", "GA", "GD"], tablefmt="simple")
+    return tabulate(standings_formatted, headers=["Rank", "Team", "W-D-L", "GD", "Pts"], tablefmt="github")
 
 # # PL table
 @bot.command()
-@rateLimit(60)
+@rateLimit(60, "pltable")
 async def pltable(ctx):
     '''
     Current Premier League table
@@ -926,66 +974,15 @@ async def pltable(ctx):
 
     output = formatStandings(standings)
     # \u200b  null space/break char
-    # embed = discord.Embed(title=f"Premier League Leaderboard", description="", color=0x3d195b)
-    # embed.set_thumbnail(url="https://media.api-sports.io/leagues/2.png")
+    # embed = discord.Embed(title=f"Premier League Leaderboard", description=f"```{output}```", color=0x3d195b)
+    # embed.set_thumbnail(url="http://www.pngall.com/wp-content/uploads/4/Premier-League-PNG-Image.png")
     # embed.set_footer(text="\u200b", icon_url="https://media.api-sports.io/leagues/2.png")
     # embed.add_field(name="\u200b", value=output, inline=False)
     # embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```{output_str}```", inline=False)
-    # await ctx.send(embed=embed)
     await ctx.send(f"{ctx.message.author.mention}\n\n**Premier League Leaderboard**\n```{output}```")
+    # await ctx.send(f"```{output}```")
+    # await ctx.send(embed=embed)
 
-# # # CL table
-# @bot.command()
-# async def cltable(ctx):
-#     '''
-#     Current Champion's League table
-#     '''        
-#     standings = getStandings(league_dict["champions_league"])
-#     output = f"{ctx.message.author.mention}\n\n"
-#     output += formatStandings(standings)
-#     await ctx.send(f"{output}")
-
-# # # EL table
-# @bot.command()
-# async def eltable(ctx):
-#     '''
-#     Current Europa League table
-#     '''
-#     standings = getStandings(league_dict["europa_league"])
-#     output = f"{ctx.message.author.mention}\n\n"
-#     output += formatStandings(standings)
-#     await ctx.send(f"{output}")
-
-# # # FA Cup table
-# @bot.command()
-# async def fatable(ctx):
-#     '''
-#     Current FA Cup table
-#     '''
-#     try:            
-#         standings = getStandings(league_dict["fa_cup"])
-#     except:
-#         ctx.send("No matches for the FA Cup yet!")
-#         return
-
-#     output = f"{ctx.message.author.mention}\n\n"
-#     output += formatStandings(standings)
-#     await ctx.send(f"{output}")
-
-# # # League Cup table
-# @bot.command()
-# async def efltable(ctx):
-#     '''
-#     Current League Cup table
-#     '''
-#     try:            
-#         standings = getStandings(league_dict["europa_league"])
-#     except:
-#         ctx.send("No matches for the Europa League yet!")
-#         return
-#     output = f"{ctx.message.author.mention}\n\n"
-#     output += formatStandings(standings)
-#     await ctx.send(f"{output}")
 
 async def checkBotReady():
     await asyncio.sleep(5)
@@ -998,12 +995,12 @@ async def ping(ctx):
     log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
     latency = bot.latency
     log.info(latency=latency)
-    await ctx.send(f"{ctx.message.author.mention}\n\nBot latency is {latency * 1000} milliseconds")
+    await ctx.send(f"{ctx.message.author.mention}\n\nBot latency is {latency * 1000:.0f} milliseconds")
 
 @bot.command(hidden=True)
 async def echo(ctx, *, content:str):
     '''
-    Repeat what you typed (for testing/debugging)
+    Repeat what you typed for testing/debugging
     '''    
     await ctx.send(content)
 
@@ -1018,7 +1015,10 @@ async def echo(ctx, *, content:str):
 
 @bot.command(hidden=True)
 @commands.check(isAdmin)
-async def testembed(ctx):
+async def testEmbed(ctx):
+    '''
+    Generate a test embed object
+    '''
     # log = logger.bind(content=ctx.message.content, author=ctx.message.author)
     paginated_data = [
         {"title": "Test 0", "msg": "TestMessage 0"}, 
@@ -1086,6 +1086,9 @@ async def testembed(ctx):
 @bot.command(hidden=True)
 @commands.check(isAdmin)
 async def userLookup(ctx, *input_str:str):
+    '''
+    Return possible user matches and user ID
+    '''
     for input in input_str:
         current_member = []
         for member in bot.get_all_members():
@@ -1102,6 +1105,9 @@ async def userLookup(ctx, *input_str:str):
 @bot.command(hidden=True)
 @commands.check(isAdmin)
 async def messageLookup(ctx, input_id:int):
+    '''
+    Return message ID and ID of message author
+    '''
     id_to_lookup = input_id
     output = None
     for chan in bot.get_all_channels():
@@ -1120,6 +1126,7 @@ async def messageLookup(ctx, input_id:int):
         await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
 
 # @bot.command(hidden=True)
+# runs every 15 min to check if fixtures within 5 hours before and after now are complete/scorable for predictions
 @tasks.loop(minutes=15)
 async def updateFixtures():
     await checkBotReady()
@@ -1151,6 +1158,8 @@ def changesExist(fixture1, fixture2):
     ]
     return not all(likeness)
 
+# runs every hour updating all fixtures in the db that are not identical to the current entry (by fixture id)
+# this ensures that we get any new fixtures outside the updateFixtures() 15 min window (ex. date of the CL final gets changed, or for some reason fixtures in the past change)
 @tasks.loop(hours=1)
 async def updateFixturesbyLeague():
     await checkBotReady()
@@ -1238,8 +1247,6 @@ def getStandings(league_id):
         parsed_standings.append(rank)
 
     return parsed_standings
-
-
 
 
 @bot.event
