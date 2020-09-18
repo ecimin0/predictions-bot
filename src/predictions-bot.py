@@ -18,7 +18,7 @@ import structlog
 from tabulate import tabulate
 from pythonjsonlogger import jsonlogger
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandNotFound
+from discord.ext.commands import CommandNotFound, CommandInvokeError
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 
@@ -29,7 +29,7 @@ def createLogger(level):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(jsonlogger.JsonFormatter(fmt='%(asctime)s %(levelname)s %(name)s %(message)s'))
     asyncio_logger = logging.getLogger('asyncio')
-    asyncio_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+    asyncio_logger.setLevel(os.environ.get("ASYNCIO_LOGLEVEL", "INFO"))
     asyncio_logger.addHandler(handler)
     discord_logger = logging.getLogger('discord')
     discord_logger.setLevel(os.environ.get("DISCORD_LOGLEVEL", "INFO"))
@@ -165,6 +165,9 @@ help_function = commands.DefaultHelpCommand(no_category="Available Commands", in
 bot = commands.Bot(prefix, help_command=help_function)
 bot.remove_command('help')
 
+class PleaseTellMeAboutIt(Exception):
+    pass
+
 class IsNotAdmin(commands.CheckFailure):
     pass
 
@@ -187,7 +190,6 @@ def randomAlphanumericString(length):
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
-
 
 def rateLimit(seconds, name):
     async def predicate(ctx):
@@ -254,7 +256,7 @@ async def connectToDB():
         bot.pg_conn = await asyncpg.create_pool(user=aws_dbuser, password=aws_dbpass, database=aws_dbname, host=aws_db_ip)
         logger.info("Connected to postgres")
         bot.pg_conn_ready = True
-    except Exception as e:
+    except Exception:
         logger.exception("Error connecting to db")
         sys.exit(1)
 
@@ -318,7 +320,10 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     # if the bot sends messages to itself don't return anything
-    if message.author == bot.user or type(message.channel) == discord.DMChannel:
+    if message.author == bot.user:
+        return
+    if type(message.channel) == discord.DMChannel:
+        await message.channel.send("Don't talk to me here.")
         return
     if message.channel.name == channel:
         logger.info("Received message", channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
@@ -332,17 +337,21 @@ async def on_message(message):
 async def calculatePredictionScores():
     await checkBotReady()
     scorable_fixtures = {}
-    async with bot.pg_conn.acquire() as connection:
-        async with connection.transaction():
-            await connection.set_type_codec(
-                'json',
-                encoder=json.dumps,
-                decoder=json.loads,
-                schema='pg_catalog'
-            )
-            unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions WHERE prediction_score is null")
-            unscored_fixtures = await connection.fetch("SELECT DISTINCT fixture_id FROM predictionsbot.predictions WHERE prediction_score is null")
-    
+    try:
+        async with bot.pg_conn.acquire() as connection:
+            async with connection.transaction():
+                await connection.set_type_codec(
+                    'json',
+                    encoder=json.dumps,
+                    decoder=json.loads,
+                    schema='pg_catalog'
+                )
+                unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions WHERE prediction_score is null")
+                unscored_fixtures = await connection.fetch("SELECT DISTINCT fixture_id FROM predictionsbot.predictions WHERE prediction_score is null")
+    except Exception:
+        logger.exception("encountered error while selecting predictions from database")
+        raise PleaseTellMeAboutIt("encountered error while selecting predictions from database")
+        
     for fixture in unscored_fixtures:
         fixture_status = await bot.pg_conn.fetchrow(f"SELECT {match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1", fixture.get("fixture_id"))
         if fixture_status.get("scorable"):
@@ -354,14 +363,17 @@ async def calculatePredictionScores():
             scorable_fixtures[fixture.get("fixture_id")] = {"goals_home": fixture_status.get("goals_home"), "goals_away": fixture_status.get("goals_away"), "winner": winner, "home_or_away": fixture_status.get("home_or_away")}
 
     for fix in scorable_fixtures:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
-                fixture_response = await resp.json()
-        # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
-        fixture_info = fixture_response['api']['fixtures'][0]
-        goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
-        scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
-        scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
+        try:       
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                    fixture_response = await resp.json()
+            fixture_info = fixture_response['api']['fixtures'][0]
+            goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
+            scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
+            scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
+        except Exception:
+            logger.exception("error retrieving scorable fixture", fixture=fix)
+            raise PleaseTellMeAboutIt(f"error retrieving scorable fixture: {fix}")
 
     for prediction in unscored_predictions:
         if prediction.get("fixture_id") in scorable_fixtures:
@@ -440,37 +452,15 @@ async def calculatePredictionScores():
                 if absolutely_correct:
                     predicted_score += 2
 
-            print(f'{prediction.get("prediction_id")} | {prediction.get("user_id")} | {prediction.get("prediction_string")} | {prediction_score}')
-            async with bot.pg_conn.acquire() as connection:
-                async with connection.transaction():
-                    await connection.execute("UPDATE predictionsbot.predictions SET prediction_score = $1 WHERE prediction_id = $2", prediction_score, prediction.get("prediction_id"))
+            logger.info("calculated prediction", prediction_id=prediction.get("prediction_id"), user_id=prediction.get("user_id"), prediction_string=prediction.get("prediction_string"), prediction_score=prediction_score)
+            try:
+                async with bot.pg_conn.acquire() as connection:
+                    async with connection.transaction():
+                        await connection.execute("UPDATE predictionsbot.predictions SET prediction_score = $1 WHERE prediction_id = $2", prediction_score, prediction.get("prediction_id"))
+            except Exception:
+                logger.exception("")
+                raise PleaseTellMeAboutIt(f"Could not insert an prediction")
 
-rules_set = """**Predict our next match against {0}**
-
-**Prediction League Rules:**
-
-2 points – correct result (W/D/L)
-2 points – correct number of Arsenal goals
-1 point – correct number of goals conceded
-1 point – each correct scorer
-1 point – correct FGS (first goal scorer, only Arsenal)
-2 points bonus – all scorers correct
-
-- Players you predict to score multiple goals should be entered as "player x2" or "player 2x"
-
-- No points for scorers if your prediction's goals exceed the actual goals by 4+
-
-**Remember, we are only counting Arsenal goal scorers**
-    - Do not predict opposition goal scorers
-    - Do not predict opposition FGS
-
-**Example:**
-`{1}`
-"""
-
-#send database errors for updater functions to admin accounts
-
-#todo add helpful desc of admin commands
 
 #todo way to list players and team nicknames (by league)
 # add league id field to teams table
@@ -526,7 +516,6 @@ async def help(ctx):
 #             async with connection.transaction():
 #                 await connection.execute("UPDATE predictionsbot.teams SET nicknames = '{{ {0} }}' WHERE team_id = $1".format(", ".join(v)), k)
 
-
 @bot.command(hidden=True)
 @commands.check(isAdmin)
 async def addNickname(ctx, nicknameType:str, id:int, nickname:str):
@@ -561,20 +550,51 @@ async def removeNickname(ctx, nicknameType:str, id:int, nickname:str):
     else:
         await ctx.send("Can only update nicknames for `player` and `team`.")
 
-# @bot.command(hidden=True)
-# @commands.check(isAdmin)
-# async def listNicknames(ctx, nicknameType:str):
-#     '''
-#     list nicknames in database
-#     '''
-#     if nicknameType == "team":
-#         # async with bot.pg_conn.acquire() as connection:
-#         #     async with connection.transaction():
-#         #         await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
-#     elif nicknameType == "player":
-#         await bot.pg_conn.fetch("UPDATE predictionsbot.players SET nicknames = array_remove(nicknames, $1) WHERE player_id = $2", nickname, id)
-#     else:
-#         await ctx.send("Can only update nicknames for `player` and `team`.")
+@bot.command(hidden=True)
+@commands.check(isAdmin)
+async def listPlayers(ctx):
+    '''
+    list nicknames in database
+    '''
+    # if nicknameType == "team":
+        # pass
+        # async with bot.pg_conn.acquire() as connection:
+        #     async with connection.transaction():
+        #         await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
+    # elif nicknameType == "player":
+    if True:
+        ids = await bot.pg_conn.fetch("SELECT player_id, player_name, nicknames FROM predictionsbot.players WHERE team_id = $1", main_team)
+        output = []
+        for player in ids:
+            output.append([player.get("player_id"), player.get("player_name")])
+        # print(output)
+        await ctx.send(f"{ctx.message.author.mention}\n\n{tabulate(output)}")
+    else:
+        await ctx.send(f"{ctx.message.author.mention}\n\nCan only view nicknames/id for `player` and `team`.")
+
+
+rules_set = """**Predict our next match against {0}**
+
+**Prediction League Rules:**
+
+2 points – correct result (W/D/L)
+2 points – correct number of Arsenal goals
+1 point – correct number of goals conceded
+1 point – each correct scorer
+1 point – correct FGS (first goal scorer, only Arsenal)
+2 points bonus – all scorers correct
+
+- Players you predict to score multiple goals should be entered as "player x2" or "player 2x"
+
+- No points for scorers if your prediction's goals exceed the actual goals by 4+
+
+**Remember, we are only counting Arsenal goal scorers**
+    - Do not predict opposition goal scorers
+    - Do not predict opposition FGS
+
+**Example:**
+`{1}`
+"""
 
 @bot.command()
 async def rules(ctx):
@@ -597,10 +617,13 @@ async def predict(ctx):
     log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
     #checkUserExists inserts the user_id if not present
-    await checkUserExists(bot.pg_conn, ctx.message.author.id, ctx)
-
-    current_match = await nextMatch(bot.pg_conn)
-    user_tz = await getUserTimezone(bot.pg_conn, ctx.message.author.id)
+    try:
+        await checkUserExists(bot.pg_conn, ctx.message.author.id, ctx)
+        current_match = await nextMatch(bot.pg_conn)
+        user_tz = await getUserTimezone(bot.pg_conn, ctx.message.author.id)
+    except Exception:
+        log.exception("Error initializing user, match, or user tz")
+        raise PleaseTellMeAboutIt("Error initializing user, match, or user tz")
 
     time_limit_offset = {
         league_dict["europa_league"]: 1.5
@@ -655,9 +678,9 @@ async def predict(ctx):
             fgs = False
             num_goals = 1
 
-            if "fgs" in player:
+            if re.search("[fF][gG][sS]", player):
                 fgs = True
-                player = player.replace("fgs", "")
+                player = re.sub("[fF][gG][sS]", "", player)
 
             goals_scored = re.search(r'[xX]?(\d)[xX]?', player)
             if goals_scored:
@@ -741,8 +764,8 @@ async def predict(ctx):
                     else:
                         await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                 except Exception as e:
-                    log.exception(e)
-                    await ctx.send("There was an error adding your prediction, please try again later.")
+                    log.exception("Error adding prediction")
+                    await ctx.send(f"{ctx.message.author.mention}\n\nThere was an error adding your prediction, please try again later.")
                     return
 
         goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
@@ -781,22 +804,26 @@ async def predictions(ctx):
         match = await getMatch(bot.pg_conn, prediction.get("fixture_id"))
         embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value=f'Score: {prediction.get("prediction_score")} | `{prediction.get("prediction_string")}`\n\n', inline=False)
         # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
-    embed.description=f"Your total is {total}"
-    await ctx.send(embed=embed)
+    embed.description=f"Current total league score: **{total}**"
+    await ctx.send(f"{ctx.message.author.mention}\n\n",embed=embed)
 
 @bot.command()
 @rateLimit(60, "leaderboard")
 async def leaderboard(ctx):
     '''
     Show leaderboard
-    '''  
+    '''
+    log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
     embed_colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
     embed_color = random.choice(embed_colors)
     embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description="\u200b", color=embed_color)
     embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png")
 
     # if need to change the way the tied users are displayed change "RANK()" to "DENSE_RANK()"
-    leaderboard = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+    try:
+        leaderboard = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+    except Exception:
+        log.error("Failed to retrieve predictions leaderboard from database")
 
     prediction_dictionary = {}
     # embed_dictionary = {}
@@ -829,34 +856,12 @@ async def leaderboard(ctx):
 
     await ctx.send(f"{ctx.message.author.mention}", embed=embed)
 
-    # embeds = [v for k,v in embed_dictionary.items()]
-    # first_embed = True
-    # for embed_fin in embeds:
-    #     if first_embed:
-    #         await ctx.send(f"{ctx.message.author.mention}", embed=embed_fin)
-    #         first_embed = False
-    #     else:
-    #         await ctx.send(embed=embed_fin)
-    
-    # for prediction in leaderboard:
-    #         if first:
-    #             embed.add_field(name=prediction.get("rank"), value="test", inline=False)
-    #             embed.add_field(name=f"{user.display_name}", value=f'{prediction.get("score")}', inline=True)
-    #             first = False
-    #         elif rank == prediction.get("rank"):
-    #             embed.add_field(name=f"{user.display_name}", value=f'{prediction.get("score")}', inline=True)
-    #         else:
-    #             rank = prediction.get("rank")
-    #             embed.add_field(name=prediction.get("rank"), value="test", inline=False)
-    #             embed.add_field(name=f"{user.display_name}", value=f'{prediction.get("score")}', inline=True)
-    #     except discord.NotFound as e:
-    #         logger.exception(e, user=prediction.get('user_id'), method="leaderboard")
-
 @bot.command()
 async def timezone(ctx):
     '''
     Change timezone
     '''
+    log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
     await checkUserExists(bot.pg_conn, ctx.message.author.id, ctx)
 
     msg = ctx.message.content
@@ -867,9 +872,12 @@ async def timezone(ctx):
         return
     
     if tz in pytz.all_timezones:
-        async with bot.pg_conn.acquire() as connection:
-            async with connection.transaction():
-                await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, ctx.message.author.id)
+        try:
+            async with bot.pg_conn.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, ctx.message.author.id)
+        except Exception:
+            log.error("User encoutered error changing timezone")
         await ctx.send(f"{ctx.message.author.mention}\n\nYour timezone has been set to {tz}")
     else:
         await ctx.send(f"{ctx.message.author.mention}\n\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'")
@@ -879,6 +887,7 @@ async def next(ctx):
     '''
     Next matches
     '''
+    log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
     msg = ctx.message.content
 
     split_msg = msg.split()
@@ -898,11 +907,14 @@ async def next(ctx):
         count = 2
         
     if count <= 0:
-        await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be a negative number.")
+        await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be a negative number")
     elif count > 10:
-        await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be greater than 10.")
+        await ctx.send(f"{ctx.message.author.mention}\n\nNumber of next matches cannot be greater than 10")
     else:
-        next_matches = await nextMatches(bot.pg_conn, count=count)
+        try:
+            next_matches = await nextMatches(bot.pg_conn, count=count)
+        except Exception:
+            log.exception("Error retrieving nextMatches from database")
         output = f"{ctx.message.author.mention}\n\n**Next {count} matches:**\n\n"
         for match in next_matches:
         # await ctx.send(f"{[match for match in next_matches]}")
@@ -910,8 +922,8 @@ async def next(ctx):
             output += await formatMatch(bot.pg_conn, match, ctx.message.author.id)
         await ctx.send(f"{output}")
 
-#todo paginate some functions from +help
-#todo indicate prediction has yet to be scored instead of points 
+# todo paginate some functions from +help
+# todo indicate prediction has yet to be scored instead of points 
 # todo show missed matches in +predictions
 
 @bot.command()
@@ -1133,20 +1145,33 @@ async def messageLookup(ctx, input_id:int):
 async def updateFixtures():
     await checkBotReady()
 
-    fixtures = await bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT scorable")
+    try:
+        fixtures = await bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT scorable")
+    except Exception:
+        logger.exception("Failed to select fixtures from database")
+        raise PleaseTellMeAboutIt("Failed to select fixtures from database in updateFixtures")
+
     for fixture in fixtures:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
-                fixture_info = await resp.json()
-        # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
-        fixture_info = fixture_response['api']['fixtures'][0]
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                    fixture_info = await resp.json()
+            # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+            fixture_info = fixture_response['api']['fixtures'][0]
 
-        match_completed = status_lookup[fixture_info.get("statusShort")]
+            match_completed = status_lookup[fixture_info.get("statusShort")]
+        except Exception:
+            logger.exception("Failed to get fixture from api", fixture=fixture.get('fixture_id'))
+            raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
 
-        async with bot.pg_conn.acquire() as connection:
-            async with connection.transaction():
-                await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
-    
+        try:
+            async with bot.pg_conn.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
+        except Exception:
+            logger.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
+            raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
+
     logger.info(f"Updated fixtures table, {len(fixtures)} were changed.")
     # await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
 
@@ -1177,13 +1202,16 @@ async def updateFixturesbyLeague():
     #     print("No team IDs generated. Pass in a --league <league_id>")
     #     sys.exit(1)
     for league_name, league_id in league_dict.items():
-        logger.info(f"generating fixtures", league_id=league_id, league_name=league_name)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
-                response = await resp.json()
-        # response = requests.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20)
-        fixtures = response.get("api").get("fixtures")
-        
+        logger.info("generating fixtures", league_id=league_id, league_name=league_name)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                    response = await resp.json()
+            fixtures = response.get("api").get("fixtures")
+        except Exception:
+            logger.exception("Unable to fetch league information in updateFixturesbyLeague", league_name=league_name)
+            raise PleaseTellMeAboutIt(f"Unable to fetch league information in updateFixturesbyLeague for {league_name}")
+
         # reset parsed fixtures to empty for each league
         parsed_fixtures = []
         for match in fixtures:
@@ -1203,26 +1231,30 @@ async def updateFixturesbyLeague():
             parsed_fixtures.append(match)
         
         for fixture in parsed_fixtures:
-            fixture_exists = await bot.pg_conn.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
-            
-            if fixture_exists:
-                if changesExist(fixture, fixture_exists):
+            try:
+                fixture_exists = await bot.pg_conn.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+                
+                if fixture_exists:
+                    if changesExist(fixture, fixture_exists):
+                        updated_fixtures += 1
+                        logger.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=league_id)
+                        async with bot.pg_conn.acquire() as connection:
+                            async with connection.transaction():
+                                await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7 WHERE fixture_id = $8", 
+                                                            fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
+                                                            fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+                else:
+                    logger.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=league_id)
                     updated_fixtures += 1
-                    logger.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=league_id)
                     async with bot.pg_conn.acquire() as connection:
                         async with connection.transaction():
-                            await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7 WHERE fixture_id = $8", 
-                                                        fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
-                                                        fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
-            else:
-                logger.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=league_id)
-                updated_fixtures += 1
-                async with bot.pg_conn.acquire() as connection:
-                    async with connection.transaction():
-                        await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", 
-                                                    fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
-                                                    fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
-         
+                            await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", 
+                                                        fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
+                                                        fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+            except Exception:
+                logger.exception("Failed to verify/update fixtue", fixture_id=fixture.get("league_id"))
+                raise PleaseTellMeAboutIt(f'Failed to verify/update fixtue: {fixture.get("league_id")}')
+
     if updated_fixtures:
         await bot.admin_id.send(f"Updated/Inserted {updated_fixtures} fixtures!")
 
@@ -1230,10 +1262,14 @@ async def getStandings(bot, league_id):
     parsed_standings = []
 
     logger.info("Generating standings", league=league_id)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
-            response = await resp.json()
-    # response = requests.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                response = await resp.json()
+    except Exception:
+        logger.exception("Failed to featch standings", league_id=league_id)
+        raise PleaseTellMeAboutIt(f"Failed to featch standings for {league_id}")
+
     standings = response.get("api").get("standings")
     
     for rank in standings[0]:
@@ -1259,7 +1295,6 @@ async def getStandings(bot, league_id):
 
     return parsed_standings
 
-
 @bot.event
 async def on_command_error(ctx, error):
     logger.error(f"Handling error for {ctx.message.content}", exception=error)
@@ -1269,6 +1304,11 @@ async def on_command_error(ctx, error):
         await ctx.send(error)
     if isinstance(error, CommandNotFound):
         await ctx.send(f"`{ctx.message.content}` is not a recognized command, try `+help` to see available commands")
+    if isinstance(error, CommandInvokeError):
+        if isinstance(error.original, PleaseTellMeAboutIt):
+            await bot.admin_id.send(f"Admin error tagged for notification: {error.original}")
+        else:
+            await bot.admin_id.send(f"Unhandled Error: {error.original}")
 
 if __name__ == "__main__":
     try:
