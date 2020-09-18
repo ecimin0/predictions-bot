@@ -1,12 +1,12 @@
 #!/usr/local/bin/python3
 
+import aiohttp
 import discord
 import re
 import sys
 import os
 import json
 import logging 
-import requests
 import asyncio
 import asyncpg
 import pytz
@@ -14,7 +14,6 @@ import argparse
 import random
 import string
 import structlog
-import traceback
 
 from tabulate import tabulate
 from pythonjsonlogger import jsonlogger
@@ -22,7 +21,6 @@ from discord.ext import commands, tasks
 from discord.ext.commands import CommandNotFound
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
-from pprint import pprint
 
 # bot token, API key, other stuff 
 load_dotenv()
@@ -30,8 +28,11 @@ load_dotenv()
 def createLogger(level):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(jsonlogger.JsonFormatter(fmt='%(asctime)s %(levelname)s %(name)s %(message)s'))
+    asyncio_logger = logging.getLogger('asyncio')
+    asyncio_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+    asyncio_logger.addHandler(handler)
     discord_logger = logging.getLogger('discord')
-    discord_logger.setLevel(logging.INFO)
+    discord_logger.setLevel(os.environ.get("DISCORD_LOGLEVEL", "INFO"))
     discord_logger.addHandler(handler)
 
     structlog.configure(
@@ -254,7 +255,7 @@ async def connectToDB():
         logger.info("Connected to postgres")
         bot.pg_conn_ready = True
     except Exception as e:
-        logger.error(f"{e}")
+        logger.exception("Error connecting to db")
         sys.exit(1)
 
 async def getAdminDiscordId():
@@ -317,7 +318,7 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     # if the bot sends messages to itself don't return anything
-    if message.author == bot.user:
+    if message.author == bot.user or type(message.channel) == discord.DMChannel:
         return
     if message.channel.name == channel:
         logger.info("Received message", channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
@@ -353,8 +354,11 @@ async def calculatePredictionScores():
             scorable_fixtures[fixture.get("fixture_id")] = {"goals_home": fixture_status.get("goals_home"), "goals_away": fixture_status.get("goals_away"), "winner": winner, "home_or_away": fixture_status.get("home_or_away")}
 
     for fix in scorable_fixtures:
-        fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
-        fixture_info = fixture_response.json()['api']['fixtures'][0]
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                fixture_response = await resp.json()
+        # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+        fixture_info = fixture_response['api']['fixtures'][0]
         goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
         scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
         scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
@@ -968,7 +972,7 @@ async def pltable(ctx):
     '''
     Current Premier League table
     '''
-    standings = getStandings(league_dict["premier_league"])
+    standings = await getStandings(bot, league_dict["premier_league"])
 
     output = formatStandings(standings)
     # \u200b  null space/break char
@@ -1131,8 +1135,11 @@ async def updateFixtures():
 
     fixtures = await bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT scorable")
     for fixture in fixtures:
-        fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
-        fixture_info = fixture_response.json()['api']['fixtures'][0]
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                fixture_info = await resp.json()
+        # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+        fixture_info = fixture_response['api']['fixtures'][0]
 
         match_completed = status_lookup[fixture_info.get("statusShort")]
 
@@ -1171,8 +1178,11 @@ async def updateFixturesbyLeague():
     #     sys.exit(1)
     for league_name, league_id in league_dict.items():
         logger.info(f"generating fixtures", league_id=league_id, league_name=league_name)
-        response = requests.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20)
-        fixtures = response.json().get("api").get("fixtures")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                response = await resp.json()
+        # response = requests.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20)
+        fixtures = response.get("api").get("fixtures")
         
         # reset parsed fixtures to empty for each league
         parsed_fixtures = []
@@ -1216,12 +1226,15 @@ async def updateFixturesbyLeague():
     if updated_fixtures:
         await bot.admin_id.send(f"Updated/Inserted {updated_fixtures} fixtures!")
 
-def getStandings(league_id):
+async def getStandings(bot, league_id):
     parsed_standings = []
 
     logger.info("Generating standings", league=league_id)
-    response = requests.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
-    standings = response.json().get("api").get("standings")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+            response = await resp.json()
+    # response = requests.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
+    standings = response.get("api").get("standings")
     
     for rank in standings[0]:
         played = rank.get("all").get("matchsPlayed")
@@ -1257,16 +1270,16 @@ async def on_command_error(ctx, error):
     if isinstance(error, CommandNotFound):
         await ctx.send(f"`{ctx.message.content}` is not a recognized command, try `+help` to see available commands")
 
+if __name__ == "__main__":
+    try:
+        # disabling fixture update during testing mode, may need to be further tunable for testing.
+        if not testing_mode:
+            updateFixtures.start()
+            calculatePredictionScores.start()
+            updateFixturesbyLeague.start()
 
-try:
-    # disabling fixture update during testing mode, may need to be further tunable for testing.
-    if not testing_mode:
-        updateFixtures.start()
-        calculatePredictionScores.start()
-        updateFixturesbyLeague.start()
-
-    bot.run(token)
-except Exception as e:
-    print(f"{e}")
-    sys.exit(1)
+        bot.run(token)
+    except Exception as e:
+        logger.exception("Error in bot")
+        sys.exit(1)
     
