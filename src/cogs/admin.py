@@ -1,0 +1,113 @@
+import discord
+from discord.ext import commands
+
+from exceptions import *
+from utils import isAdmin
+
+class AdminCog(commands.Cog):
+
+    def __init__(self, bot):
+        self.bot = bot
+
+    async def cog_check(self, ctx):
+        if ctx.message.author.id in self.bot.admin_ids:
+            return True
+        else:
+            raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
+
+    @commands.command(hidden=True)
+    async def userLookup(self, ctx, *input_str:str):
+        '''
+        Return possible user matches and user ID
+        '''
+        for input in input_str:
+            current_member = []
+            for member in self.bot.get_all_members():
+                if input.lower() in member.display_name.lower() or input.lower() in member.name.lower():
+                    current_member.append(member)
+            if not current_member:
+                await ctx.send(f"Could not find any users matching {input}.")
+            else:
+                output = f"Potential Matches for {input}:\n"
+                for user in current_member:
+                    output += f"{user.display_name} | {user.id}\n"
+                await ctx.send(f"{output}")
+
+    @commands.command(hidden=True)
+    async def messageLookup(self, ctx, input_id:int):
+        '''
+        Return message ID and ID of message author
+        '''
+        id_to_lookup = input_id
+        output = None
+        for chan in self.bot.get_all_channels():
+            if str(chan.type) == "text":
+                self.bot.logger.debug(f"Searching channel: {chan}")
+                try:
+                    output = await chan.fetch_message(id_to_lookup)
+                except (discord.NotFound):
+                    continue
+                except discord.Forbidden:
+                    self.bot.logger.debug(f"Access to {chan} forbidden.")
+        if not output:
+            self.bot.logger.debug("Could not find in any channels.")
+            await ctx.send(f"Could not find message id {id_to_lookup}.")
+        else:
+            await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
+
+    # todo better handling for errors here - wrong arg count, etc.
+    @commands.command(hidden=True)
+    async def addNickname(self, ctx, nicknameType:str, id:int, nickname:str):
+        '''
+        Add a nickname to database | +addNickname (player|team) <id> <nickname string>
+        '''
+        if nicknameType == "team":
+            async with self.bot.pg_conn.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_append(nicknames, $1) WHERE team_id = $2", nickname.lower(), id)
+        elif nicknameType == "player":
+            async with self.bot.pg_conn.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE predictionsbot.players SET nicknames = array_append(nicknames, $1) WHERE player_id = $2", nickname.lower(), id)
+        else:
+            await ctx.send("Can only update nicknames for `player` and `team`.")
+
+    @commands.command(hidden=True)
+    async def removeNickname(self, ctx, nicknameType:str, id:int, nickname:str):
+        '''
+        Remove a nickname from database | +removeNickname (player|team) <id> <nickname string>
+        '''
+        if nicknameType == "team":
+            async with self.bot.pg_conn.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
+        elif nicknameType == "player":
+            async with self.bot.pg_conn.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE predictionsbot.players SET nicknames = array_remove(nicknames, $1) WHERE player_id = $2", nickname, id)
+        else:
+            await ctx.send("Can only update nicknames for `player` and `team`.")
+
+    @commands.command(hidden=True)
+    async def listPlayers(self, ctx):
+        '''
+        list nicknames in database
+        '''
+        # if nicknameType == "team":
+            # pass
+            # async with bot.pg_conn.acquire() as connection:
+            #     async with connection.transaction():
+            #         await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
+        # elif nicknameType == "player":
+        if True:
+            ids = await bot.pg_conn.fetch("SELECT player_id, player_name, nicknames FROM predictionsbot.players WHERE team_id = $1", main_team)
+            output = []
+            for player in ids:
+                output.append([player.get("player_id"), player.get("player_name")])
+            # print(output)
+            await ctx.send(f"{ctx.message.author.mention}\n\n{tabulate(output)}")
+        else:
+            await ctx.send(f"{ctx.message.author.mention}\n\nCan only view nicknames/id for `player` and `team`.")
+
+def setup(bot):
+    bot.add_cog(AdminCog(bot))
