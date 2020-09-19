@@ -80,27 +80,6 @@ league_dict = {
     "league_cup": 2781
 }
 
-status_lookup = {
-    "TBD": False,
-    "NS": False,
-    "1H": False,
-    "HT": False,
-    "2H": False,
-    "ET": False,
-    "P": False,
-    "FT": True,
-    "AET": True,
-    "PEN": True,
-    "BT": False,
-    "SUSP": False,
-    "INT": False,
-    "PST": False,
-    "CANC": False,
-    "ABD": False,
-    "AWD": True,
-    "WO": True
-}
-
 # TBD : Time To Be Defined
 # NS : Not Started
 # 1H : First Half, Kick Off

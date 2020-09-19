@@ -9,6 +9,26 @@ class TasksCog(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.status_lookup = {
+            "TBD": False,
+            "NS": False,
+            "1H": False,
+            "HT": False,
+            "2H": False,
+            "ET": False,
+            "P": False,
+            "FT": True,
+            "AET": True,
+            "PEN": True,
+            "BT": False,
+            "SUSP": False,
+            "INT": False,
+            "PST": False,
+            "CANC": False,
+            "ABD": False,
+            "AWD": True,
+            "WO": True
+        }
         self.updateFixtures.start()
         self.updateFixturesbyLeague.start()
         self.calculatePredictionScores.start()
@@ -34,7 +54,7 @@ class TasksCog(commands.Cog):
                 # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
                 fixture_info = fixture_response['api']['fixtures'][0]
 
-                match_completed = status_lookup[fixture_info.get("statusShort")]
+                match_completed = self.status_lookup[fixture_info.get("statusShort")]
             except Exception:
                 self.bot.logger.exception("Failed to get fixture from api", fixture=fixture.get('fixture_id'))
                 raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
@@ -104,7 +124,7 @@ class TasksCog(commands.Cog):
                                 async with connection.transaction():
                                     await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7 WHERE fixture_id = $8", 
                                                                 fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
-                                                                fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+                                                                fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
                     else:
                         self.bot.logger.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=league_id)
                         updated_fixtures += 1
@@ -112,7 +132,7 @@ class TasksCog(commands.Cog):
                             async with connection.transaction():
                                 await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", 
                                                             fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
-                                                            fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+                                                            fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
                 except Exception:
                     self.bot.logger.exception("Failed to verify/update fixtue", fixture_id=fixture.get("league_id"))
                     raise PleaseTellMeAboutIt(f'Failed to verify/update fixtue: {fixture.get("league_id")}')
