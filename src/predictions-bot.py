@@ -468,12 +468,15 @@ async def calculatePredictionScores():
 
 # todo first move get-api-data.py functionality into predictions-bot.py
 # todo be able to turn on and off scheduled tasks and updater functions
+# todo only send soccer related responses to chat, user level responses to DMs
 
 @bot.command()
 async def help(ctx):
     '''
     This help message
     '''
+    log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
+
     output = []
     adminOutput = []
     tabulate.PRESERVE_WHITESPACE = True
@@ -488,10 +491,16 @@ async def help(ctx):
     
     user = bot.get_user(ctx.author.id)
 
-    if ctx.author.id in admin_ids:
-        await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
-    else:
-        await user.send(f"```Available Commands:\n{output}```")
+    try:
+        if ctx.author.id in admin_ids:
+            await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
+        else:
+            await user.send(f"```Available Commands:\n{output}```")
+    # todo 403 Forbidden (error code: 50007): Cannot send messages to this user
+    except discord.Forbidden:
+        log.exception("user either blocked bot or disabled DMs")
+    except Exception:
+        log.exception("error sending help command to user")
 
 # need these to bulk add nicknames with the bot
 # @bot.command(hidden=True)
@@ -644,7 +653,7 @@ async def predict(ctx):
 
     if utc.localize(datetime.utcnow()) > time_limit:
         team = await getRandomTeam(bot.pg_conn)
-        await ctx.send(f"{ctx.message.author.mention}\n\nError: prediction time too close to match start time. Go support {team} instead.")
+        await ctx.send(f"{ctx.message.author.mention}\n\nPrediction time too close to match start time. Go support {team} instead.")
         return
 
     temp_msg = ctx.message.content
@@ -696,7 +705,7 @@ async def predict(ctx):
                 player_real_name = await bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
                 real_name = player_real_name.get("player_name")
             except Exception as e:
-                await ctx.send(f"{ctx.message.author.mention}\n\nPlease try again, {e}")
+                await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
                 return 
 
             if player_id not in player_scores:
@@ -771,7 +780,7 @@ async def predict(ctx):
         goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
         goal_scorers = "\n".join(goal_scorers_array)
         
-        output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} {successful_or_updated}.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
+        output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} {successful_or_updated}.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
         output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} - {away_goals} {current_match.get('away_name')}\n\n"""
         if goal_scorers:
             output += f"""**Goal Scorers**\n{goal_scorers}"""
@@ -851,7 +860,7 @@ async def leaderboard(ctx):
             except discord.NotFound:
                 logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
         output_str = "\n".join(output_array)
-        embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```{output_str}```", inline=False)
+        embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```\n{output_str}```", inline=False)
         rank_num += 1
 
     await ctx.send(f"{ctx.message.author.mention}", embed=embed)
@@ -885,7 +894,7 @@ async def timezone(ctx):
 @bot.command()
 async def next(ctx):
     '''
-    Next matches
+    Next <number> matches | +next 3
     '''
     log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
     msg = ctx.message.content
@@ -926,10 +935,12 @@ async def next(ctx):
 # todo indicate prediction has yet to be scored instead of points 
 # todo show missed matches in +predictions
 
+# todo maybe re-engineer on_ready for websockets
+
 @bot.command()
 async def when(ctx):
     '''
-    Return next match against given team
+    Return next match against given team | +when <team>
     '''
     msg = ctx.message.content
     try:
@@ -973,7 +984,8 @@ def formatStandings(standings):
     standings_formatted = []
     for standing in standings:
         # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
-        standings_formatted.append([standing["rank"], standing["teamName"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["played"]])
+        # todo emoji lookup by team for table(s)
+        standings_formatted.append([standing["rank"], standing["teamName"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["points"]])
 
     return tabulate(standings_formatted, headers=["Rank", "Team", "W-D-L", "GD", "Pts"], tablefmt="github")
 
@@ -993,10 +1005,25 @@ async def pltable(ctx):
     # embed.set_footer(text="\u200b", icon_url="https://media.api-sports.io/leagues/2.png")
     # embed.add_field(name="\u200b", value=output, inline=False)
     # embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```{output_str}```", inline=False)
-    await ctx.send(f"{ctx.message.author.mention}\n\n**Premier League Leaderboard**\n```{output}```")
+    await ctx.send(f"{ctx.message.author.mention}\n\n**<:premierleague:756634419837665361> Premier League Leaderboard <:premierleague:756634419837665361>**\n```{output}```")
     # await ctx.send(f"```{output}```")
     # await ctx.send(embed=embed)
 
+@bot.command(hidden=True)
+@commands.check(isAdmin)
+async def getEmoji(ctx):
+    emojis = []
+        # .emojis.forEach(emoji => console.log(emoji.animated ? '<a:' + emoji.name + ':' + emoji.id + '>' : '<:' + emoji.name + ':' + emoji.id + '>'));
+    for emoji in ctx.guild.emojis:
+        emojis.append(f"{str(emoji)}  {emoji.name}  {str(emoji.id)}")
+    # emoji_list = tabulate(emojis, tablefmt="plain")
+    emoji_list = sorted(emojis)
+    emoji_list = "\n".join(emojis)
+    output = f'{emoji_list}'
+    # for emoji in emojis:
+    #     # print(emoji)
+    #     emoji_list.append(f"{emoji.name}")
+    await ctx.send(output)
 
 async def checkBotReady():
     await asyncio.sleep(5)
@@ -1154,14 +1181,15 @@ async def updateFixtures():
     for fixture in fixtures:
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=20) as resp:
+                async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=60) as resp:
                     fixture_info = await resp.json()
             # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
-            fixture_info = fixture_response['api']['fixtures'][0]
+            fixture_info = fixture_info['api']['fixtures'][0]
 
             match_completed = status_lookup[fixture_info.get("statusShort")]
+        except TimeoutError:
+            logger.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
         except Exception:
-            logger.exception("Failed to get fixture from api", fixture=fixture.get('fixture_id'))
             raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
 
         try:
@@ -1252,8 +1280,8 @@ async def updateFixturesbyLeague():
                                                         fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
                                                         fixture.get("goalsAwayTeam"), status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
             except Exception:
-                logger.exception("Failed to verify/update fixtue", fixture_id=fixture.get("league_id"))
-                raise PleaseTellMeAboutIt(f'Failed to verify/update fixtue: {fixture.get("league_id")}')
+                logger.exception("Failed to verify/update fixture", fixture_id=fixture.get("league_id"))
+                raise PleaseTellMeAboutIt(f'Failed to verify/update fixture: {fixture.get("league_id")}')
 
     if updated_fixtures:
         await bot.admin_id.send(f"Updated/Inserted {updated_fixtures} fixtures!")
