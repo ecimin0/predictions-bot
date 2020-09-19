@@ -1,6 +1,7 @@
 import discord
 from discord.ext import tasks, commands
 import json 
+import asyncio
 
 from exceptions import *
 from utils import checkBotReady
@@ -49,12 +50,14 @@ class TasksCog(commands.Cog):
         for fixture in fixtures:
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=20) as resp:
+                    async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                         fixture_info = await resp.json()
-                # fixture_response = requests.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': api_key}, timeout=5)
-                fixture_info = fixture_response['api']['fixtures'][0]
+                fixture_info = fixture_info['api']['fixtures'][0]
 
                 match_completed = self.status_lookup[fixture_info.get("statusShort")]
+            except asyncio.TimeoutError:
+                logger.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
+                return
             except Exception:
                 self.bot.logger.exception("Failed to get fixture from api", fixture=fixture.get('fixture_id'))
                 raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
@@ -87,9 +90,12 @@ class TasksCog(commands.Cog):
             self.bot.logger.info("generating fixtures", league_id=league_id, league_name=league_name)
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=20) as resp:
+                    async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                         response = await resp.json()
                 fixtures = response.get("api").get("fixtures")
+            except asyncio.TimeoutError:
+                logger.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
+                return
             except Exception:
                 self.bot.logger.exception("Unable to fetch league information in updateFixturesbyLeague", league_name=league_name)
                 raise PleaseTellMeAboutIt(f"Unable to fetch league information in updateFixturesbyLeague for {league_name}")
@@ -134,8 +140,8 @@ class TasksCog(commands.Cog):
                                                             fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
                                                             fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
                 except Exception:
-                    self.bot.logger.exception("Failed to verify/update fixtue", fixture_id=fixture.get("league_id"))
-                    raise PleaseTellMeAboutIt(f'Failed to verify/update fixtue: {fixture.get("league_id")}')
+                    self.bot.logger.exception("Failed to verify/update fixture", fixture_id=fixture.get("league_id"))
+                    raise PleaseTellMeAboutIt(f'Failed to verify/update fixture: {fixture.get("league_id")}')
 
         if updated_fixtures:
             await self.bot.admin_id.send(f"Updated/Inserted {updated_fixtures} fixtures!")
@@ -176,12 +182,14 @@ class TasksCog(commands.Cog):
         for fix in scorable_fixtures:
             try:       
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=20) as resp:
+                    async with session.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                         fixture_response = await resp.json()
                 fixture_info = fixture_response['api']['fixtures'][0]
                 goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
                 scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
                 scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
+            except asyncio.TimeoutError:
+                logger.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
             except Exception:
                 logger.exception("error retrieving scorable fixture", fixture=fix)
                 raise PleaseTellMeAboutIt(f"error retrieving scorable fixture: {fix}")

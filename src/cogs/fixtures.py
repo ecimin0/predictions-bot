@@ -12,7 +12,7 @@ class FixturesCog(commands.Cog):
     @commands.command()
     async def when(self, ctx):
         '''
-        Return next match against given team
+        Return next match against given team | +when <team>
         '''
         msg = ctx.message.content
         try:
@@ -39,7 +39,7 @@ class FixturesCog(commands.Cog):
     @commands.command()
     async def next(self, ctx):
         '''
-        Next matches
+        Next <number> matches | +next 3
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         msg = ctx.message.content
@@ -91,7 +91,7 @@ class FixturesCog(commands.Cog):
         # embed.set_footer(text="\u200b", icon_url="https://media.api-sports.io/leagues/2.png")
         # embed.add_field(name="\u200b", value=output, inline=False)
         # embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```{output_str}```", inline=False)
-        await ctx.send(f"{ctx.message.author.mention}\n\n**Premier League Leaderboard**\n```{output}```")
+        await ctx.send(f"{ctx.message.author.mention}\n\n**<:premierleague:756634419837665361> Premier League Leaderboard <:premierleague:756634419837665361>**\n```{output}```")
         # await ctx.send(f"```{output}```")
         # await ctx.send(embed=embed)
 

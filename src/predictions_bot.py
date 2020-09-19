@@ -215,6 +215,7 @@ async def help(ctx):
     '''
     This help message
     '''
+    log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
     output = []
     adminOutput = []
     tabulate.PRESERVE_WHITESPACE = True
@@ -229,10 +230,17 @@ async def help(ctx):
     
     user = bot.get_user(ctx.author.id)
 
-    if ctx.author.id in admin_ids:
-        await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
-    else:
-        await user.send(f"```Available Commands:\n{output}```")
+    try:
+        if ctx.author.id in bot.admin_ids:
+            await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
+        else:
+            await user.send(f"```Available Commands:\n{output}```")
+    # todo 403 Forbidden (error code: 50007): Cannot send messages to this user
+    except discord.Forbidden:
+        log.exception("user either blocked bot or disabled DMs")
+    except Exception:
+        log.exception("error sending help command to user")
+
 
 # need these to bulk add nicknames with the bot
 # @bot.command(hidden=True)

@@ -15,6 +15,22 @@ class DevelopCog(commands.Cog):
             raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
 
     @commands.command(hidden=True)
+    async def getEmoji(self, ctx):
+        emojis = []
+            # .emojis.forEach(emoji => console.log(emoji.animated ? '<a:' + emoji.name + ':' + emoji.id + '>' : '<:' + emoji.name + ':' + emoji.id + '>'));
+        for emoji in ctx.guild.emojis:
+            emojis.append(f"{str(emoji)}  {emoji.name}  {str(emoji.id)}")
+        # emoji_list = tabulate(emojis, tablefmt="plain")
+        emoji_list = sorted(emojis)
+        emoji_list = "\n".join(emojis)
+        output = f'{emoji_list}'
+        # for emoji in emojis:
+        #     # print(emoji)
+        #     emoji_list.append(f"{emoji.name}")
+        await ctx.send(output)
+
+
+    @commands.command(hidden=True)
     async def testEmbed(self, ctx):
         '''
         Generate a test embed object

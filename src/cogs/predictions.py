@@ -60,11 +60,14 @@ class PredictionsCog(commands.Cog):
         prediction_dictionary = {}
         # embed_dictionary = {}
         for prediction in leaderboard:
+            # self.bot.logger.debug(user_id=prediction.get("user_id"), rank=prediction.get("rank"))
             if prediction.get("rank") not in prediction_dictionary:
+                self.bot.logger.debug("Creating new rank in dictionary", user_id=prediction.get("user_id"), rank=prediction.get("rank"))
                 # embed_dictionary[prediction.get("rank")] = discord.Embed(title=f'Rank: {prediction.get("rank")}', description="", color=0x9c824a)
                 prediction_dictionary[prediction.get("rank")] = [prediction]
             else:
                 prediction_dictionary[prediction.get("rank")].append(prediction)
+            # self.bot.logger.debug("Dump dictionary", dictionary=prediction_dictionary)
         
         # all_members = bot.get_all_members()
         
@@ -78,12 +81,15 @@ class PredictionsCog(commands.Cog):
                     #     if user.id == user_prediction.get("user_id"):
                     user = self.bot.get_user(user_prediction.get("user_id"))
                     if user:
+                        self.bot.logger.debug(user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
                         output_array.append(f'{user.display_name}')
                         # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
                 except discord.NotFound:
                     logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
+            self.bot.logger.debug(output_array)
             output_str = "\n".join(output_array)
-            embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```{output_str}```", inline=False)
+            self.bot.logger.debug(output_str)
+            embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```\n{output_str}```", inline=False)
             rank_num += 1
 
         await ctx.send(f"{ctx.message.author.mention}", embed=embed)
@@ -123,7 +129,7 @@ class PredictionsCog(commands.Cog):
 
         if pytz.timezone("UTC").localize(datetime.utcnow()) > time_limit:
             team = await getRandomTeam(self.bot)
-            await ctx.send(f"{ctx.message.author.mention}\n\nError: prediction time too close to match start time. Go support {team} instead.")
+            await ctx.send(f"{ctx.message.author.mention}\n\nPrediction time too close to match start time. Go support {team} instead.")
             return
 
         temp_msg = ctx.message.content
@@ -175,7 +181,7 @@ class PredictionsCog(commands.Cog):
                     player_real_name = await self.bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
                     real_name = player_real_name.get("player_name")
                 except Exception as e:
-                    await ctx.send(f"{ctx.message.author.mention}\n\nPlease try again, {e}")
+                    await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
                     return 
 
                 if player_id not in player_scores:
@@ -250,7 +256,7 @@ class PredictionsCog(commands.Cog):
             goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
             goal_scorers = "\n".join(goal_scorers_array)
             
-            output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} {successful_or_updated}.**\n\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
+            output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
             output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} - {away_goals} {current_match.get('away_name')}\n\n"""
             if goal_scorers:
                 output += f"""**Goal Scorers**\n{goal_scorers}"""

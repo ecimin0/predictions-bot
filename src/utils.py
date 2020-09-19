@@ -80,8 +80,6 @@ async def getUserTimezone(bot, user):
 async def checkBotReady():
     await asyncio.sleep(5)
 
-def 
-
 def prepareTimestamp(timestamp, tz, str=True):
     time_format = "%m/%d/%Y, %H:%M:%S %Z"
     dt = pytz.timezone("UTC").localize(timestamp)
@@ -140,7 +138,7 @@ def formatStandings(standings):
     standings_formatted = []
     for standing in standings:
         # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
-        standings_formatted.append([standing["rank"], standing["teamName"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["played"]])
+        standings_formatted.append([standing["rank"], standing["teamName"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["points"]])
 
     return tabulate(standings_formatted, headers=["Rank", "Team", "W-D-L", "GD", "Pts"], tablefmt="github")
 
