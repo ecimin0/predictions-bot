@@ -21,6 +21,13 @@ async def getFixturesWithPredictions(bot: commands.Bot) -> List:
     fixtures = await bot.pg_conn.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
     return fixtures
 
+async def getUserRank(bot, user_id):
+    ranks = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+    for rank in ranks:
+        if rank.get("user_id") == user_id:
+            user_rank = rank.get("rank")
+    return user_rank
+
 async def getUserPredictions(bot: commands.Bot, user_id: int) -> List:
     '''
     Return the last 10 predictions by user
@@ -88,9 +95,10 @@ async def checkBotReady():
     await asyncio.sleep(5)
 
 def prepareTimestamp(timestamp, tz, str=True):
-    time_format = "%m/%d/%Y, %H:%M:%S %Z"
+    # time_format = "%m/%d/%Y, %H:%M:%S %Z"
+    time_format = "%A, %d %B %I:%M %p %Z"
     dt = pytz.timezone("UTC").localize(timestamp)
-    dt = timestamp.astimezone(tz)
+    dt = dt.astimezone(tz)
     if str:
         return dt.strftime(time_format)
     else:
@@ -114,9 +122,11 @@ async def formatMatch(bot, match, user, score=False):
     if score:
         match_time = match.get("event_date")
         match_time = prepareTimestamp(match_time, tz, str=False)
+        # todo "%A, %d %B %I:%M%p"
         return f"{league_emoji} **{match.get('league_name')} | {match_time.strftime('%m/%d/%Y')}**\n{home_emoji} {match.get('home_name')} {match.get('goals_home')} - {match.get('goals_away')} {away_emoji} {match.get('away_name')}\n" 
     else:
-        return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
+        # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
+        return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n\n" 
 
 async def getStandings(bot, league_id):
     parsed_standings = []

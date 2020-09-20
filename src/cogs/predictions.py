@@ -6,7 +6,7 @@ import pytz
 import re 
 import json
 
-from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions
+from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank
 from exceptions import *
 
 class PredictionsCog(commands.Cog):
@@ -23,6 +23,8 @@ class PredictionsCog(commands.Cog):
         #compare all fixtures with predictions to user predictions
         predictions = await getUserPredictions(self.bot, ctx.message.author.id)
         fixtures = await getFixturesWithPredictions(self.bot)
+        rank = await getUserRank(self.bot, ctx.message.author.id)
+        # print(rank)
 
         if not predictions:
             await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have no predictions! Get started by typing `+predict`")
@@ -30,14 +32,9 @@ class PredictionsCog(commands.Cog):
 
         embed = discord.Embed(title=f"Predictions for {ctx.message.author.display_name}")
 
-        # output = f"{ctx.message.author.mention}\n"
-
         total = 0
-        # DOWN HERE 
-        # for i in range(len(fixtures_wpredictions)):
-        # if not fixtures_wpredictionsp[i].get("fixture_id") == predictions[i].get("fixture_id"):
-        #   missing thing is missing
         offset = 0
+        
         self.bot.logger.debug(fixtures=fixtures, len_fixture=len(fixtures), predictions=predictions, len_predictions=len(predictions))
         for i in range(0,len(fixtures)):
             fixture = fixtures[i]
@@ -58,7 +55,7 @@ class PredictionsCog(commands.Cog):
                     prediction_value = prediction.get("prediction_score")
                 embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value=f'Score: **{prediction_value}** | `{prediction.get("prediction_string")}`\n\n', inline=False)
                 # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
-        embed.description=f"Current total league score: **{total}**"
+        embed.description=f"_League score: **{total}** | League pos. **{makeOrdinal(rank)}**_"
         await ctx.send(f"{ctx.message.author.mention}\n",embed=embed)
 
 
