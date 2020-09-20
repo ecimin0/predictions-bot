@@ -1,0 +1,92 @@
+help:
+  +help: normal output; SUCCESS
+  +help fdafdsafdsafd: normal output; SUCCESS
+
+results:
+  +results: normal output; SUCCESS
+  +results afdsafdasfdsa: normal output; SUCCESS
+
+when:
+  +when tottenham: next game; SUCCESS
+  +when nobody: no game; SUCCESS
+  +when arsenal: no game - we are arsenal; SUCCESS
+  +when: no arg provided; SUCCESS
+
+next:
+  +next: 2 next matches; SUCCESS
+  +next 1: 1 next match; SUCCESS
+  +next 11: error too many matches; SUCCESS
+  +next asdf: error not a valid match count; SUCCESS
+  +next 9: 9 next matches; SUCCESS
+  +next -1: number cannot be negative; SUCCESS
+  +next 5000000000000: cannot be greater than 10; SUCCESS
+
+pltable:
+  +pltable: premier leagure leaderboard; SUCCESS
+
+predictions:
+  +predictions: shows previous predictions
+
+leaderboard:
+  +leaderboard: shows leaderboard; SUCCESS
+  +leaderboard (within 60s): cooldown error; SUCCESS
+
+predict:
+  +predict: error no prediction made; SUCCESS
+  +predict 1-0: success; SUCCESS
+  +predict 1-1 auba fgs: success; SUCCESS
+  +predict 2-2 auba fgs, auba: 2 goals auba; SUCCESS
+  +predict 2-2 auba fgs, auba 2x: 3 goals auba; SUCCESS
+  +predict 0-0 auba fgs: failed, too many goals predicted; SUCCESS
+  +predict 1-1 notaplayer fgs: Please try again, no player named notaplayer; SUCCESS
+  +predict auba fgs, laca 0-2: success; SUCCESS
+  +predict 0:1 laca fgs: success; SUCCESS
+
+timezone:
+  +timezone: show current timezone; SUCCESS
+  +timezone US/Central: change tz to US/Central; SUCCESS
+  +timezone nottz: error - not a timezone; SUCCESS
+  +timezone +0500: error - not a timezone; SUCCESS
+
+rules:
+  +rules: show rules; SUCCESS
+  +rules fdafdsafdsafd: normal output; SUCCESS
+
+ping:
+  +ping: shows latency; SUCCESS
+
+userLookup:
+  +userLookup devoops: return id(s) for devoops; SUCCESS
+  +userLookup notauseratallhahahah: nothing returned; SUCCESS
+  +userLookup devoops flamingo: looks up 2 results for devoops, 1 for flamingo; SUCCESS
+  +userLookup devoops fla: devoops looked up, fla rejected; SUCCESS
+
+
+messageLookup:
+  +messageLookup <id>: return author
+
+addNickname:
+  +addNickname: error no values provided; should return helpful message; SUCCESS
+  +addNickname player <id> <nickname>: success; SUCCESS
+  +addNickname player <notid> <nickname>: error; SUCCESS
+  +addNickname player <id>: fail, empty nickname; SUCCESS
+
+removeNickname:
+  +removeNickname: values provided; SUCCESS
+  +removeNickname player <id> <nickname>: success; SUCCESS
+  +removeNickname player <notid> <nickname>: error; SUCCESS
+  +removeNickname player <id>: fail, empty nickname; SUCCESS
+
+listPlayers:
+  notimplemented
+
+getEmoji:
+  testingonly
+testEmbed:
+  testingonly
+testPage:
+  testingonly
+
+echo:
+  +echo: return nothing, error nothing provided
+  +echo <str>: return <str>

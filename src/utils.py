@@ -1,20 +1,27 @@
 from datetime import datetime
+import discord
+from discord.ext import commands
 import pytz
 import aiohttp
 from exceptions import *
 from functools import wraps
 from tabulate import tabulate
+from typing import List
 import string
 import random
 
-async def notifyAdmin(bot, message):
+async def notifyAdmin(bot: commands.Bot, message: str) -> None:
     bot.logger.debug("Received admin notification", message=message, testing_mode=bot.testing_mode)
     if not bot.testing_mode:
         for admin in bot.admin_ids:
             adm = await bot.fetch_user(admin)
-            adm.send(message)
+            await adm.send(message)
 
-async def getUserPredictions(bot, user_id):
+async def getFixturesWithPredictions(bot: commands.Bot) -> List:
+    fixtures = await bot.pg_conn.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
+    return fixtures
+
+async def getUserPredictions(bot: commands.Bot, user_id: int) -> List:
     '''
     Return the last 10 predictions by user
     '''
@@ -38,10 +45,10 @@ async def checkUserExists(bot, user_id, ctx):
                 try:
                     await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
                 except Exception as e:
-                    await bot.admin_id.send(f"Error inserting user {user_id} into database:\n{e}")
-                    logger.error(f"Error inserting user {user_id} into database: {e}")
+                    await bot.notifyAdmin(bot, f"Error inserting user {user_id} into database:\n{e}")
+                    bot.logger.error(f"Error inserting user {user_id} into database: {e}")
         # return False
-        # await ctx.send(f"{ctx.message.author.mention}\n\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
+        # await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
     else:
         return True
 
@@ -89,13 +96,27 @@ def prepareTimestamp(timestamp, tz, str=True):
     else:
         return dt
 
-async def formatMatch(bot, match, user):
+async def formatMatch(bot, match, user, score=False):
     tz = await getUserTimezone(bot, user)
     match_time = prepareTimestamp(match.get('event_date'), tz)
 
     time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
+    home_emoji = discord.utils.get(bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
+    away_emoji = discord.utils.get(bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
+    league_emoji = discord.utils.get(bot.emojis, name=match.get('league_name').lower().replace(' ', ''))
+    if not home_emoji:
+        home_emoji = ""
+    if not away_emoji:
+        away_emoji = ""
+    if not league_emoji:
+        league_emoji = ""
 
-    return f"{match.get('league_name')}\n{match.get('home_name')} vs {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
+    if score:
+        match_time = match.get("event_date")
+        match_time = prepareTimestamp(match_time, tz, str=False)
+        return f"{league_emoji} **{match.get('league_name')} | {match_time.strftime('%m/%d/%Y')}**\n{home_emoji} {match.get('home_name')} {match.get('goals_home')} - {match.get('goals_away')} {away_emoji} {match.get('away_name')}\n" 
+    else:
+        return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
 
 async def getStandings(bot, league_id):
     parsed_standings = []

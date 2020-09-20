@@ -30,8 +30,11 @@ class TasksCog(commands.Cog):
             "AWD": True,
             "WO": True
         }
+        self.updateFixtures.add_exception_type(Exception)
         self.updateFixtures.start()
+        self.updateFixturesbyLeague.add_exception_type(Exception)
         self.updateFixturesbyLeague.start()
+        self.calculatePredictionScores.add_exception_type(Exception)
         self.calculatePredictionScores.start()
 
 
@@ -71,7 +74,7 @@ class TasksCog(commands.Cog):
                 raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
 
         self.bot.logger.info(f"Updated fixtures table, {len(fixtures)} were changed.")
-        # await bot.admin_id.send(f"Updated fixtures table, {len(fixtures)} were changed.")
+        # await bot.notifyAdmin(bot, f"Updated fixtures table, {len(fixtures)} were changed.")
 
     # runs every hour updating all fixtures in the db that are not identical to the current entry (by fixture id)
     # this ensures that we get any new fixtures outside the updateFixtures() 15 min window (ex. date of the CL final gets changed, or for some reason fixtures in the past change)
@@ -144,7 +147,7 @@ class TasksCog(commands.Cog):
                     raise PleaseTellMeAboutIt(f'Failed to verify/update fixture: {fixture.get("league_id")}')
 
         if updated_fixtures:
-            await self.bot.admin_id.send(f"Updated/Inserted {updated_fixtures} fixtures!")
+            await self.bot.notifyAdmin(self.bot, f"Updated/Inserted {updated_fixtures} fixtures!")
 
 
     # @bot.command(hidden=True)

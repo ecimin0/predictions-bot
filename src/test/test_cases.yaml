@@ -1,0 +1,92 @@
+help:
+  +help: normal output
+  +help fdafdsafdsafd: normal output
+
+results:
+  +results: normal output
+  +results afdsafdasfdsa: normal output
+
+when:
+  +when tottenham: next game
+  +when nobody: no game
+  +when arsenal: no game - we are arsenal
+  +when: no arg provided
+
+next:
+  +next: 2 next matches
+  +next 1: 1 next match
+  +next 11: error too many matches
+  +next asdf: error not a valid match count
+  +next 9: 9 next matches
+  +next -1: number cannot be negative
+  +next 5000000000000: cannot be greater than 10
+
+pltable:
+  +pltable: premier leagure leaderboard
+
+predictions:
+  +predictions: shows previous predictions
+
+leaderboard:
+  +leaderboard: shows leaderboard
+  +leaderboard (within 60s): cooldown error
+
+predict:
+  +predict: error no prediction made
+  +predict 1-0: success
+  +predict 1-1 auba fgs: success
+  +predict 2-2 auba fgs, auba: 2 goals auba
+  +predict 2-2 auba fgs, auba 2x: 3 goals auba
+  +predict 0-0 auba fgs: failed, too many goals predicted
+  +predict 1-1 notaplayer fgs: Please try again, no player named notaplayer
+  +predict auba fgs, laca 0-2: success
+  +predict 0:1 laca fgs: success
+
+timezone:
+  +timezone: show current timezone
+  +timezone US/Central: change tz to US/Central
+  +timezone nottz: error - not a timezone
+  +timezone +0500: error - not a timezone
+
+rules:
+  +rules: show rules
+  +rules fdafdsafdsafd: normal output
+
+ping:
+  +ping: shows latency
+
+userLookup:
+  +userLookup devoops: return id(s) for devoops
+  +userLookup notauseratallhahahah: nothing returned
+  +userLookup devoops flamingo: looks up 2 results for devoops, 1 for flamingo
+  +userLookup devoops fla: devoops looked up, fla rejected
+
+
+messageLookup:
+  +messageLookup <id>: return author
+
+addNickname:
+  +addNickname: error no values provided; should return helpful message
+  +addNickname player <id> <nickname>: success
+  +addNickname player <notid> <nickname>: error
+  +addNickname player <id>: fail, empty nickname
+
+removeNickname:
+  +removeNickname: values provided
+  +removeNickname player <id> <nickname>: success
+  +removeNickname player <notid> <nickname>: error
+  +removeNickname player <id>: fail, empty nickname
+
+listPlayers:
+  notimplemented
+
+getEmoji:
+  testingonly
+testEmbed:
+  testingonly
+testPage:
+  testingonly
+
+echo:
+  +echo: return nothing, error nothing provided
+  +echo <str>: return <str>

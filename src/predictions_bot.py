@@ -18,7 +18,7 @@ import structlog
 from tabulate import tabulate
 from pythonjsonlogger import jsonlogger
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandNotFound, CommandInvokeError, CommandOnCooldown
+from discord.ext.commands import CommandNotFound, CommandInvokeError, CommandOnCooldown, MissingRequiredArgument, BadArgument
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 
@@ -128,8 +128,6 @@ if not token:
     logger.error("Missing Discord bot token! Set TOKEN env value.")
     sys.exit(1)
 
-last_run = {}
-
 # use something like these functions to get data from db
 ## bot.pg_conn.fetch("<sql>")
 
@@ -154,7 +152,7 @@ bot.remove_command('help')
 #     try:
 #         bot.admin_id = await bot.fetch_user("249231078303203329")
 #         if not testing_mode:
-#             await bot.admin_id.send(f"found admin ID {bot.admin_id}")
+#             await bot.notifyAdmin(bot, f"found admin ID {bot.admin_id}")
 #     except Exception as e:
 #         logger.error(f"{e}")
 
@@ -174,18 +172,20 @@ async def on_ready():
     # try:
     #     bot.admin_id = await bot.fetch_user("249231078303203329")
     #     if not testing_mode:
-    #         await bot.admin_id.send(f"found admin ID {bot.admin_id}")
+    #         await bot.notifyAdmin(bot, f"found admin ID {bot.admin_id}")
     # except Exception as e:
     #     logger.exception(f"{e}")
     bot.testing_mode = testing_mode
-    bot.notify_admin = notifyAdmin
+    bot.notifyAdmin = notifyAdmin
     bot.admin_ids = [260908554758782977, 249231078303203329]
     bot.main_team = main_team
     bot.logger = logger
     bot.api_key = api_key
     bot.league_dict = league_dict
+    bot.gitlab_api = os.environ.get("GITLAB_API", None)
     bot.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {bot.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable"
     logger.info(f'connected to {channel} within {[ guild.name for guild in bot.guilds ]} as {bot.user}')
+    await bot.notifyAdmin(bot, f'connected to {channel} within {[ guild.name for guild in bot.guilds ]} as {bot.user}')
     # print(f'connected to {[ guild.name for guild in bot.guilds ]} as {bot.user}')
 
 # print events and debug messsages from users in terminal, doesn't do anything on Discord
@@ -203,12 +203,12 @@ async def on_message(message):
         await bot.process_commands(message)
 
 
-#todo way to list players and team nicknames (by league)
+#todo way to list players and teams/team nicknames (by league)
 # add league id field to teams table
 ## get player ids and team ids
 
 # todo first move get-api-data.py functionality into predictions-bot.py
-# todo be able to turn on and off scheduled tasks and updater functions
+# todo be able to turn on and off scheduled tasks and updater functions?
 
 @bot.command()
 async def help(ctx):
@@ -235,7 +235,6 @@ async def help(ctx):
             await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
         else:
             await user.send(f"```Available Commands:\n{output}```")
-    # todo 403 Forbidden (error code: 50007): Cannot send messages to this user
     except discord.Forbidden:
         log.exception("user either blocked bot or disabled DMs")
     except Exception:
@@ -267,26 +266,8 @@ async def help(ctx):
 
 
 # todo paginate some functions from +help
-# todo indicate prediction has yet to be scored instead of points 
+
 # todo show missed matches in +predictions
-
-@bot.command()
-async def results(ctx):
-    '''
-    Return historical match results
-    '''
-    await checkUserExists(bot, ctx.message.author.id, ctx)
-    user_tz = await getUserTimezone(bot.pg_conn, ctx.message.author.id)
-
-    done_matches = await completedMatches(bot.pg_conn, count=10)
-    done_matches_output = []
-    for match in done_matches:
-        match_time = match.get("event_date")
-        match_time = prepareTimestamp(match_time, user_tz, str=False)
-        done_matches_output.append([match_time.strftime("%m/%d/%Y"), match.get("home_name"), f'{match.get("goals_home")}-{match.get("goals_away")}', match.get("away_name")])
-
-    done_matches_output = f'```{tabulate(done_matches_output, headers=["Date", "Home", "Score", "Away"], tablefmt="github", colalign=("center","center","center","center"))}```'
-    await ctx.send(f"{ctx.message.author.mention}\n\n**Past Match Results**\n{done_matches_output}")
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -295,6 +276,10 @@ async def on_command_error(ctx, error):
         await ctx.send(f"You do not have permission to run `{ctx.message.content}`")
     if isinstance(error, RateLimit):
         await ctx.send(error)
+    if isinstance(error, BadArgument):
+        await ctx.send(f"Bad argument for {ctx.message.content}, {error}")
+    if isinstance(error, MissingRequiredArgument):
+        await ctx.send(f"Missing argument `{error.param}` for command `{ctx.message.content}`")
     if isinstance(error, CommandOnCooldown):
         # raise RateLimit(f"+{name} command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
         await ctx.send(f"{ctx.message.content.split()[0]} is under a rate limit, try again in {error.retry_after:.2f} seconds.")
@@ -303,9 +288,9 @@ async def on_command_error(ctx, error):
     if isinstance(error, CommandInvokeError):
         if not testing_mode:
             if isinstance(error.original, PleaseTellMeAboutIt):
-                await bot.admin_id.send(f"Admin error tagged for notification: {error.original}")
+                await bot.notifyAdmin(bot, f"Admin error tagged for notification: {error.original}")
             else:
-                await bot.admin_id.send(f"Unhandled Error: {error.original}")
+                await bot.notifyAdmin(bot, f"Unhandled Error: {error.original}")
 
 if __name__ == "__main__":
     try:

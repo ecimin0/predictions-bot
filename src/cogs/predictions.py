@@ -6,7 +6,7 @@ import pytz
 import re 
 import json
 
-from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp
+from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions
 from exceptions import *
 
 class PredictionsCog(commands.Cog):
@@ -19,9 +19,13 @@ class PredictionsCog(commands.Cog):
         Show your past predictions
         '''
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
+
+        #compare all fixtures with predictions to user predictions
         predictions = await getUserPredictions(self.bot, ctx.message.author.id)
+        fixtures = await getFixturesWithPredictions(self.bot)
+
         if not predictions:
-            await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you have no predictions! Get started by typing `+predict`")
+            await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have no predictions! Get started by typing `+predict`")
             return
 
         embed = discord.Embed(title=f"Predictions for {ctx.message.author.display_name}")
@@ -29,14 +33,33 @@ class PredictionsCog(commands.Cog):
         # output = f"{ctx.message.author.mention}\n"
 
         total = 0
-        for prediction in predictions:
-            if prediction.get("prediction_score"):
-                total += prediction.get("prediction_score")
-            match = await getMatch(self.bot, prediction.get("fixture_id"))
-            embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value=f'Score: {prediction.get("prediction_score")} | `{prediction.get("prediction_string")}`\n\n', inline=False)
-            # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
+        # DOWN HERE 
+        # for i in range(len(fixtures_wpredictions)):
+        # if not fixtures_wpredictionsp[i].get("fixture_id") == predictions[i].get("fixture_id"):
+        #   missing thing is missing
+        offset = 0
+        self.bot.logger.debug(fixtures=fixtures, len_fixture=len(fixtures), predictions=predictions, len_predictions=len(predictions))
+        for i in range(0,len(fixtures)):
+            fixture = fixtures[i]
+            if i - offset > len(predictions) - 1:
+                offset += 1
+            prediction = predictions[i - offset]
+            self.bot.logger.debug(count=i,fixture_id=fixture.get("fixture_id"), prediction_fixture_id=prediction.get("fixture_id"))
+            match = await getMatch(self.bot, fixture.get("fixture_id"))
+
+            if not fixture.get("fixture_id") == prediction.get("fixture_id"):
+                offset += 1
+                embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value="Score: 0 `no prediction made`", inline=False)
+            else:
+                if prediction.get("prediction_score"):
+                    total += prediction.get("prediction_score")
+                prediction_value = "TBD"
+                if prediction.get("prediction_score"):
+                    prediction_value = prediction.get("prediction_score")
+                embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value=f'Score: **{prediction_value}** | `{prediction.get("prediction_string")}`\n\n', inline=False)
+                # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
         embed.description=f"Current total league score: **{total}**"
-        await ctx.send(f"{ctx.message.author.mention}\n\n",embed=embed)
+        await ctx.send(f"{ctx.message.author.mention}\n",embed=embed)
 
 
     @commands.command()
@@ -45,6 +68,11 @@ class PredictionsCog(commands.Cog):
         '''
         Show leaderboard
         '''
+        #todo try this 
+        # 1st Everton
+        # 6 pts | 2W 0D 0L | GF 6 | GA 2 | GD 4
+        # 2nd Arsenal
+        # 6 pts | 2W 0D 0L | GF 5 | GA 1 | GD 4
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         embed_colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
         embed_color = random.choice(embed_colors)
@@ -129,12 +157,12 @@ class PredictionsCog(commands.Cog):
 
         if pytz.timezone("UTC").localize(datetime.utcnow()) > time_limit:
             team = await getRandomTeam(self.bot)
-            await ctx.send(f"{ctx.message.author.mention}\n\nPrediction time too close to match start time. Go support {team} instead.")
+            await ctx.send(f"{ctx.message.author.mention}\nPrediction time too close to match start time. Go support {team} instead.")
             return
 
         temp_msg = ctx.message.content
         if len(temp_msg.split()) < 2:
-            await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you didn't actually predict anything!\nTry something like `+predict 3-2 auba fgs, laca`")
+            await ctx.send(f"{ctx.message.author.mention}\nIt looks like you didn't actually predict anything!\nTry something like `+predict 3-2 auba fgs, laca`")
             return 
 
         goals_regex = r"((\d) ?[:-] ?(\d))"
@@ -196,7 +224,7 @@ class PredictionsCog(commands.Cog):
 
             scorer_properties = [player for player in player_scores.values()]
             if len([player for player in player_scores.values() if player.get("fgs")]) > 1:
-                await ctx.send(f"{ctx.message.author.mention}\n\nWhy are you the way that you are?\nTwo players cannot be first goal scorer. Predict again.")
+                await ctx.send(f"{ctx.message.author.mention}\nWhy are you the way that you are?\nTwo players cannot be first goal scorer. Predict again.")
                 return
 
         except Exception as e:
@@ -205,7 +233,7 @@ class PredictionsCog(commands.Cog):
             return
         
         if not goals_match:
-            await ctx.send(f"{ctx.message.author.mention}\n\nDid not provide a match score in your prediction.\n`{ctx.message.content}`")
+            await ctx.send(f"{ctx.message.author.mention}\nDid not provide a match score in your prediction.\n`{ctx.message.content}`")
             return
         else:        
             # football home teams listed first
@@ -223,7 +251,7 @@ class PredictionsCog(commands.Cog):
             predicted_goal_count += scorer.get("num_goals")
 
         if predicted_goal_count > arsenal_goals:
-            await ctx.send(f"{ctx.message.author.mention}\n\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
+            await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
             return
 
         try:
@@ -250,21 +278,22 @@ class PredictionsCog(commands.Cog):
                             await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                     except Exception as e:
                         log.exception("Error adding prediction")
-                        await ctx.send(f"{ctx.message.author.mention}\n\nThere was an error adding your prediction, please try again later.")
+                        await ctx.send(f"{ctx.message.author.mention}\nThere was an error adding your prediction, please try again later.")
                         return
 
             goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
             goal_scorers = "\n".join(goal_scorers_array)
-            
-            output = f"""{ctx.message.author.mention}\n\n**Prediction against {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
-            output += f"""\n\n**Score**\n{current_match.get('home_name')} {home_goals} - {away_goals} {current_match.get('away_name')}\n\n"""
+            home_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('home_name').lower().replace(' ', ''))
+            away_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('away_name').lower().replace(' ', ''))
+            output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
+            output += f"""\n\n**Score**\n{home_emoji} {current_match.get('home_name')} {home_goals} - {away_goals} {away_emoji} {current_match.get('away_name')}\n\n"""
             if goal_scorers:
                 output += f"""**Goal Scorers**\n{goal_scorers}"""
             await ctx.send(output)
 
         except (Exception) as e:
             log.exception(f"There was an error loading this prediction into the database: {e}")
-            await self.bot.notify_admin(self.bot, f"There was an error loading this prediction into the databse:\n{e}")
+            await self.bot.notifyAdmin(self.bot, f"There was an error loading this prediction into the databse:\n{e}")
             return
 
 

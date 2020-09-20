@@ -23,10 +23,10 @@ class UserCog(commands.Cog):
             tz = re.search(r"\+timezone (.*)", msg).group(1)
         except AttributeError:
             current_tz = await getUserTimezone(self.bot, ctx.message.author.id)
-            await ctx.send(f"{ctx.message.author.mention}\n\nYour current timezone is {current_tz}")
+            await ctx.send(f"{ctx.message.author.mention}\nYour current timezone is {current_tz}")
             return
         except Exception:
-            await ctx.send(f"{ctx.message.author.mention}\n\nYou didn't include a timezone!")
+            await ctx.send(f"{ctx.message.author.mention}\nYou didn't include a timezone!")
             return
         
         if tz in pytz.all_timezones:
@@ -36,9 +36,9 @@ class UserCog(commands.Cog):
                         await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, ctx.message.author.id)
             except Exception:
                 log.error("User encoutered error changing timezone")
-            await ctx.send(f"{ctx.message.author.mention}\n\nYour timezone has been set to {tz}")
+            await ctx.send(f"{ctx.message.author.mention}\nYour timezone has been set to {tz}")
         else:
-            await ctx.send(f"{ctx.message.author.mention}\n\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'")
+            await ctx.send(f"{ctx.message.author.mention}\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'")
 
 def setup(bot):
     bot.add_cog(UserCog(bot))

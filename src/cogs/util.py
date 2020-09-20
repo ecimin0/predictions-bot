@@ -1,6 +1,7 @@
+import aiohttp
 import discord
 from discord.ext import tasks, commands
-
+import urllib
 from exceptions import *
 from utils import checkBotReady, nextMatch
 
@@ -41,7 +42,7 @@ class UtilCog(commands.Cog):
         opponent = next_match.get('opponent_name')
 
         rules_set_filled = self.rules_set.format(opponent, predict_example)
-        await ctx.send(f"{ctx.message.author.mention}\n\n{rules_set_filled}")
+        await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
 
     @commands.command()
     async def ping(self, ctx):
@@ -51,7 +52,7 @@ class UtilCog(commands.Cog):
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         latency = self.bot.latency
         log.info(latency=latency)
-        await ctx.send(f"{ctx.message.author.mention}\n\nBot latency is {latency * 1000:.0f} milliseconds")
+        await ctx.send(f"{ctx.message.author.mention}\nBot latency is {latency * 1000:.0f} milliseconds")
 
     @commands.command(hidden=True)
     async def echo(self, ctx, *, content:str):
@@ -67,7 +68,21 @@ class UtilCog(commands.Cog):
     #     '''
     #     video = "https://www.youtube.com/watch?v=w0R7gWf-nSA"
     #     spurs_status = "SHIT"
-    #     await ctx.send(f"{ctx.message.author.mention}\n\n{spurs_status}\n{video}")
+    #     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
     
+
+    @commands.command()
+    @commands.cooldown(1, 86400, commands.BucketType.user)
+    async def feedback(self, ctx):
+        '''
+        Feedback function | leave a short feedback message
+        '''
+        message = ctx.message.content.replace("+feedback ", "")
+        issue_title = f"feedback from {ctx.author.name}"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(message)}&labels=feedback", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
+                fixture_info = await resp.json()
+        await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
+
 def setup(bot):
     bot.add_cog(UtilCog(bot))
