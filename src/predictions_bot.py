@@ -295,7 +295,7 @@ async def on_command_error(ctx, error):
 if __name__ == "__main__":
     try:
         # disabling fixture update during testing mode, may need to be further tunable for testing.
-        if not testing_mode:
+        if not testing_mode or os.environ.get("RUN_TASKS_ANYWAY"):
             bot.load_extension("cogs.tasks")
             # updateFixtures.start()
             # calculatePredictionScores.start()
