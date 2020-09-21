@@ -177,6 +177,8 @@ async def on_ready():
     bot.logger = logger
     bot.api_key = api_key
     bot.league_dict = league_dict
+    bot.season_full = "2020-2021"
+    bot.season = "2020"
     bot.gitlab_api = os.environ.get("GITLAB_API", None)
     bot.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {bot.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable"
     logger.info(f'connected to {channel} within {[ guild.name for guild in bot.guilds ]} as {bot.user}')
