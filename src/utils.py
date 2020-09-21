@@ -123,7 +123,6 @@ async def formatMatch(bot, match, user, score=False):
     if score:
         match_time = match.get("event_date")
         match_time = prepareTimestamp(match_time, tz, str=False)
-        # todo "%A, %d %B %I:%M%p"
         return f"{league_emoji} **{match.get('league_name')} | {match_time.strftime('%m/%d/%Y')}**\n{home_emoji} {match.get('home_name')} {match.get('goals_home')} - {match.get('goals_away')} {away_emoji} {match.get('away_name')}\n" 
     else:
         # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 

@@ -154,7 +154,7 @@ class TasksCog(commands.Cog):
                                                                 fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
                                                                 fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
                     except Exception:
-                        log.exception("Failed to verify/update fixture", fixture_id=fixture.get("league_id"))
+                        log.exception("Failed to verify/update fixture", fixture_id=fixture.get("fixture_id"))
                         # raise PleaseTellMeAboutIt(f'Failed to verify/update fixture: {fixture.get("league_id")}')
 
             if updated_fixtures:

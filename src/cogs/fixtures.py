@@ -71,8 +71,6 @@ class FixturesCog(commands.Cog):
                 log.exception("Error retrieving nextMatches from database")
             output = f"{ctx.message.author.mention}\n**Next {count} matches:**\n\n"
             for match in next_matches:
-            # await ctx.send(f"{[match for match in next_matches]}")
-            # todo: embed icons here
                 output += await formatMatch(self.bot, match, ctx.message.author.id)
             await ctx.send(f"{output}")
 

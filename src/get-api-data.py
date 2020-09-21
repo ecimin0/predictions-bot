@@ -261,7 +261,7 @@ try:
 
         # getLeagues(season)
         
-        # getTeams(league)
+        getTeams(league)
     
         # getPlayers(season, full_season, league)
     
