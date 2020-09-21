@@ -91,6 +91,17 @@ async def getUserTimezone(bot, user):
     user_tz = await bot.pg_conn.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
     tz = pytz.timezone(user_tz.get("tz", "UTC"))
     return tz 
+
+async def getTeamsInLeague(bot, league_id):
+    team_ids_list = []
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://v2.api-football.com/teams/league/{league_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
+            response = await resp.json()
+
+    league_teams = response.get("api").get("teams")
+    for team in league_teams:
+        team_ids_list.append(team.get("team_id"))
+    return team_ids_list
     
 async def checkBotReady():
     await asyncio.sleep(5)
@@ -127,6 +138,27 @@ async def formatMatch(bot, match, user, score=False):
     else:
         # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
         return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n\n" 
+
+async def addTeam(bot, team_id):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
+            response = await resp.json()
+    teams = response.get("api").get("teams")
+
+    for team in teams:
+        delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
+
+    for key in delete_keys:
+        del team[key]
+
+    async with bot.pg_conn.acquire() as connection:
+        async with connection.transaction():
+            existing_info = await connection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", team_id)
+            if existing_info:
+                if changesExistTeam(team, existing_info):
+                    await connection.execute("UPDATE predictionsbot.teams SET name = $1, logo = $2, country = $3 WHERE team_id = $4", team.get("name"), team.get("logo"), team.get("country"), team_id)
+            else:
+                await connection.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES ($1, $2, $3, $4);", team.get("team_id"), team.get("name"), team.get("logo"), team.get("country"))
 
 async def getStandings(bot, league_id):
     parsed_standings = []
@@ -187,9 +219,40 @@ def changesExist(fixture1, fixture2):
     ]
     return not all(likeness)
 
+def changesExistLeague(league1, league2):
+    # likeness of bools of these comparisons
+    # all() returns True if all elements of likeness are True
+    likeness = [
+        league1.get("name") == league2.get("name"),
+        league1.get("logo") == league2.get("logo"),
+        league1.get("season") == league2.get("season"),
+        league1.get("country") == league2.get("country")
+    ]
+    return not all(likeness)
+
+def changesExistPlayer(player1, player2):
+    # likeness of bools of these comparisons
+    # all() returns True if all elements of likeness are True
+    likeness = [
+        player1.get("lastname") == player2.get("lastname"),
+        player1.get("firstname") == player2.get("firstname"),
+        player1.get("player_name") == player2.get("player_name")
+        # player1.get("season") == player2.get("season")
+    ]
+    return not all(likeness)
+
+def changesExistTeam(team1, team2):
+    # likeness of bools of these comparisons
+    # all() returns True if all elements of likeness are True
+    likeness = [
+        team1.get("name") == team2.get("name"),
+        team1.get("logo") == team2.get("logo"),
+        team1.get("country") == team2.get("country")
+    ]
+    return not all(likeness)
+
 def isAdmin():
     return True
-
 
 # Convert an integer into its ordinal representation::
 # https://stackoverflow.com/questions/9647202/ordinal-numbers-replacement

@@ -5,7 +5,7 @@ import json
 import asyncio
 import aiohttp
 from exceptions import *
-from utils import checkBotReady, changesExist
+from utils import checkBotReady, changesExist, getTeamsInLeague, changesExist, changesExistLeague, changesExistPlayer, changesExistTeam, addTeam
 
 class TasksCog(commands.Cog):
 
@@ -37,7 +37,12 @@ class TasksCog(commands.Cog):
         self.updateFixturesbyLeague.start()
         self.calculatePredictionScores.add_exception_type(Exception)
         self.calculatePredictionScores.start()
-
+        # self.updateTeams.add_exception_type(Exception)
+        # self.updateTeams.start()
+        self.updatePlayers.add_exception_type(Exception)
+        self.updatePlayers.start()
+        self.updateLeagues.add_exception_type(Exception)
+        self.updateLeagues.start()
 
 
     # @bot.command(hidden=True)
@@ -73,6 +78,7 @@ class TasksCog(commands.Cog):
                 try:
                     async with self.bot.pg_conn.acquire() as connection:
                         async with connection.transaction():
+
                             await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
                 except Exception:
                     log.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
@@ -134,6 +140,15 @@ class TasksCog(commands.Cog):
                 
                 for fixture in parsed_fixtures:
                     try:
+                        home_team_exists = await self.bot.pg_conn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", fixture.get("home"))
+                        away_team_exists = await self.bot.pg_conn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", fixture.get("away"))
+                        if not home_team_exists:
+                            await addTeam(self.bot, fixture.get("home"))
+                            log.info("Added team (home)", fixture=fixture.get("fixture_id"), team=fixture.get("home"))
+                        if not away_team_exists:
+                            await addTeam(self.bot, fixture.get("away"))
+                            log.info("Added team (away)", fixture=fixture.get("fixture_id"), team=fixture.get("away"))
+
                         fixture_exists = await self.bot.pg_conn.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
                         
                         if fixture_exists:
@@ -303,6 +318,131 @@ class TasksCog(commands.Cog):
         except Exception:
             log.exception()
 
+    @tasks.loop(hours=6)
+    async def updateTeams(self):
+        await checkBotReady()
+        try:
+            update_counter = 0
+            added_counter = 0
+            log = self.bot.logger.bind(task="updateTeams")
+            log.info("Starting updateTeams")
+            for name, league_id in self.bot.league_dict.items():
+                team_ids_list = await getTeamsInLeague(self.bot, league_id)
+                for team_id in team_ids_list:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                            response = await resp.json()
+                    teams = response.get("api").get("teams")
+
+                    for team in teams:
+                        delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
+
+                    for key in delete_keys:
+                        del team[key]
+
+                    try:
+                        async with self.bot.pg_conn.acquire() as connection:
+                            async with connection.transaction():
+                                existing_info = await connection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", team_id)
+                                if existing_info:
+                                    if changesExistTeam(team, existing_info):
+                                        await connection.execute("UPDATE predictionsbot.teams SET name = $1, logo = $2, country = $3 WHERE team_id = $4", team.get("name"), team.get("logo"), team.get("country"), team_id)
+                                        update_counter += 1
+                                else:
+                                    await connection.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES ($1, $2, $3, $4);", team.get("team_id"), team.get("name"), team.get("logo"), team.get("country"))
+                                    added_counter += 1
+                    except Exception:
+                        log.exception("Failed to insert/update teams", team_id=team.get("team_id"))
+            log.info("Completed updateTeams", added_teams=added_counter, updated_teams=update_counter)
+        except Exception:
+            log.exception()
+
+    @tasks.loop(hours=6)
+    async def updatePlayers(self):
+        await checkBotReady()
+        log = self.bot.logger.bind(task="updatePlayers")
+        try:
+            log.info("Starting updatePlayers")
+            teams = {}
+            updated_players = 0
+            added_players = 0
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://v2.api-football.com/players/squad/{self.bot.main_team}/{self.bot.season_full}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                    response = await resp.json()
+            players = response.get("api").get("players")
+            teams[self.bot.main_team] = players
+
+            for team, player_array in teams.items():
+                for player in player_array:
+                    delete_keys = [key for key in player if key not in ["player_name", "firstname", "lastname", "player_id"]]
+                    for key in delete_keys: 
+                        del player[key]
+                    try:
+                        async with self.bot.pg_conn.acquire() as connection:
+                            async with connection.transaction():
+                                existing_player = await connection.fetchrow("SELECT * FROM predictionsbot.players WHERE player_id = $1", player.get("player_id"))
+                                if existing_player:
+                                    # log.debug("Diffs", existing=existing_player, player=player)
+                                    if changesExistPlayer(player, existing_player):
+                                        await connection.execute("UPDATE predictionsbot.players SET season = $1, team_id = $2, player_name = $3, firstname = $4, lastname = $5 WHERE player_id = $6", self.bot.season, team, player.get("player_name"), player.get("firstname"), player.get("lastname"), player.get("player_id"))
+                                        updated_players += 1
+                                else:
+                                    await connection.execute("INSERT INTO predictionsbot.players (player_id, season, team_id, player_name, firstname, lastname) VALUES ($1, $2, $3, $4, $5, $6);", player.get("player_id"), self.bot.season, team, player.get("player_name"), player.get("firstname"), player.get("lastname"))
+                                    added_players += 1
+                    except Exception:
+                        log.exception("Failed to insert/update player", player_id=player.get("player_id"))
+            log.info("Completed updatePlayers", added_players=added_players, updated_players=updated_players)
+        except Exception:
+            log.exception()
+
+    @tasks.loop(hours=72)
+    async def updateLeagues(self):
+        await checkBotReady()
+        log = self.bot.logger.bind(task="updateLeagues")
+        try:
+            log.info("Starting updateLeagues")
+            updated_leagues = 0
+            added_leagues = 0
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://v2.api-football.com/leagues", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                    response = await resp.json()
+            leagues = response.get("api").get("leagues")
+    
+            parsed_leagues = []
+            for league in leagues:
+                delete_keys = [key for key in league if key not in ["league_id", "name", "season", "logo", "country", "is_current"]]
+                for key in delete_keys: 
+                    del league[key]
+                parsed_leagues.append(league)
+
+            # only get leagues for the current season
+            # season '2019' is for calendar years 2019-2020
+            log.debug("Seasons", season_count=len(parsed_leagues))
+            delete_seasons = [row for row in parsed_leagues if row.get("is_current") != 1]
+            # delete_seasons = [row for row in parsed_leagues if row.get("season") != prev_year]
+            for season in delete_seasons:
+                parsed_leagues.remove(season)
+            log.debug("Seasons (after removal)", season_count=len(parsed_leagues))
+                
+            for league in parsed_leagues:
+                try:
+                    async with self.bot.pg_conn.acquire() as connection:
+                        async with connection.transaction():
+                            existing_league = await connection.fetchrow("SELECT * FROM predictionsbot.leagues WHERE league_id = $1", league.get("league_id"))
+                            if existing_league:
+                                # log.debug("Diffs", existing=existing_league, new=league)
+                                league["season"] = str(league.get("season"))
+                                if changesExistLeague(league, existing_league):
+                                    await connection.execute("UPDATE predictionsbot.leagues SET name = $1, season = $2, logo = $3, country = $4 WHERE league_id = $5", league.get("name"), str(league.get("season")), league.get("logo"), league.get("country"), league.get("league_id"))
+                                    updated_leagues += 1
+                            else:
+                                await connection.execute("INSERT INTO predictionsbot.leagues (league_id, name, season, logo, country) VALUES ($1, $2, $3, $4, $5);", league.get("league_id"), league.get("name"), str(league.get("season")),  league.get("logo"), league.get("country"))
+                                added_leagues += 1
+                except Exception:
+                    log.exception("Failed to insert/update league", league_id=league.get("league_id"))
+            log.info("Completed updateLeagues", added_leagues=added_leagues, updated_leagues=updated_leagues)
+        except Exception:
+            log.exception()
 
 def setup(bot):
     bot.add_cog(TasksCog(bot))
