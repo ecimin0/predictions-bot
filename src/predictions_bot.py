@@ -64,11 +64,6 @@ def createLogger(level):
 
 logger = createLogger(os.environ.get("LOGLEVEL", "INFO"))
 
-#todo make script accept stuff like nicknames as a config file
-# initialize db on "first launch" by adding initial team name as nickname to teams table, by league of main team (42 == arsenal == premier league == 2790)
-# todo ask team, country, league, setup config in database?
-# todo config in db/vs file 
-
 utc = pytz.timezone("UTC")
 
 # 2020-2021 season league IDs
@@ -202,14 +197,6 @@ async def on_message(message):
         # logger.info(f"{message.channel.name} | {message.author} | {message.author.id} | {message.content}")
         await bot.process_commands(message)
 
-
-#todo way to list players and teams/team nicknames (by league)
-# add league id field to teams table
-## get player ids and team ids
-
-# todo first move get-api-data.py functionality into predictions-bot.py
-# todo be able to turn on and off scheduled tasks and updater functions?
-
 @bot.command()
 async def help(ctx):
     '''
@@ -264,10 +251,6 @@ async def help(ctx):
 #             async with connection.transaction():
 #                 await connection.execute("UPDATE predictionsbot.teams SET nicknames = '{{ {0} }}' WHERE team_id = $1".format(", ".join(v)), k)
 
-
-# todo paginate some functions from +help
-
-# todo show missed matches in +predictions
 
 @bot.event
 async def on_command_error(ctx, error):

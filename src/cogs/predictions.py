@@ -65,11 +65,6 @@ class PredictionsCog(commands.Cog):
         '''
         Show leaderboard
         '''
-        #todo try this 
-        # 1st Everton
-        # 6 pts | 2W 0D 0L | GF 6 | GA 2 | GD 4
-        # 2nd Arsenal
-        # 6 pts | 2W 0D 0L | GF 5 | GA 1 | GD 4
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         embed_colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
         embed_color = random.choice(embed_colors)

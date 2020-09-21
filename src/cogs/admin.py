@@ -60,7 +60,6 @@ class AdminCog(commands.Cog):
         else:
             await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
 
-    # todo better handling for errors here - wrong arg count, etc.
     @commands.command(hidden=True)
     async def addNickname(self, ctx, nicknameType:str, id:int, nickname:str):
         '''
