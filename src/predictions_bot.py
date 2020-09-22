@@ -47,6 +47,11 @@ class Bot(commands.Bot):
         self.gitlab_api = kwargs.pop("gitlab_api")
         self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable"
 
+    async def close(self):
+        await super().close()
+        self.logger.info("closed database pool")
+        await self.db.close()
+
     async def notifyAdmin(self, message: str) -> None:
         self.logger.debug("Received admin notification", message=message, testing_mode=self.testing_mode)
         if not self.testing_mode:
@@ -249,25 +254,28 @@ cogs = [
     "cogs.util"
 ]
 
-async def run(credentials, options, token, cogs):
+async def init(credentials, options, token, cogs):
     db = await asyncpg.create_pool(**credentials)
     bot = Bot(db=db, **options)
     for cog in cogs:
         bot.load_extension(cog)
 
-    try:
-        await bot.start(token)
-    except KeyboardInterrupt:
-        await db.close()
-        await bot.logout()
+    return bot
+    # try:
+    #     bot.logger.info("starting bot")
+    #     await bot.start(token)
+    # except Exception:
+    #     await db.close()
+    #     await bot.logout()
 
-try:
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(run(credentials, options, token, cogs))
-except KeyboardInterrupt:
-    logger.exception("Stopping there")
-finally:
-    loop.stop()
-    loop.close()
+# try:
+loop = asyncio.get_event_loop()
+bot = loop.run_until_complete(init(credentials, options, token, cogs))
+bot.run(token)
+# except KeyboardInterrupt:
+#     logger.exception("Stopping there")
+# finally:
+#     loop.stop()
+#     loop.close()
 
     
