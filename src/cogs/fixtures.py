@@ -31,7 +31,7 @@ class FixturesCog(commands.Cog):
             await ctx.send(f"{ctx.message.author.mention}\n{team} does not seem to be a team I recognize.")
             return
 
-        next_match = await self.bot.pg_conn.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {self.bot.main_team} AND away = $1) OR (away = {self.bot.main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
+        next_match = await self.bot.db.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {self.bot.main_team} AND away = $1) OR (away = {self.bot.main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
         next_match = await formatMatch(self.bot, next_match, ctx.message.author.id)
         await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
 

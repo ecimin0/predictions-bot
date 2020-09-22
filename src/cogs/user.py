@@ -31,7 +31,7 @@ class UserCog(commands.Cog):
         
         if tz in pytz.all_timezones:
             try:
-                async with self.bot.pg_conn.acquire() as connection:
+                async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, ctx.message.author.id)
             except Exception:

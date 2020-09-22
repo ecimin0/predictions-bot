@@ -11,19 +11,12 @@ from typing import List
 import string
 import random
 
-async def notifyAdmin(bot: commands.Bot, message: str) -> None:
-    bot.logger.debug("Received admin notification", message=message, testing_mode=bot.testing_mode)
-    if not bot.testing_mode:
-        for admin in bot.admin_ids:
-            adm = await bot.fetch_user(admin)
-            await adm.send(message)
-
 async def getFixturesWithPredictions(bot: commands.Bot) -> List:
-    fixtures = await bot.pg_conn.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
+    fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
     return fixtures
 
 async def getUserRank(bot, user_id):
-    ranks = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+    ranks = await bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
     for rank in ranks:
         if rank.get("user_id") == user_id:
             user_rank = rank.get("rank")
@@ -33,27 +26,27 @@ async def getUserPredictions(bot: commands.Bot, user_id: int) -> List:
     '''
     Return the last 10 predictions by user
     '''
-    predictions = await bot.pg_conn.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
+    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
     return predictions
 
 async def getMatch(bot, fixture_id):
-    match = await bot.pg_conn.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
+    match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
     return match
 
 async def getRandomTeam(bot):
-    team = await bot.pg_conn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
+    team = await bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
     return team.get("name")
 
 async def checkUserExists(bot, user_id, ctx):
-    user = await bot.pg_conn.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
+    user = await bot.db.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
 
     if not user:
-        async with bot.pg_conn.acquire() as connection:
+        async with bot.db.acquire() as connection:
             async with connection.transaction():
                 try:
                     await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
                 except Exception as e:
-                    await bot.notifyAdmin(bot, f"Error inserting user {user_id} into database:\n{e}")
+                    await bot.notifyAdmin(f"Error inserting user {user_id} into database:\n{e}")
                     bot.logger.error(f"Error inserting user {user_id} into database: {e}")
         # return False
         # await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
@@ -62,33 +55,33 @@ async def checkUserExists(bot, user_id, ctx):
 
 # nextMatches returns array of fixtures (even for one)
 async def nextMatches(bot, count=1):
-    matches = await bot.pg_conn.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT $1;", count)
+    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT $1;", count)
     return matches
 
 # nextMatch returns record (no array)
 async def nextMatch(bot):
-    match = await bot.pg_conn.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1;")
+    match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1;")
     return match
 
 # array of completed fixtures records
 async def completedMatches(bot, count=1, offset=0):
-    matches = await bot.pg_conn.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
+    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
 async def getPlayerId(bot, userInput):
-    player = await bot.pg_conn.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
+    player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
     if not player:
         raise Exception(f"no player named {userInput}")
     return player.get("player_id")
 
 async def getTeamId(bot, userInput):
-    player = await bot.pg_conn.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
+    player = await bot.db.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
     if not player:
         raise Exception(f"no team named {userInput}")
     return player.get("team_id")
 
 async def getUserTimezone(bot, user):
-    user_tz = await bot.pg_conn.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
+    user_tz = await bot.db.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
     tz = pytz.timezone(user_tz.get("tz", "UTC"))
     return tz 
 
@@ -151,7 +144,7 @@ async def addTeam(bot, team_id):
     for key in delete_keys:
         del team[key]
 
-    async with bot.pg_conn.acquire() as connection:
+    async with bot.db.acquire() as connection:
         async with connection.transaction():
             existing_info = await connection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", team_id)
             if existing_info:

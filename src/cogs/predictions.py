@@ -73,7 +73,7 @@ class PredictionsCog(commands.Cog):
 
         # if need to change the way the tied users are displayed change "RANK()" to "DENSE_RANK()"
         try:
-            leaderboard = await self.bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+            leaderboard = await self.bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
         except Exception:
             log.error("Failed to retrieve predictions leaderboard from database")
 
@@ -198,7 +198,7 @@ class PredictionsCog(commands.Cog):
 
                 try:
                     player_id = await getPlayerId(self.bot, player.strip())
-                    player_real_name = await self.bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
+                    player_real_name = await self.bot.db.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
                     real_name = player_real_name.get("player_name")
                 except Exception as e:
                     await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
@@ -253,7 +253,7 @@ class PredictionsCog(commands.Cog):
             # print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
             # use similar syntax as next lines for any insert/update to the db
             # also include the magic json stuff for things accessing the predictions table
-            async with self.bot.pg_conn.acquire() as connection:
+            async with self.bot.db.acquire() as connection:
                 async with connection.transaction():
                     await connection.set_type_codec(
                         'json',
