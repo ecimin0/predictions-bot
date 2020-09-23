@@ -168,7 +168,7 @@ class PredictionsCog(commands.Cog):
                 print('<< Going backward')
                 num = num - 1
                 rank_num -= 1
-                embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{num}/{user_max_pages}", color=embed_color)
+                embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{rank_num}/{user_max_pages}", color=embed_color)
                 embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
                 embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
                 await msg.clear_reactions()
@@ -178,7 +178,7 @@ class PredictionsCog(commands.Cog):
                 print('\t>> Going forward')
                 num = num + 1
                 rank_num += 1
-                embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{num}/{user_max_pages}", color=embed_color)
+                embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{rank_num}/{user_max_pages}", color=embed_color)
                 embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
                 embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
                 await msg.clear_reactions()

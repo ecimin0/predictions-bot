@@ -5,7 +5,7 @@ import json
 import asyncio
 import aiohttp
 from exceptions import *
-from utils import checkBotReady, changesExist, getTeamsInLeague, changesExist, changesExistLeague, changesExistPlayer, changesExistTeam, addTeam
+from utils import *
 
 class TasksCog(commands.Cog):
 
