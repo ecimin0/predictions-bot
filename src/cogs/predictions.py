@@ -115,7 +115,7 @@ class PredictionsCog(commands.Cog):
             # embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```\n{output_str}```", inline=False)
 
         # await ctx.send(f"{ctx.message.author.mention}", embed=embed)
-        
+
             paginated_data.append({"rank": f"{rank_num}", "rank_score": f"{user_prediction.get('score')}", "leaders": f"{output_str}"})
             rank_num += 1
 
@@ -158,7 +158,7 @@ class PredictionsCog(commands.Cog):
                 return True
 
             try:
-                res, user = await self.bot.wait_for('reaction_add', timeout=60.0, check=checkReact)
+                res, user = await self.bot.wait_for('reaction_add', timeout=55.0, check=checkReact)
             except asyncio.TimeoutError:
                 return await msg.clear_reactions()
 
