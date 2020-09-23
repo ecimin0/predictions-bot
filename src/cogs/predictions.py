@@ -90,6 +90,7 @@ class PredictionsCog(commands.Cog):
             # self.bot.logger.debug("Dump dictionary", dictionary=prediction_dictionary)
         
         # all_members = bot.get_all_members()
+        # self.bot.logger.debug(prediction_dictionary)
         
         rank_num = 1
         for v in prediction_dictionary.values():
@@ -100,9 +101,12 @@ class PredictionsCog(commands.Cog):
                     # for user in all_members:
                     #     if user.id == user_prediction.get("user_id"):
                     user = self.bot.get_user(user_prediction.get("user_id"))
+                    # self.bot.logger.debug(user=user, rank=user_prediction.get("rank"))
                     if user:
                         self.bot.logger.debug(user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
                         output_array.append(f'{user.display_name}')
+                    else:
+                        self.bot.logger.debug("Missing user", user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
                         # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
                 except discord.NotFound:
                     logger.warning("Missing user mapping", user=user_prediction.get("user_id"))

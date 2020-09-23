@@ -11,6 +11,14 @@ from typing import List
 import string
 import random
 
+
+async def notifyAdmin(bot: commands.Bot, message: str) -> None:
+    bot.logger.debug("Received admin notification", message=message, testing_mode=bot.testing_mode)
+    if not bot.testing_mode:
+        for admin in bot.admin_ids:
+            adm = await bot.fetch_user(admin)
+            await adm.send(message)
+
 async def getFixturesWithPredictions(bot: commands.Bot) -> List:
     fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
     return fixtures
