@@ -6,6 +6,4 @@ class PleaseTellMeAboutIt(Exception):
 
 class IsNotAdmin(commands.CheckFailure):
     pass
-
-class RateLimit(commands.CheckFailure):
-    pass    
+ 

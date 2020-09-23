@@ -23,7 +23,7 @@ from discord.ext.commands import CommandNotFound, CommandInvokeError, CommandOnC
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 
-from utils.exceptions import *
+from utils.exceptions import IsNotAdmin, PleaseTellMeAboutIt
 
 # bot token, API key, other stuff 
 load_dotenv()
@@ -116,8 +116,6 @@ class Bot(commands.Bot):
         self.logger.error(f"Handling error for {ctx.message.content}", exception=error)
         if isinstance(error, IsNotAdmin):
             await ctx.send(f"You do not have permission to run `{ctx.message.content}`")
-        if isinstance(error, RateLimit):
-            await ctx.send(error)
         if isinstance(error, BadArgument):
             await ctx.send(f"Bad argument for {ctx.message.content}, {error}")
         if isinstance(error, MissingRequiredArgument):
@@ -239,6 +237,7 @@ credentials = {"user": aws_dbuser, "password": aws_dbpass, "database": aws_dbnam
 options = {
     "description": "this bot is for the purpose of predicting the future",
     "testing_mode": testing_mode,
+    # "admin_ids": [],
     "admin_ids": [260908554758782977, 249231078303203329],
     "main_team": main_team,
     "logger": logger,
@@ -261,9 +260,12 @@ cogs = [
     "cogs.util"
 ]
 
-async def init(credentials, options, token, cogs):
+async def init(credentials, options, token, cogs, loop=False):
     db = await asyncpg.create_pool(**credentials)
-    bot = Bot(db=db, **options)
+    if loop:
+        bot = Bot(db=db, **options, loop=loop)
+    else:
+        bot = Bot(db=db, **options)
     for cog in cogs:
         bot.load_extension(cog)
 
@@ -276,9 +278,10 @@ async def init(credentials, options, token, cogs):
     #     await bot.logout()
 
 # try:
-loop = asyncio.get_event_loop()
-bot = loop.run_until_complete(init(credentials, options, token, cogs))
-bot.run(token)
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    bot = loop.run_until_complete(init(credentials, options, token, cogs))
+    bot.run(token)
 # except KeyboardInterrupt:
 #     logger.exception("Stopping there")
 # finally:
