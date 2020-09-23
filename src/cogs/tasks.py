@@ -4,8 +4,8 @@ from discord.ext import tasks, commands
 import json 
 import asyncio
 import aiohttp
-from exceptions import *
-from utils import checkBotReady, changesExist, getTeamsInLeague, changesExist, changesExistLeague, changesExistPlayer, changesExistTeam, addTeam
+from utils.exceptions import *
+from utils.utils import checkBotReady, changesExist, getTeamsInLeague, changesExist, changesExistLeague, changesExistPlayer, changesExistTeam, addTeam
 
 class TasksCog(commands.Cog):
 

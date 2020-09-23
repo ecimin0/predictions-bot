@@ -2,7 +2,7 @@ import asyncio
 import discord
 from discord.ext import commands
 
-from exceptions import *
+from utils.exceptions import *
 
 class DevelopCog(commands.Cog):
 

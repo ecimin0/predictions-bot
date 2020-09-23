@@ -4,13 +4,19 @@ import discord
 from discord.ext import commands
 import pytz
 import aiohttp
-from exceptions import *
+from utils.exceptions import *
 from functools import wraps
 from tabulate import tabulate
 from typing import List
 import string
 import random
 
+def timeit(f):
+    async def wrapper(*args, **kwargs):
+        now = datetime.utcnow()
+        return await f(*args, **kwargs)
+        print((now - datetime.utcnow()))
+    return wrapper
 
 async def notifyAdmin(bot: commands.Bot, message: str) -> None:
     bot.logger.debug("Received admin notification", message=message, testing_mode=bot.testing_mode)

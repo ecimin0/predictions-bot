@@ -2,8 +2,8 @@ import asyncpg
 import discord
 from discord.ext import commands
 from tabulate import tabulate
-from exceptions import *
-from utils import isAdmin
+from utils.exceptions import *
+from utils.utils import isAdmin
 
 class AdminCog(commands.Cog):
 

@@ -2,8 +2,8 @@ import aiohttp
 import discord
 from discord.ext import tasks, commands
 import urllib
-from exceptions import *
-from utils import checkBotReady, nextMatch
+from utils.exceptions import *
+from utils.utils import checkBotReady, nextMatch
 
 class UtilCog(commands.Cog):
     def __init__(self, bot):

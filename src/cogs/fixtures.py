@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from tabulate import tabulate
-from utils import getTeamId, formatMatch, nextMatches, getStandings, formatStandings, checkUserExists, getUserTimezone, prepareTimestamp, completedMatches
+from utils.utils import getTeamId, formatMatch, nextMatches, getStandings, formatStandings, checkUserExists, getUserTimezone, prepareTimestamp, completedMatches
 
 
 class FixturesCog(commands.Cog):

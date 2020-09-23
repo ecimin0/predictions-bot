@@ -14,6 +14,7 @@ import argparse
 import random
 import string
 import structlog
+import time
 
 from tabulate import tabulate
 from pythonjsonlogger import jsonlogger
@@ -22,8 +23,7 @@ from discord.ext.commands import CommandNotFound, CommandInvokeError, CommandOnC
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 
-from exceptions import *
-from utils import *
+from utils.exceptions import *
 
 # bot token, API key, other stuff 
 load_dotenv()
@@ -40,6 +40,7 @@ class Bot(commands.Bot):
         self.main_team = kwargs.pop("main_team")
         self.logger = kwargs.pop("logger")
         self.api_key = kwargs.pop("api_key")
+        self.tracing = kwargs.pop("tracing", False)
         self.league_dict = kwargs.pop("league_dict")
         self.season_full = kwargs.pop("season_full")
         self.season = kwargs.pop("season")
@@ -101,10 +102,15 @@ class Bot(commands.Bot):
         if type(message.channel) == discord.DMChannel:
             await message.channel.send("Don't talk to me here.")
             return
-        if message.channel.name == self.channel or message.channel_name == "Channel_0":
+        if message.channel.name == self.channel or message.channel.name == "Channel_0":
             self.logger.info("Received message", channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
             # logger.info(f"{message.channel.name} | {message.author} | {message.author.id} | {message.content}")
+            t0= time.perf_counter()
             await self.process_commands(message)
+            if self.tracing:
+                duration = time.perf_counter() - t0
+                self.logger.debug(performance=duration,channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
+
 
     async def on_command_error(self, ctx, error):
         self.logger.error(f"Handling error for {ctx.message.content}", exception=error)
@@ -241,6 +247,7 @@ options = {
     "season_full": "2020-2021",
     "season": "2020",
     "gitlab_api": os.environ.get("GITLAB_API", None),
+    "tracing": os.environ.get("TRACING", False),
     "prefix": "+",
     "channel": channel
 }

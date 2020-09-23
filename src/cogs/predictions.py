@@ -6,8 +6,8 @@ import pytz
 import re 
 import json
 
-from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank
-from exceptions import *
+from utils.utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank
+from utils.exceptions import *
 
 class PredictionsCog(commands.Cog):
     def __init__(self, bot):

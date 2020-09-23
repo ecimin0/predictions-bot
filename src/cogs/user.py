@@ -3,8 +3,8 @@ from discord.ext import commands
 import pytz
 import re
 
-from exceptions import *
-from utils import getUserTimezone, checkUserExists
+from utils.exceptions import *
+from utils.utils import getUserTimezone, checkUserExists
 
 class UserCog(commands.Cog):
     def __init__(self, bot):
@@ -21,6 +21,7 @@ class UserCog(commands.Cog):
         msg = ctx.message.content
         try:
             tz = re.search(r"\+timezone (.*)", msg).group(1)
+            tz = tz.strip()
         except AttributeError:
             current_tz = await getUserTimezone(self.bot, ctx.message.author.id)
             await ctx.send(f"{ctx.message.author.mention}\nYour current timezone is {current_tz}")
