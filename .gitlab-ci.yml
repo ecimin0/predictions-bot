@@ -1,5 +1,5 @@
 include:
-    - template: Deploy-ECS.gitlab-ci.yml  
+    - template: AWS/Deploy-ECS.gitlab-ci.yml
 
 variables:
     CI_AWS_ECS_CLUSTER: default
