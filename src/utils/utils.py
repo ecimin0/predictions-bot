@@ -1,22 +1,16 @@
 from datetime import datetime
+import datetime as dt
 import asyncio
+import asyncpg
 import discord
 from discord.ext import commands
 import pytz
 import aiohttp
 from utils.exceptions import *
-from functools import wraps
 from tabulate import tabulate
-from typing import List
+from typing import List, Mapping, Any
 import string
 import random
-
-def timeit(f):
-    async def wrapper(*args, **kwargs):
-        now = datetime.utcnow()
-        return await f(*args, **kwargs)
-        print((now - datetime.utcnow()))
-    return wrapper
 
 async def notifyAdmin(bot: commands.Bot, message: str) -> None:
     bot.logger.debug("Received admin notification", message=message, testing_mode=bot.testing_mode)
@@ -29,29 +23,29 @@ async def getFixturesWithPredictions(bot: commands.Bot) -> List:
     fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
     return fixtures
 
-async def getUserRank(bot, user_id):
+async def getUserRank(bot: commands.Bot, user_id: int) -> int:
     ranks = await bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
     for rank in ranks:
         if rank.get("user_id") == user_id:
             user_rank = rank.get("rank")
     return user_rank
 
-async def getUserPredictions(bot: commands.Bot, user_id: int) -> List:
+async def getUserPredictions(bot: commands.Bot, user_id: int) -> List[asyncpg.Record]:
     '''
     Return the last 10 predictions by user
     '''
     predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
     return predictions
 
-async def getMatch(bot, fixture_id):
+async def getMatch(bot: commands.Bot, fixture_id: int) -> asyncpg.Record:
     match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
     return match
 
-async def getRandomTeam(bot):
+async def getRandomTeam(bot: commands.Bot) -> str:
     team = await bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
     return team.get("name")
 
-async def checkUserExists(bot, user_id, ctx):
+async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context) -> bool:
     user = await bot.db.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
 
     if not user:
@@ -68,38 +62,38 @@ async def checkUserExists(bot, user_id, ctx):
         return True
 
 # nextMatches returns array of fixtures (even for one)
-async def nextMatches(bot, count=1):
+async def nextMatches(bot: commands.Bot, count: int = 1) -> List[asyncpg.Record]:
     matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT $1;", count)
     return matches
 
 # nextMatch returns record (no array)
-async def nextMatch(bot):
+async def nextMatch(bot: commands.Bot) -> asyncpg.Record:
     match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1;")
     return match
 
 # array of completed fixtures records
-async def completedMatches(bot, count=1, offset=0):
+async def completedMatches(bot: commands.Bot, count: int=1, offset: int=0) -> List[asyncpg.Record]:
     matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
-async def getPlayerId(bot, userInput):
+async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
     player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
     if not player:
         raise Exception(f"no player named {userInput}")
     return player.get("player_id")
 
-async def getTeamId(bot, userInput):
+async def getTeamId(bot: commands.Bot, userInput: str) -> int:
     player = await bot.db.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
     if not player:
         raise Exception(f"no team named {userInput}")
     return player.get("team_id")
 
-async def getUserTimezone(bot, user):
+async def getUserTimezone(bot: commands.Bot, user: int) -> dt.tzinfo:
     user_tz = await bot.db.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
     tz = pytz.timezone(user_tz.get("tz", "UTC"))
     return tz 
 
-async def getTeamsInLeague(bot, league_id):
+async def getTeamsInLeague(bot: commands.Bot, league_id: int) -> List[int]:
     team_ids_list = []
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://v2.api-football.com/teams/league/{league_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
@@ -113,17 +107,17 @@ async def getTeamsInLeague(bot, league_id):
 async def checkBotReady():
     await asyncio.sleep(5)
 
-def prepareTimestamp(timestamp, tz, str=True):
+def prepareTimestamp(timestamp: datetime, tz: dt.tzinfo, str: bool=True):
     # time_format = "%m/%d/%Y, %H:%M:%S %Z"
     time_format = "%A, %d %B %I:%M %p %Z"
-    dt = pytz.timezone("UTC").localize(timestamp)
-    dt = dt.astimezone(tz)
+    datet = pytz.timezone("UTC").localize(timestamp)
+    datet = datet.astimezone(tz)
     if str:
-        return dt.strftime(time_format)
+        return datet.strftime(time_format)
     else:
-        return dt
+        return datet
 
-async def formatMatch(bot, match, user, score=False):
+async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False):
     tz = await getUserTimezone(bot, user)
     match_time = prepareTimestamp(match.get('event_date'), tz)
 
@@ -274,28 +268,3 @@ def randomAlphanumericString(length):
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
-
-# def isAdmin()(method):
-#     @wraps(method)
-#     async def predicate(self, ctx):
-#         if ctx.message.author.id in self.bot.admin_ids:
-#             return True
-#         else:
-#             raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
-#     return commands.check(predicate)
-
-
-#this already exists as @commands.cooldown()
-# def rateLimit(seconds, name, last_run):
-#     async def predicate(ctx):
-#         if name not in last_run:
-#             last_run[name] = datetime.utcnow()
-#             return True
-#         else:
-#             seconds_since_last_run = (datetime.utcnow() - last_run[name]).total_seconds()
-#             if seconds_since_last_run > seconds:
-#                 last_run[name] = datetime.utcnow()
-#                 return True
-#             else:
-#                 raise RateLimit(f"+{name} command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
-#     return commands.check(predicate)
