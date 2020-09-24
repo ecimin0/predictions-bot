@@ -3,26 +3,27 @@ import discord
 from discord.ext import commands
 
 from utils.exceptions import *
+from typing import List, Union, Mapping
 
 class DevelopCog(commands.Cog):
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
 
-    async def cog_check(self, ctx):
+    async def cog_check(self, ctx: commands.Context):
         if ctx.message.author.id in self.bot.admin_ids:
             return True
         else:
             raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
 
     @commands.command(hidden=True)
-    async def getEmoji(self, ctx):
-        emojis = []
+    async def getEmoji(self, ctx: commands.Context):
+        emojis: List[str] = []
             # .emojis.forEach(emoji => console.log(emoji.animated ? '<a:' + emoji.name + ':' + emoji.id + '>' : '<:' + emoji.name + ':' + emoji.id + '>'));
         for emoji in ctx.guild.emojis:
             emojis.append(f"{str(emoji)}  {emoji.name}  {str(emoji.id)}")
         # emoji_list = tabulate(emojis, tablefmt="plain")
-        emoji_list = sorted(emojis)
+        # emoji_list = sorted(emojis)
         emoji_list = "\n".join(emojis)
         output = f'{emoji_list}'
         # for emoji in emojis:
@@ -32,12 +33,12 @@ class DevelopCog(commands.Cog):
 
 
     @commands.command(hidden=True)
-    async def testEmbed(self, ctx):
+    async def testEmbed(self, ctx: commands.Context):
         '''
         Generate a test embed object
         '''
         # log = logger.bind(content=ctx.message.content, author=ctx.message.author)
-        paginated_data = [
+        paginated_data: List[Mapping] = [
             {"title": "Test 0", "msg": "TestMessage 0"}, 
             {"title": "Test 1", "msg": "TestMessage 1"},
             {"title": "Test 2", "msg": "TestMessage 2"}

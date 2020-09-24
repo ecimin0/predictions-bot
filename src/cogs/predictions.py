@@ -6,15 +6,15 @@ import pytz
 import re 
 import json
 
-from utils.utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank
+from utils.utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank, getRandomTeam
 from utils.exceptions import *
-
+from typing import List, Dict
 class PredictionsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.command()
-    async def predictions(self, ctx):
+    async def predictions(self, ctx: commands.Context):
         '''
         Show your past predictions
         '''
@@ -61,12 +61,12 @@ class PredictionsCog(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 60, commands.BucketType.default)
-    async def leaderboard(self, ctx):
+    async def leaderboard(self, ctx: commands.Context):
         '''
         Show leaderboard
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        embed_colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
+        embed_colors: List[int] = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
         embed_color = random.choice(embed_colors)
         embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description="\u200b", color=embed_color)
         embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png")
@@ -109,7 +109,7 @@ class PredictionsCog(commands.Cog):
                         self.bot.logger.debug("Missing user", user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
                         # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
                 except discord.NotFound:
-                    logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
+                    self.bot.logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
             self.bot.logger.debug(output_array)
             output_str = "\n".join(output_array)
             self.bot.logger.debug(output_str)
@@ -119,7 +119,7 @@ class PredictionsCog(commands.Cog):
         await ctx.send(f"{ctx.message.author.mention}", embed=embed)
 
     @commands.command()
-    async def predict(self, ctx):
+    async def predict(self, ctx: commands.Context):
         '''
         Make a new prediction
         '''
@@ -134,12 +134,12 @@ class PredictionsCog(commands.Cog):
             log.exception("Error initializing user, match, or user tz")
             raise PleaseTellMeAboutIt("Error initializing user, match, or user tz")
 
-        time_limit_offset = {
+        time_limit_offset: Dict[str, float] = {
             self.bot.league_dict["europa_league"]: 1.5
         }
         # if europa league then timedelta(hours=1.5)
         # else timedelta(hours=1)
-        time_offset = 1
+        time_offset = 1.0
         if current_match.get("league_id") in time_limit_offset:
             time_offset = time_limit_offset[current_match.get("league_id")]
 
@@ -244,7 +244,7 @@ class PredictionsCog(commands.Cog):
 
         predicted_goal_count = 0
         for scorer in scorer_properties:
-            predicted_goal_count += scorer.get("num_goals")
+            predicted_goal_count += scorer.get("num_goals", 0)
 
         if predicted_goal_count > arsenal_goals:
             await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")

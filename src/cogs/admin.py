@@ -2,15 +2,16 @@ import asyncpg
 import discord
 from discord.ext import commands
 from tabulate import tabulate
+from typing import Union
 from utils.exceptions import *
 from utils.utils import isAdmin
 
 class AdminCog(commands.Cog):
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
 
-    async def cog_check(self, ctx):
+    async def cog_check(self, ctx: commands.Context):
         if ctx.message.author.id in self.bot.admin_ids:
             return True
         else:
@@ -18,7 +19,7 @@ class AdminCog(commands.Cog):
 
        
     @commands.command(name='list_cogs', hidden=True)
-    async def list_cogs(self, ctx):
+    async def list_cogs(self, ctx: commands.Context):
         output = ""
         for cog in self.bot.cogs:
             output += f"{cog}\n"
@@ -26,7 +27,7 @@ class AdminCog(commands.Cog):
         
 
     @commands.command(name='load', hidden=True)
-    async def load(self, ctx, *, cog: str):
+    async def load(self, ctx: commands.Context, *, cog: str):
         """Command which Loads a Module.
         Remember to use dot path. e.g: cogs.owner"""
 
@@ -38,7 +39,7 @@ class AdminCog(commands.Cog):
             await ctx.send('**`SUCCESS`**')
 
     @commands.command(name='unload', hidden=True)
-    async def unload(self, ctx, *, cog: str):
+    async def unload(self, ctx: commands.Context, *, cog: str):
         """Command which Unloads a Module.
         Remember to use dot path. e.g: cogs.owner"""
 
@@ -50,7 +51,7 @@ class AdminCog(commands.Cog):
             await ctx.send('**`SUCCESS`**')
 
     @commands.command(hidden=True)
-    async def userLookup(self, ctx, *input_str:str):
+    async def userLookup(self, ctx: commands.Context, *input_str:str):
         '''
         Return possible user matches and user ID
         '''
@@ -72,12 +73,12 @@ class AdminCog(commands.Cog):
                 await ctx.send(f"{output}")
 
     @commands.command(hidden=True)
-    async def messageLookup(self, ctx, input_id:int):
+    async def messageLookup(self, ctx: commands.Context, input_id: int):
         '''
         Return message ID and ID of message author
         '''
         id_to_lookup = input_id
-        output = None
+        output: Union[discord.Message, None] = None
         for chan in self.bot.get_all_channels():
             if str(chan.type) == "text":
                 self.bot.logger.debug(f"Searching channel: {chan}")
@@ -94,7 +95,7 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
 
     @commands.command(hidden=True)
-    async def addNickname(self, ctx, nicknameType:str, id:int, nickname:str):
+    async def addNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname:str):
         '''
         Add a nickname to database | +addNickname (player|team) <id> <nickname string>
         '''
@@ -115,7 +116,7 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Unable to add nickname: `{nickname}` for id {id} status: `{e}`")
 
     @commands.command(hidden=True)
-    async def removeNickname(self, ctx, nicknameType:str, id:int, nickname:str):
+    async def removeNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname:str):
         '''
         Remove a nickname from database | +removeNickname (player|team) <id> <nickname string>
         '''
@@ -136,7 +137,7 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Unable to add nickname: `{nickname}` for id {id} status: `{e}`")
 
     @commands.command(hidden=True)
-    async def listPlayers(self, ctx):
+    async def listPlayers(self, ctx: commands.Context):
         '''
         list nicknames in database
         '''

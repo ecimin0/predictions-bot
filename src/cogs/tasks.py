@@ -6,12 +6,13 @@ import asyncio
 import aiohttp
 from utils.exceptions import *
 from utils.utils import checkBotReady, changesExist, getTeamsInLeague, changesExist, changesExistLeague, changesExistPlayer, changesExistTeam, addTeam
+from typing import Dict
 
 class TasksCog(commands.Cog):
 
-    def __init__(self, bot):
-        self.bot = bot
-        self.status_lookup = {
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
+        self.status_lookup: Dict[str, bool] = {
             "TBD": False,
             "NS": False,
             "1H": False,

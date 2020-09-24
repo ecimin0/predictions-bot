@@ -7,8 +7,8 @@ from utils.exceptions import *
 from utils.utils import getUserTimezone, checkUserExists
 
 class UserCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
 
     @commands.command()
     async def timezone(self, ctx):
@@ -18,7 +18,7 @@ class UserCog(commands.Cog):
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
 
-        msg = ctx.message.content
+        msg: str = ctx.message.content
         try:
             tz = re.search(r"\+timezone (.*)", msg).group(1)
             tz = tz.strip()

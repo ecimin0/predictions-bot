@@ -8,7 +8,7 @@ import pytz
 import aiohttp
 from utils.exceptions import *
 from tabulate import tabulate
-from typing import List, Mapping, Any
+from typing import List, Mapping, Any, NoReturn, Optional, Union
 import string
 import random
 
@@ -45,7 +45,7 @@ async def getRandomTeam(bot: commands.Bot) -> str:
     team = await bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
     return team.get("name")
 
-async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context) -> bool:
+async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context) -> Optional[bool]:
     user = await bot.db.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
 
     if not user:
@@ -56,6 +56,7 @@ async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context
                 except Exception as e:
                     await bot.notifyAdmin(f"Error inserting user {user_id} into database:\n{e}")
                     bot.logger.error(f"Error inserting user {user_id} into database: {e}")
+                return True
         # return False
         # await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
     else:
@@ -104,7 +105,7 @@ async def getTeamsInLeague(bot: commands.Bot, league_id: int) -> List[int]:
         team_ids_list.append(team.get("team_id"))
     return team_ids_list
     
-async def checkBotReady():
+async def checkBotReady() -> None:
     await asyncio.sleep(5)
 
 def prepareTimestamp(timestamp: datetime, tz: dt.tzinfo, str: bool=True):
@@ -117,7 +118,7 @@ def prepareTimestamp(timestamp: datetime, tz: dt.tzinfo, str: bool=True):
     else:
         return datet
 
-async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False):
+async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) -> str:
     tz = await getUserTimezone(bot, user)
     match_time = prepareTimestamp(match.get('event_date'), tz)
 
@@ -140,7 +141,7 @@ async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False):
         # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
         return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n\n" 
 
-async def addTeam(bot, team_id):
+async def addTeam(bot: commands.Bot, team_id: int) -> None:
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
             response = await resp.json()
@@ -161,7 +162,7 @@ async def addTeam(bot, team_id):
             else:
                 await connection.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES ($1, $2, $3, $4);", team.get("team_id"), team.get("name"), team.get("logo"), team.get("country"))
 
-async def getStandings(bot, league_id):
+async def getStandings(bot: commands.Bot, league_id: int) -> List[Mapping]:
     parsed_standings = []
 
     bot.logger.info("Generating standings", league=league_id)
@@ -198,7 +199,7 @@ async def getStandings(bot, league_id):
 
     return parsed_standings
 
-def formatStandings(standings):
+def formatStandings(standings: List[Mapping]) -> str:
     standings_formatted = []
     for standing in standings:
         # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
@@ -207,7 +208,7 @@ def formatStandings(standings):
     return tabulate(standings_formatted, headers=["Rank", "Team", "W-D-L", "GD", "Pts"], tablefmt="github")
 
 
-def changesExist(fixture1, fixture2):
+def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -220,7 +221,7 @@ def changesExist(fixture1, fixture2):
     ]
     return not all(likeness)
 
-def changesExistLeague(league1, league2):
+def changesExistLeague(league1: Mapping, league2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -231,7 +232,7 @@ def changesExistLeague(league1, league2):
     ]
     return not all(likeness)
 
-def changesExistPlayer(player1, player2):
+def changesExistPlayer(player1: Mapping, player2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -242,7 +243,7 @@ def changesExistPlayer(player1, player2):
     ]
     return not all(likeness)
 
-def changesExistTeam(team1, team2):
+def changesExistTeam(team1: Mapping, team2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -252,19 +253,19 @@ def changesExistTeam(team1, team2):
     ]
     return not all(likeness)
 
-def isAdmin():
+def isAdmin() -> bool:
     return True
 
 # Convert an integer into its ordinal representation::
 # https://stackoverflow.com/questions/9647202/ordinal-numbers-replacement
-def makeOrdinal(n):
+def makeOrdinal(n: int) -> str:
     n = int(n)
     suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
     if 11 <= (n % 100) <= 13:
         suffix = 'th'
     return str(n) + suffix
 
-def randomAlphanumericString(length):
+def randomAlphanumericString(length: int) -> str:
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
