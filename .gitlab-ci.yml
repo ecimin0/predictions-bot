@@ -1,0 +1,9 @@
+include:
+    - template: Deploy-ECS.gitlab-ci.yml  
+
+variables:
+    CI_AWS_ECS_CLUSTER: default
+    CI_AWS_ECS_SERVICE: predictions-bot-service
+    CI_AWS_ECS_TASK_DEFINITION: predictions-bot
+
+    
