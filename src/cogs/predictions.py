@@ -7,7 +7,7 @@ import re
 import json
 import asyncio
 
-from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank
+from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank, makePaged, getArsenalColor
 from exceptions import *
 
 class PredictionsCog(commands.Cog):
@@ -67,8 +67,6 @@ class PredictionsCog(commands.Cog):
         Show leaderboard
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        embed_colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
-        embed_color = random.choice(embed_colors)
         # embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description="\u200b", color=embed_color)
         # embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png")
 
@@ -111,79 +109,13 @@ class PredictionsCog(commands.Cog):
             self.bot.logger.debug(output_array)
             output_str = "\n".join(output_array)
             self.bot.logger.debug(output_str)
-            # paginated_data.append(output_str)
-            # embed.add_field(name=f'Rank {makeOrdinal(rank_num)}:  {user_prediction.get("score")} Points', value=f"```\n{output_str}```", inline=False)
 
-        # await ctx.send(f"{ctx.message.author.mention}", embed=embed)
+            paginated_data.append({"title": "**Arsenal Prediction League Leaderboard**", "description": f"{rank_num}/{len(prediction_dictionary)}", "color": 0xEF0107, "thumbnail": "https://media.api-sports.io/football/teams/42.png", "name": f"{makeOrdinal(rank_num)}: {user_prediction.get('score')} Points", "value": output_str})
 
-            paginated_data.append({"rank": f"{rank_num}", "rank_score": f"{user_prediction.get('score')}", "leaders": f"{output_str}"})
+            # paginated_data.append({"rank": f"{rank_num}", "rank_score": f"{user_prediction.get('score')}", "leaders": f"{output_str}"})
             rank_num += 1
 
-        print(paginated_data)
-        max_page = len(paginated_data) - 1
-        user_max_pages = len(paginated_data)
-        num = 0
-        rank_num = 1
-        first_run = True
-        while True:
-            # log.info(num=num, max_page=max_page
-            if first_run:
-                embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{rank_num}/{user_max_pages}", color=embed_color)
-                embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
-                embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
-                first_run = False
-                msg = await ctx.send(embed=embed)
-
-            reactmoji = []
-            if max_page == 0 and num == 0:
-                pass
-            elif num == 0:
-                reactmoji.append('⏩')
-            elif num == max_page:
-                reactmoji.append('⏪')
-            elif num > 0 and num < max_page:
-                reactmoji.extend(['⏪', '⏩'])
-            # reactmoji.append('✅')
-
-            for react in reactmoji:
-                await msg.add_reaction(react)
-
-            def checkReact(reaction, user):
-                if reaction.message.id != msg.id:
-                    return False
-                if user != ctx.message.author:
-                    return False
-                if str(reaction.emoji) not in reactmoji:
-                    return False
-                return True
-
-            try:
-                res, user = await self.bot.wait_for('reaction_add', timeout=55.0, check=checkReact)
-            except asyncio.TimeoutError:
-                return await msg.clear_reactions()
-
-            if user != ctx.message.author:
-                pass
-            elif '⏪' in str(res.emoji):
-                print('<< Going backward')
-                num = num - 1
-                rank_num -= 1
-                embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{rank_num}/{user_max_pages}", color=embed_color)
-                embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
-                embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
-                await msg.clear_reactions()
-                await msg.edit(embed=embed)
-
-            elif '⏩' in str(res.emoji):
-                print('\t>> Going forward')
-                num = num + 1
-                rank_num += 1
-                embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{rank_num}/{user_max_pages}", color=embed_color)
-                embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
-                embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
-                await msg.clear_reactions()
-                await msg.edit(embed=embed)
-
+        await makePaged(self.bot, ctx, paginated_data)
 
     @commands.command()
     async def predict(self, ctx):

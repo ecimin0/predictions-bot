@@ -1,3 +1,7 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^master/'
+
 include:
   - template: AWS/Deploy-ECS.gitlab-ci.yml
 

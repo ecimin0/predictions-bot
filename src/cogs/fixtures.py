@@ -36,7 +36,7 @@ class FixturesCog(commands.Cog):
         await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
 
 
-    @commands.command()
+    @commands.command(aliases=["fixtures"])
     async def next(self, ctx):
         '''
         Next <number> matches | +next 3
