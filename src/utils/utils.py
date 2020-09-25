@@ -13,18 +13,12 @@ import string
 import random
 from typing import Mapping
 
-async def notifyAdmin(bot: commands.Bot, message: str) -> None:
-    bot.logger.debug("Received admin notification", message=message, testing_mode=bot.testing_mode)
-    if not bot.testing_mode:
-        for admin in bot.admin_ids:
-            adm = await bot.fetch_user(admin)
-            await adm.send(message)
-
 async def getFixturesWithPredictions(bot: commands.Bot) -> List:
     fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
     return fixtures
 
 async def getUserRank(bot: commands.Bot, user_id: int) -> int:
+    user_rank = 0
     ranks = await bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
     for rank in ranks:
         if rank.get("user_id") == user_id:
@@ -120,7 +114,7 @@ def prepareTimestamp(timestamp: datetime, tz: dt.tzinfo, str: bool=True):
         return datet
 
 async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) -> str:
-    tz = await getUserTimezone(bot, user)
+    tz: dt.tzinfo = await getUserTimezone(bot, user)
     match_time = prepareTimestamp(match.get('event_date'), tz)
 
     time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
@@ -137,10 +131,17 @@ async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) ->
     if score:
         match_time = match.get("event_date")
         match_time = prepareTimestamp(match_time, tz, str=False)
-        return f"{league_emoji} **{match.get('league_name')} | {match_time.strftime('%m/%d/%Y')}**\n{home_emoji} {match.get('home_name')} {match.get('goals_home')} - {match.get('goals_away')} {away_emoji} {match.get('away_name')}\n" 
+
+        match_time_str = match_time.strftime('%m/%d/%Y')
+        if match.get("status_short") == "TBD":
+            match_time_str = f"{match.get('event_date').strftime('%m/%d/%Y')}, TBD"
+        return f"{league_emoji} **{match.get('league_name')} | {match_time_str}**\n{home_emoji} {match.get('home_name')} {match.get('goals_home')} - {match.get('goals_away')} {away_emoji} {match.get('away_name')}\n" 
     else:
+        match_time_str = match_time
+        if match.get("status_short") == "TBD":
+            match_time_str = f"{match.get('event_date').strftime('%A, %d %B')}, TBD"
         # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
-        return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n\n" 
+        return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time_str}\n\n" 
 
 async def addTeam(bot: commands.Bot, team_id: int) -> None:
     async with aiohttp.ClientSession() as session:
@@ -218,7 +219,8 @@ def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
         fixture1.get("event_date") == fixture2.get("event_date"),
         fixture1.get("goalsHomeTeam") == fixture2.get("goals_home"),
         fixture1.get("goalsAwayTeam") == fixture2.get("goals_away"),
-        fixture1.get("league_id") == fixture2.get("league_id")
+        fixture1.get("league_id") == fixture2.get("league_id"),
+        fixture1.get("status_short") == fixture2.get("status_short")
     ]
     return not all(likeness)
 

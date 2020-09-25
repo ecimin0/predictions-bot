@@ -80,7 +80,7 @@ class TasksCog(commands.Cog):
                     async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
 
-                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
+                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4 WHERE fixture_id = $5", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('statusShort'), fixture.get('fixture_id'))
                 except Exception:
                     log.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
                     raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
@@ -150,7 +150,7 @@ class TasksCog(commands.Cog):
                             await addTeam(self.bot, fixture.get("away"))
                             log.info("Added team (away)", fixture=fixture.get("fixture_id"), team=fixture.get("away"))
 
-                        fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+                        fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, status_short FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
                         
                         if fixture_exists:
                             if changesExist(fixture, fixture_exists):
@@ -158,23 +158,23 @@ class TasksCog(commands.Cog):
                                 log.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=league_id)
                                 async with self.bot.db.acquire() as connection:
                                     async with connection.transaction():
-                                        await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7 WHERE fixture_id = $8", 
+                                        await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7, status_short = $8 WHERE fixture_id = $9", 
                                                                     fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
-                                                                    fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+                                                                    fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get("statusShort"), fixture.get('fixture_id'))
                         else:
                             log.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=league_id)
                             updated_fixtures += 1
                             async with self.bot.db.acquire() as connection:
                                 async with connection.transaction():
-                                    await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", 
+                                    await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id, status_short) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
                                                                 fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
-                                                                fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'))
+                                                                fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'), fixture.get("statusShort"))
                     except Exception:
                         log.exception("Failed to verify/update fixture", fixture_id=fixture.get("fixture_id"))
                         # raise PleaseTellMeAboutIt(f'Failed to verify/update fixture: {fixture.get("league_id")}')
 
             if updated_fixtures:
-                await self.bot.notifyAdmin(self.bot, f"Updated/Inserted {updated_fixtures} fixtures!")
+                await self.bot.notifyAdmin(f"Updated/Inserted {updated_fixtures} fixtures!")
             log.info("Completed updateFixturesbyLeague", updated_fixtures=updated_fixtures)
         except Exception:
             log.exception()

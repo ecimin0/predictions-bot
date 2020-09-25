@@ -56,7 +56,10 @@ class PredictionsCog(commands.Cog):
                     prediction_value = prediction.get("prediction_score")
                 embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value=f'Score: **{prediction_value}** | `{prediction.get("prediction_string")}`\n\n', inline=False)
                 # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
-        embed.description=f"_League score: **{total}** | League pos. **{makeOrdinal(rank)}**_"
+        if rank == 0:
+            embed.description=f"_League score: **{total}** | League pos. **N/A - no predictions scored**_"
+        else:
+            embed.description=f"_League score: **{total}** | League pos. **{makeOrdinal(rank)}**_"
         await ctx.send(f"{ctx.message.author.mention}\n",embed=embed)
 
 
@@ -292,7 +295,7 @@ class PredictionsCog(commands.Cog):
 
         except (Exception) as e:
             log.exception(f"There was an error loading this prediction into the database: {e}")
-            await self.bot.notifyAdmin(self.bot, f"There was an error loading this prediction into the databse:\n{e}")
+            await self.bot.notifyAdmin(f"There was an error loading this prediction into the databse:\n{e}")
             return
 
 

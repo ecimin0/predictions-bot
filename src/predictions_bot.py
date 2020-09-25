@@ -47,7 +47,7 @@ class Bot(commands.Bot):
         self.season = kwargs.pop("season")
         self.channel = kwargs.pop("channel")
         self.gitlab_api = kwargs.pop("gitlab_api")
-        self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable"
+        self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short"
 
     async def close(self):
         await super().close()
@@ -98,9 +98,9 @@ class Bot(commands.Bot):
         if isinstance(error, CommandInvokeError):
             if not testing_mode:
                 if isinstance(error.original, PleaseTellMeAboutIt):
-                    await self.notifyAdmin(self, f"Admin error tagged for notification: {error.original}")
+                    await self.notifyAdmin(f"Admin error tagged for notification: {error.original}")
                 else:
-                    await self.notifyAdmin(self, f"Unhandled Error: {error.original}")
+                    await self.notifyAdmin(f"Unhandled Error: {error.original}")
 
 def createLogger(level):
     handler = logging.StreamHandler(sys.stdout)
@@ -227,7 +227,8 @@ cogs = [
     "cogs.develop",
     "cogs.predictions",
     "cogs.user",
-    "cogs.util"
+    "cogs.util",
+    "cogs.tasks"
 ]
 
 async def init(credentials, options, token, cogs, loop=False):
@@ -240,13 +241,10 @@ async def init(credentials, options, token, cogs, loop=False):
     for cog in cogs:
         bot.load_extension(cog)
 
+    if testing_mode and not os.environ.get("RUN_TASKS_ANYWAY", False):
+        bot.unload_extension("cogs.tasks")
+
     return bot
-    # try:
-    #     bot.logger.info("starting bot")
-    #     await bot.start(token)
-    # except Exception:
-    #     await db.close()
-    #     await bot.logout()
 
 # try:
 if __name__ == "__main__":
