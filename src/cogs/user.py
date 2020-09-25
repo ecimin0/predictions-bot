@@ -3,12 +3,12 @@ from discord.ext import commands
 import pytz
 import re
 
-from exceptions import *
-from utils import getUserTimezone, checkUserExists
+from utils.exceptions import *
+from utils.utils import getUserTimezone, checkUserExists
 
 class UserCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
 
     @commands.command()
     async def timezone(self, ctx):
@@ -18,9 +18,10 @@ class UserCog(commands.Cog):
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
 
-        msg = ctx.message.content
+        msg: str = ctx.message.content
         try:
             tz = re.search(r"\+timezone (.*)", msg).group(1)
+            tz = tz.strip()
         except AttributeError:
             current_tz = await getUserTimezone(self.bot, ctx.message.author.id)
             await ctx.send(f"{ctx.message.author.mention}\nYour current timezone is {current_tz}")
@@ -31,7 +32,7 @@ class UserCog(commands.Cog):
         
         if tz in pytz.all_timezones:
             try:
-                async with self.bot.pg_conn.acquire() as connection:
+                async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         await connection.execute("UPDATE predictionsbot.users SET tz = $1 WHERE user_id = $2", tz, ctx.message.author.id)
             except Exception:

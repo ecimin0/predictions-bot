@@ -4,14 +4,15 @@ from discord.ext import tasks, commands
 import json 
 import asyncio
 import aiohttp
-from exceptions import *
-from utils import *
+from utils.exceptions import *
+from utils.utils import *
+from typing import Dict
 
 class TasksCog(commands.Cog):
 
-    def __init__(self, bot):
-        self.bot = bot
-        self.status_lookup = {
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
+        self.status_lookup: Dict[str, bool] = {
             "TBD": False,
             "NS": False,
             "1H": False,
@@ -55,7 +56,7 @@ class TasksCog(commands.Cog):
             log.info("Starting updateFixtures")
 
             try:
-                fixtures = await self.bot.pg_conn.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT scorable")
+                fixtures = await self.bot.db.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-5 hour' AND NOT scorable")
             except Exception:
                 log.exception("Failed to select fixtures from database")
                 raise PleaseTellMeAboutIt("Failed to select fixtures from database in updateFixtures")
@@ -76,7 +77,7 @@ class TasksCog(commands.Cog):
                     raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
 
                 try:
-                    async with self.bot.pg_conn.acquire() as connection:
+                    async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
 
                             await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3 WHERE fixture_id = $4", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('fixture_id'))
@@ -88,7 +89,7 @@ class TasksCog(commands.Cog):
             log.info(f"Completed updateFixtures", fixtures_updated=len(fixtures))
         except Exception as e:
             log.exception()
-        # await bot.notifyAdmin(bot, f"Updated fixtures table, {len(fixtures)} were changed.")
+        # await bot.notifyAdmin(f"Updated fixtures table, {len(fixtures)} were changed.")
 
     # runs every hour updating all fixtures in the db that are not identical to the current entry (by fixture id)
     # this ensures that we get any new fixtures outside the updateFixtures() 15 min window (ex. date of the CL final gets changed, or for some reason fixtures in the past change)
@@ -140,8 +141,8 @@ class TasksCog(commands.Cog):
                 
                 for fixture in parsed_fixtures:
                     try:
-                        home_team_exists = await self.bot.pg_conn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", fixture.get("home"))
-                        away_team_exists = await self.bot.pg_conn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", fixture.get("away"))
+                        home_team_exists = await self.bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", fixture.get("home"))
+                        away_team_exists = await self.bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", fixture.get("away"))
                         if not home_team_exists:
                             await addTeam(self.bot, fixture.get("home"))
                             log.info("Added team (home)", fixture=fixture.get("fixture_id"), team=fixture.get("home"))
@@ -149,13 +150,13 @@ class TasksCog(commands.Cog):
                             await addTeam(self.bot, fixture.get("away"))
                             log.info("Added team (away)", fixture=fixture.get("fixture_id"), team=fixture.get("away"))
 
-                        fixture_exists = await self.bot.pg_conn.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+                        fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
                         
                         if fixture_exists:
                             if changesExist(fixture, fixture_exists):
                                 updated_fixtures += 1
                                 log.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=league_id)
-                                async with self.bot.pg_conn.acquire() as connection:
+                                async with self.bot.db.acquire() as connection:
                                     async with connection.transaction():
                                         await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7 WHERE fixture_id = $8", 
                                                                     fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
@@ -163,7 +164,7 @@ class TasksCog(commands.Cog):
                         else:
                             log.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=league_id)
                             updated_fixtures += 1
-                            async with self.bot.pg_conn.acquire() as connection:
+                            async with self.bot.db.acquire() as connection:
                                 async with connection.transaction():
                                     await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", 
                                                                 fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
@@ -190,7 +191,7 @@ class TasksCog(commands.Cog):
             log.info("Starting calculatePredictionScores")
             scorable_fixtures = {}
             try:
-                async with self.bot.pg_conn.acquire() as connection:
+                async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         await connection.set_type_codec(
                             'json',
@@ -205,7 +206,7 @@ class TasksCog(commands.Cog):
                 raise PleaseTellMeAboutIt("encountered error while selecting predictions from database")
                 
             for fixture in unscored_fixtures:
-                fixture_status = await self.bot.pg_conn.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1", fixture.get("fixture_id"))
+                fixture_status = await self.bot.db.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1", fixture.get("fixture_id"))
                 if fixture_status.get("scorable"):
                     winner = "home"
                     if fixture_status.get("goals_away") > fixture_status.get("goals_home"):
@@ -308,7 +309,7 @@ class TasksCog(commands.Cog):
 
                     log.info("calculated prediction", prediction_id=prediction.get("prediction_id"), user_id=prediction.get("user_id"), prediction_string=prediction.get("prediction_string"), prediction_score=prediction_score)
                     try:
-                        async with self.bot.pg_conn.acquire() as connection:
+                        async with self.bot.db.acquire() as connection:
                             async with connection.transaction():
                                 await connection.execute("UPDATE predictionsbot.predictions SET prediction_score = $1 WHERE prediction_id = $2", prediction_score, prediction.get("prediction_id"))
                     except Exception:
@@ -341,7 +342,7 @@ class TasksCog(commands.Cog):
                         del team[key]
 
                     try:
-                        async with self.bot.pg_conn.acquire() as connection:
+                        async with self.bot.db.acquire() as connection:
                             async with connection.transaction():
                                 existing_info = await connection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", team_id)
                                 if existing_info:
@@ -378,7 +379,7 @@ class TasksCog(commands.Cog):
                     for key in delete_keys: 
                         del player[key]
                     try:
-                        async with self.bot.pg_conn.acquire() as connection:
+                        async with self.bot.db.acquire() as connection:
                             async with connection.transaction():
                                 existing_player = await connection.fetchrow("SELECT * FROM predictionsbot.players WHERE player_id = $1", player.get("player_id"))
                                 if existing_player:
@@ -426,7 +427,7 @@ class TasksCog(commands.Cog):
                 
             for league in parsed_leagues:
                 try:
-                    async with self.bot.pg_conn.acquire() as connection:
+                    async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
                             existing_league = await connection.fetchrow("SELECT * FROM predictionsbot.leagues WHERE league_id = $1", league.get("league_id"))
                             if existing_league:

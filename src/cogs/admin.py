@@ -2,22 +2,56 @@ import asyncpg
 import discord
 from discord.ext import commands
 from tabulate import tabulate
-from exceptions import *
-from utils import isAdmin
+from typing import Union
+from utils.exceptions import *
+from utils.utils import isAdmin
 
 class AdminCog(commands.Cog):
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
 
-    async def cog_check(self, ctx):
+    async def cog_check(self, ctx: commands.Context):
         if ctx.message.author.id in self.bot.admin_ids:
             return True
         else:
             raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
 
+       
+    @commands.command(name='list_cogs', hidden=True)
+    async def list_cogs(self, ctx: commands.Context):
+        output = ""
+        for cog in self.bot.cogs:
+            output += f"{cog}\n"
+        await ctx.send(output) 
+        
+
+    @commands.command(name='load', hidden=True)
+    async def load(self, ctx: commands.Context, *, cog: str):
+        """Command which Loads a Module.
+        Remember to use dot path. e.g: cogs.owner"""
+
+        try:
+            self.bot.load_extension(cog)
+        except Exception as e:
+            await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
+        else:
+            await ctx.send('**`SUCCESS`**')
+
+    @commands.command(name='unload', hidden=True)
+    async def unload(self, ctx: commands.Context, *, cog: str):
+        """Command which Unloads a Module.
+        Remember to use dot path. e.g: cogs.owner"""
+
+        try:
+            self.bot.unload_extension(cog)
+        except Exception as e:
+            await ctx.send(f'**`ERROR:`** {type(e).__name__} - {e}')
+        else:
+            await ctx.send('**`SUCCESS`**')
+
     @commands.command(hidden=True)
-    async def userLookup(self, ctx, *input_str:str):
+    async def userLookup(self, ctx: commands.Context, *input_str:str):
         '''
         Return possible user matches and user ID
         '''
@@ -39,12 +73,12 @@ class AdminCog(commands.Cog):
                 await ctx.send(f"{output}")
 
     @commands.command(hidden=True)
-    async def messageLookup(self, ctx, input_id:int):
+    async def messageLookup(self, ctx: commands.Context, input_id: int):
         '''
         Return message ID and ID of message author
         '''
         id_to_lookup = input_id
-        output = None
+        output: Union[discord.Message, None] = None
         for chan in self.bot.get_all_channels():
             if str(chan.type) == "text":
                 self.bot.logger.debug(f"Searching channel: {chan}")
@@ -61,18 +95,18 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
 
     @commands.command(hidden=True)
-    async def addNickname(self, ctx, nicknameType:str, id:int, nickname:str):
+    async def addNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname:str):
         '''
         Add a nickname to database | +addNickname (player|team) <id> <nickname string>
         '''
         try:
             if nicknameType == "team":
-                async with self.bot.pg_conn.acquire() as connection:
+                async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         updated_count = await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_append(nicknames, $1) WHERE team_id = $2", nickname.lower(), id)
                         await ctx.send(f"Added nickname: `{nickname}` for team id {id} status: `{updated_count}`")
             elif nicknameType == "player":
-                async with self.bot.pg_conn.acquire() as connection:
+                async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         updated_count = await connection.execute("UPDATE predictionsbot.players SET nicknames = array_append(nicknames, $1) WHERE player_id = $2", nickname.lower(), id)
                         await ctx.send(f"Added nickname: `{nickname}` for player id {id} status: `{updated_count}`")
@@ -82,18 +116,18 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Unable to add nickname: `{nickname}` for id {id} status: `{e}`")
 
     @commands.command(hidden=True)
-    async def removeNickname(self, ctx, nicknameType:str, id:int, nickname:str):
+    async def removeNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname:str):
         '''
         Remove a nickname from database | +removeNickname (player|team) <id> <nickname string>
         '''
         try:
             if nicknameType == "team":
-                async with self.bot.pg_conn.acquire() as connection:
+                async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         updated_count = await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
                         await ctx.send(f"Removed nickname: `{nickname}` for team id {id} status: `{updated_count}`")
             elif nicknameType == "player":
-                async with self.bot.pg_conn.acquire() as connection:
+                async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         updated_count = await connection.execute("UPDATE predictionsbot.players SET nicknames = array_remove(nicknames, $1) WHERE player_id = $2", nickname, id)
                         await ctx.send(f"Removed nickname: `{nickname}` for player id {id} status: `{updated_count}`")
@@ -103,18 +137,18 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Unable to add nickname: `{nickname}` for id {id} status: `{e}`")
 
     @commands.command(hidden=True)
-    async def listPlayers(self, ctx):
+    async def listPlayers(self, ctx: commands.Context):
         '''
         list nicknames in database
         '''
         # if nicknameType == "team":
             # pass
-            # async with bot.pg_conn.acquire() as connection:
+            # async with bot.db.acquire() as connection:
             #     async with connection.transaction():
             #         await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
         # elif nicknameType == "player":
         if True:
-            ids = await self.bot.pg_conn.fetch("SELECT player_id, player_name, nicknames FROM predictionsbot.players WHERE team_id = $1", self.bot.main_team)
+            ids = await self.bot.db.fetch("SELECT player_id, player_name, nicknames FROM predictionsbot.players WHERE team_id = $1", self.bot.main_team)
             output = []
             for player in ids:
                 output.append([player.get("player_id"), player.get("player_name")])

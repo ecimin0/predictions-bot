@@ -2,13 +2,14 @@ import aiohttp
 import discord
 from discord.ext import tasks, commands
 import urllib
-from exceptions import *
-from utils import checkBotReady, nextMatch
+from utils.exceptions import *
+from utils.utils import checkBotReady, nextMatch
+from tabulate import tabulate
 
 class UtilCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.rules_set = \
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
+        self.rules_set: str = \
 """**Predict our next match against {0}**
 
 **Prediction League Rules:**
@@ -32,7 +33,7 @@ class UtilCog(commands.Cog):
 `{1}`
 """
     @commands.command()
-    async def rules(self, ctx):
+    async def rules(self, ctx: commands.Context):
         # these 3 quote blocks in all of the commands are returned when user enters +help
         '''
         Display Prediction League Rules
@@ -45,17 +46,17 @@ class UtilCog(commands.Cog):
         await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
 
     @commands.command()
-    async def ping(self, ctx):
+    async def ping(self, ctx: commands.Context):
         '''
         Return latency between bot and server
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        latency = self.bot.latency
+        latency: float = self.bot.latency
         log.info(latency=latency)
         await ctx.send(f"{ctx.message.author.mention}\nBot latency is {latency * 1000:.0f} milliseconds")
 
     @commands.command(hidden=True)
-    async def echo(self, ctx, *, content:str):
+    async def echo(self, ctx: commands.Context, *, content:str):
         '''
         Repeat what you typed for testing/debugging
         '''    
@@ -70,20 +71,23 @@ class UtilCog(commands.Cog):
     #     spurs_status = "SHIT"
     #     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
     
-
-    @commands.command()
+    @commands.command(aliases=["bug"])
     @commands.cooldown(1, 86400, commands.BucketType.user)
-    async def feedback(self, ctx):
+    async def feedback(self, ctx: commands.Context):
         '''
         Feedback function | leave a short feedback message
         '''
-        message = ctx.message.content.replace("+feedback ", "")
-        issue_title = f"feedback from {ctx.author.name}"
-        print(issue_title)
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(message)}&labels=feedback", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
-                fixture_info = await resp.json()
-        await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
+        message: str = ctx.message.content.replace("+feedback ", "")
+        message = message.replace("+bug ", "")
+        if not message or "+feedback" in message or "+bug":
+            await ctx.send("Missing feedback, please ensure you included something.")
+            ctx.command.reset_cooldown(ctx)
+        else:
+            issue_title: str = f"feedback from {ctx.author.name}"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(message)}&labels=feedback", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
+                    fixture_info = await resp.json()
+            await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
 
 def setup(bot):
     bot.add_cog(UtilCog(bot))

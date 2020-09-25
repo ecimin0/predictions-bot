@@ -1,13 +1,14 @@
 from datetime import datetime
+import datetime as dt
 import asyncio
+import asyncpg
 import discord
 from discord.ext import commands
 import pytz
 import aiohttp
-from exceptions import *
-from functools import wraps
+from utils.exceptions import *
 from tabulate import tabulate
-from typing import List
+from typing import List, Mapping, Any, NoReturn, Optional, Union
 import string
 import random
 from typing import Mapping
@@ -20,80 +21,81 @@ async def notifyAdmin(bot: commands.Bot, message: str) -> None:
             await adm.send(message)
 
 async def getFixturesWithPredictions(bot: commands.Bot) -> List:
-    fixtures = await bot.pg_conn.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
+    fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
     return fixtures
 
-async def getUserRank(bot, user_id):
-    ranks = await bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+async def getUserRank(bot: commands.Bot, user_id: int) -> int:
+    ranks = await bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
     for rank in ranks:
         if rank.get("user_id") == user_id:
             user_rank = rank.get("rank")
     return user_rank
 
-async def getUserPredictions(bot: commands.Bot, user_id: int) -> List:
+async def getUserPredictions(bot: commands.Bot, user_id: int) -> List[asyncpg.Record]:
     '''
     Return the last 10 predictions by user
     '''
-    predictions = await bot.pg_conn.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
+    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
     return predictions
 
-async def getMatch(bot, fixture_id):
-    match = await bot.pg_conn.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
+async def getMatch(bot: commands.Bot, fixture_id: int) -> asyncpg.Record:
+    match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
     return match
 
-async def getRandomTeam(bot):
-    team = await bot.pg_conn.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
+async def getRandomTeam(bot: commands.Bot) -> str:
+    team = await bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
     return team.get("name")
 
-async def checkUserExists(bot, user_id, ctx):
-    user = await bot.pg_conn.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
+async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context) -> Optional[bool]:
+    user = await bot.db.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
 
     if not user:
-        async with bot.pg_conn.acquire() as connection:
+        async with bot.db.acquire() as connection:
             async with connection.transaction():
                 try:
                     await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
                 except Exception as e:
-                    await bot.notifyAdmin(bot, f"Error inserting user {user_id} into database:\n{e}")
+                    await bot.notifyAdmin(f"Error inserting user {user_id} into database:\n{e}")
                     bot.logger.error(f"Error inserting user {user_id} into database: {e}")
+                return True
         # return False
         # await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
     else:
         return True
 
 # nextMatches returns array of fixtures (even for one)
-async def nextMatches(bot, count=1):
-    matches = await bot.pg_conn.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT $1;", count)
+async def nextMatches(bot: commands.Bot, count: int = 1) -> List[asyncpg.Record]:
+    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT $1;", count)
     return matches
 
 # nextMatch returns record (no array)
-async def nextMatch(bot):
-    match = await bot.pg_conn.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1;")
+async def nextMatch(bot: commands.Bot) -> asyncpg.Record:
+    match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1;")
     return match
 
 # array of completed fixtures records
-async def completedMatches(bot, count=1, offset=0):
-    matches = await bot.pg_conn.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
+async def completedMatches(bot: commands.Bot, count: int=1, offset: int=0) -> List[asyncpg.Record]:
+    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
-async def getPlayerId(bot, userInput):
-    player = await bot.pg_conn.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
+async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
+    player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
     if not player:
         raise Exception(f"no player named {userInput}")
     return player.get("player_id")
 
-async def getTeamId(bot, userInput):
-    player = await bot.pg_conn.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
+async def getTeamId(bot: commands.Bot, userInput: str) -> int:
+    player = await bot.db.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
     if not player:
         raise Exception(f"no team named {userInput}")
     return player.get("team_id")
 
-async def getUserTimezone(bot, user):
-    user_tz = await bot.pg_conn.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
+async def getUserTimezone(bot: commands.Bot, user: int) -> dt.tzinfo:
+    user_tz = await bot.db.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
     tz = pytz.timezone(user_tz.get("tz", "UTC"))
     return tz 
 
-async def getTeamsInLeague(bot, league_id):
+async def getTeamsInLeague(bot: commands.Bot, league_id: int) -> List[int]:
     team_ids_list = []
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://v2.api-football.com/teams/league/{league_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
@@ -104,20 +106,20 @@ async def getTeamsInLeague(bot, league_id):
         team_ids_list.append(team.get("team_id"))
     return team_ids_list
     
-async def checkBotReady():
+async def checkBotReady() -> None:
     await asyncio.sleep(5)
 
-def prepareTimestamp(timestamp, tz, str=True):
+def prepareTimestamp(timestamp: datetime, tz: dt.tzinfo, str: bool=True):
     # time_format = "%m/%d/%Y, %H:%M:%S %Z"
     time_format = "%A, %d %B %I:%M %p %Z"
-    dt = pytz.timezone("UTC").localize(timestamp)
-    dt = dt.astimezone(tz)
+    datet = pytz.timezone("UTC").localize(timestamp)
+    datet = datet.astimezone(tz)
     if str:
-        return dt.strftime(time_format)
+        return datet.strftime(time_format)
     else:
-        return dt
+        return datet
 
-async def formatMatch(bot, match, user, score=False):
+async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) -> str:
     tz = await getUserTimezone(bot, user)
     match_time = prepareTimestamp(match.get('event_date'), tz)
 
@@ -140,7 +142,7 @@ async def formatMatch(bot, match, user, score=False):
         # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
         return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n\n" 
 
-async def addTeam(bot, team_id):
+async def addTeam(bot: commands.Bot, team_id: int) -> None:
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
             response = await resp.json()
@@ -152,7 +154,7 @@ async def addTeam(bot, team_id):
     for key in delete_keys:
         del team[key]
 
-    async with bot.pg_conn.acquire() as connection:
+    async with bot.db.acquire() as connection:
         async with connection.transaction():
             existing_info = await connection.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", team_id)
             if existing_info:
@@ -161,7 +163,7 @@ async def addTeam(bot, team_id):
             else:
                 await connection.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES ($1, $2, $3, $4);", team.get("team_id"), team.get("name"), team.get("logo"), team.get("country"))
 
-async def getStandings(bot, league_id):
+async def getStandings(bot: commands.Bot, league_id: int) -> List[Mapping]:
     parsed_standings = []
 
     bot.logger.info("Generating standings", league=league_id)
@@ -198,7 +200,7 @@ async def getStandings(bot, league_id):
 
     return parsed_standings
 
-def formatStandings(standings):
+def formatStandings(standings: List[Mapping]) -> str:
     standings_formatted = []
     for standing in standings:
         # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
@@ -207,7 +209,7 @@ def formatStandings(standings):
     return tabulate(standings_formatted, headers=["Rank", "Team", "W-D-L", "GD", "Pts"], tablefmt="github")
 
 
-def changesExist(fixture1, fixture2):
+def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -220,7 +222,7 @@ def changesExist(fixture1, fixture2):
     ]
     return not all(likeness)
 
-def changesExistLeague(league1, league2):
+def changesExistLeague(league1: Mapping, league2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -231,7 +233,7 @@ def changesExistLeague(league1, league2):
     ]
     return not all(likeness)
 
-def changesExistPlayer(player1, player2):
+def changesExistPlayer(player1: Mapping, player2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -242,7 +244,7 @@ def changesExistPlayer(player1, player2):
     ]
     return not all(likeness)
 
-def changesExistTeam(team1, team2):
+def changesExistTeam(team1: Mapping, team2: Mapping) -> bool:
     # likeness of bools of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
@@ -252,19 +254,19 @@ def changesExistTeam(team1, team2):
     ]
     return not all(likeness)
 
-def isAdmin():
+def isAdmin() -> bool:
     return True
 
 # Convert an integer into its ordinal representation::
 # https://stackoverflow.com/questions/9647202/ordinal-numbers-replacement
-def makeOrdinal(n):
+def makeOrdinal(n: int) -> str:
     n = int(n)
     suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
     if 11 <= (n % 100) <= 13:
         suffix = 'th'
     return str(n) + suffix
 
-def randomAlphanumericString(length):
+def randomAlphanumericString(length: int) -> str:
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str

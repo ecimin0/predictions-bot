@@ -1,20 +1,21 @@
 import discord
+import datetime as dt
 from discord.ext import commands
 from tabulate import tabulate
-from utils import getTeamId, formatMatch, nextMatches, getStandings, formatStandings, checkUserExists, getUserTimezone, prepareTimestamp, completedMatches
-
+from utils.utils import getTeamId, formatMatch, nextMatches, getStandings, formatStandings, checkUserExists, getUserTimezone, prepareTimestamp, completedMatches
+from typing import Mapping, List
 
 class FixturesCog(commands.Cog):
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot: commands.Bot):
+        self.bot: commands.Bot = bot
 
     @commands.command()
-    async def when(self, ctx):
+    async def when(self, ctx: commands.Context):
         '''
         Return next match against given team | +when <team>
         '''
-        msg = ctx.message.content
+        msg: str = ctx.message.content
         try:
             team = msg.split(" ", 1)[1]
         except: 
@@ -31,18 +32,18 @@ class FixturesCog(commands.Cog):
             await ctx.send(f"{ctx.message.author.mention}\n{team} does not seem to be a team I recognize.")
             return
 
-        next_match = await self.bot.pg_conn.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {self.bot.main_team} AND away = $1) OR (away = {self.bot.main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
+        next_match = await self.bot.db.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {self.bot.main_team} AND away = $1) OR (away = {self.bot.main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
         next_match = await formatMatch(self.bot, next_match, ctx.message.author.id)
         await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
 
 
     @commands.command(aliases=["fixtures"])
-    async def next(self, ctx):
+    async def next(self, ctx: commands.Context):
         '''
         Next <number> matches | +next 3
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        msg = ctx.message.content
+        msg: str = ctx.message.content
 
         split_msg = msg.split()
         
@@ -51,9 +52,9 @@ class FixturesCog(commands.Cog):
             return
 
         elif len(split_msg) > 1:
-            count = split_msg[1]
+            count_str = split_msg[1]
             try:
-                count = int(count)
+                count: int = int(count_str)
             except:
                 await ctx.send(f"{ctx.message.author.mention}\nExpected usage:\n`+next [1-10]`")
                 return
@@ -76,11 +77,11 @@ class FixturesCog(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 60, commands.BucketType.default)
-    async def pltable(self, ctx):
+    async def pltable(self, ctx: commands.Context):
         '''
         Current Premier League table
         '''
-        standings = await getStandings(self.bot, self.bot.league_dict["premier_league"])
+        standings: List[Mapping] = await getStandings(self.bot, self.bot.league_dict["premier_league"])
 
         output = formatStandings(standings)
         # \u200b  null space/break char
@@ -94,12 +95,12 @@ class FixturesCog(commands.Cog):
         # await ctx.send(embed=embed)
 
     @commands.command()
-    async def results(self, ctx):
+    async def results(self, ctx: commands.Context):
         '''
         Return historical match results
         '''
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
-        user_tz = await getUserTimezone(self.bot, ctx.message.author.id)
+        user_tz: dt.tzinfo = await getUserTimezone(self.bot, ctx.message.author.id)
 
         done_matches = await completedMatches(self.bot, count=10)
         done_matches_output = []
@@ -111,8 +112,8 @@ class FixturesCog(commands.Cog):
         # done_matches_output = f'```{tabulate(done_matches_output, headers=["Date", "Home", "Score", "Away"], tablefmt="github", colalign=("center","center","center","center"))}```'
             done_matches_output.append(await formatMatch(self.bot, match, ctx.message.author.id, score=True))
         
-        done_matches_output = "\n".join(done_matches_output)
-        await ctx.send(f"{ctx.message.author.mention}\n**Past Match Results**\n\n{done_matches_output}")
+        done_matches_output_str = "\n".join(done_matches_output)
+        await ctx.send(f"{ctx.message.author.mention}\n**Past Match Results**\n\n{done_matches_output_str}")
 
 def setup(bot):
     bot.add_cog(FixturesCog(bot))

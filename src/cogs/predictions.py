@@ -7,15 +7,15 @@ import re
 import json
 import asyncio
 
-from utils import makeOrdinal, checkUserExists, getUserTimezone, getUserPredictions, getMatch, getPlayerId, randomAlphanumericString, nextMatch, prepareTimestamp, getFixturesWithPredictions, getUserRank, makePaged, getArsenalColor
-from exceptions import *
-
+from utils.utils import *
+from utils.exceptions import *
+from typing import List, Dict
 class PredictionsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.command()
-    async def predictions(self, ctx):
+    async def predictions(self, ctx: commands.Context):
         '''
         Show your past predictions
         '''
@@ -62,7 +62,7 @@ class PredictionsCog(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 60, commands.BucketType.default)
-    async def leaderboard(self, ctx):
+    async def leaderboard(self, ctx: commands.Context):
         '''
         Show leaderboard
         '''
@@ -72,7 +72,7 @@ class PredictionsCog(commands.Cog):
 
         # if need to change the way the tied users are displayed change "RANK()" to "DENSE_RANK()"
         try:
-            leaderboard = await self.bot.pg_conn.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+            leaderboard = await self.bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
         except Exception:
             log.error("Failed to retrieve predictions leaderboard from database")
 
@@ -89,6 +89,7 @@ class PredictionsCog(commands.Cog):
             # self.bot.logger.debug("Dump dictionary", dictionary=prediction_dictionary)
         
         # all_members = bot.get_all_members()
+        # self.bot.logger.debug(prediction_dictionary)
         
         rank_num = 1
         paginated_data = []
@@ -100,12 +101,15 @@ class PredictionsCog(commands.Cog):
                     # for user in all_members:
                     #     if user.id == user_prediction.get("user_id"):
                     user = self.bot.get_user(user_prediction.get("user_id"))
+                    # self.bot.logger.debug(user=user, rank=user_prediction.get("rank"))
                     if user:
                         self.bot.logger.debug(user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
                         output_array.append(f'{user.display_name}')
+                    else:
+                        self.bot.logger.debug("Missing user", user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
                         # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
                 except discord.NotFound:
-                    logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
+                    self.bot.logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
             self.bot.logger.debug(output_array)
             output_str = "\n".join(output_array)
             self.bot.logger.debug(output_str)
@@ -118,7 +122,7 @@ class PredictionsCog(commands.Cog):
         await makePaged(self.bot, ctx, paginated_data)
 
     @commands.command()
-    async def predict(self, ctx):
+    async def predict(self, ctx: commands.Context):
         '''
         Make a new prediction
         '''
@@ -133,12 +137,12 @@ class PredictionsCog(commands.Cog):
             log.exception("Error initializing user, match, or user tz")
             raise PleaseTellMeAboutIt("Error initializing user, match, or user tz")
 
-        time_limit_offset = {
+        time_limit_offset: Dict[str, float] = {
             self.bot.league_dict["europa_league"]: 1.5
         }
         # if europa league then timedelta(hours=1.5)
         # else timedelta(hours=1)
-        time_offset = 1
+        time_offset = 1.0
         if current_match.get("league_id") in time_limit_offset:
             time_offset = time_limit_offset[current_match.get("league_id")]
 
@@ -201,7 +205,7 @@ class PredictionsCog(commands.Cog):
 
                 try:
                     player_id = await getPlayerId(self.bot, player.strip())
-                    player_real_name = await self.bot.pg_conn.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
+                    player_real_name = await self.bot.db.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
                     real_name = player_real_name.get("player_name")
                 except Exception as e:
                     await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
@@ -243,7 +247,7 @@ class PredictionsCog(commands.Cog):
 
         predicted_goal_count = 0
         for scorer in scorer_properties:
-            predicted_goal_count += scorer.get("num_goals")
+            predicted_goal_count += scorer.get("num_goals", 0)
 
         if predicted_goal_count > arsenal_goals:
             await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
@@ -256,7 +260,7 @@ class PredictionsCog(commands.Cog):
             # print(f"{prediction_id}, {ctx.message.author.id}, {prediction_string}")
             # use similar syntax as next lines for any insert/update to the db
             # also include the magic json stuff for things accessing the predictions table
-            async with self.bot.pg_conn.acquire() as connection:
+            async with self.bot.db.acquire() as connection:
                 async with connection.transaction():
                     await connection.set_type_codec(
                         'json',
