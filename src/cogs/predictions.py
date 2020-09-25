@@ -76,7 +76,7 @@ class PredictionsCog(commands.Cog):
         except Exception:
             log.error("Failed to retrieve predictions leaderboard from database")
 
-        prediction_dictionary = {}
+        prediction_dictionary: Dict[int, List] = {}
         # embed_dictionary = {}
         for prediction in leaderboard:
             # self.bot.logger.debug(user_id=prediction.get("user_id"), rank=prediction.get("rank"))
@@ -181,7 +181,7 @@ class PredictionsCog(commands.Cog):
 
             scorer_properties = []
 
-            player_scores = {}
+            player_scores: Dict[int, Dict] = {}
             
             for player in scorers:
                 if not player:
@@ -190,7 +190,7 @@ class PredictionsCog(commands.Cog):
                 fgs = False
                 num_goals = 1
 
-                if re.search("[fF][gG][sS]", player):
+                if re.search("[fF][gG][sS]", player) or len(scorers) == 1:
                     fgs = True
                     player = re.sub("[fF][gG][sS]", "", player)
 

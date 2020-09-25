@@ -13,6 +13,7 @@ import sqlalchemy
 from dotenv import load_dotenv
 from pprint import pprint
 import argparse
+from typing import List
 print("[WARNING] This script is deprecated, you probably do not need to be running this.")
 # probably not needed too often, but run this if for some reason a team is from a country that is not in the database
 def getCountries():
@@ -237,7 +238,7 @@ aws_dbname = "predictions-bot-data"
 # FA Cup: 1063
 # League Cup: 957
 
-team_ids_list = []
+team_ids_list: List[int] = []
 
 season = option.season
 league = option.league

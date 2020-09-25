@@ -32,6 +32,12 @@ async def test_predict_fgs(bot):
     assert re.match(".*`\+predict 1-1 auba fgs`\n\n\*\*Score\*\*\nNone [a-zA-Z]+ 1 - 1 None [a-zA-Z]+\n\n\*\*Goal Scorers\*\*\nP. Aubameyang: 1 fgs.*", message, re.DOTALL)
 
 @pytest.mark.asyncio
+async def test_predict_fgs_without_fgs(bot):
+    msg = await bot.message("+predict 1-1 auba")
+    message = bot.get_message().content
+    assert re.match(".*`\+predict 1-1 auba`\n\n\*\*Score\*\*\nNone [a-zA-Z]+ 1 - 1 None [a-zA-Z]+\n\n\*\*Goal Scorers\*\*\nP. Aubameyang: 1 fgs.*", message, re.DOTALL)
+
+@pytest.mark.asyncio
 async def test_predict_too_many_goal_scorers(bot):
     msg = await bot.message("+predict 1-1 auba 2x")
     message = bot.get_message().content
