@@ -32,7 +32,8 @@ class Bot(commands.Bot):
     def __init__(self, db, **kwargs):
         super().__init__(
             description=kwargs.pop("description"),
-            command_prefix=kwargs.pop("prefix")
+            command_prefix=kwargs.pop("prefix"),
+            help_command=None
         )
         self.db = db
         self.testing_mode = kwargs.pop("testing_mode")
@@ -65,36 +66,6 @@ class Bot(commands.Bot):
         # print(f"Username: {self.user}\nID: {self.user.id}")
         await self.notifyAdmin(f'connected to {channel} within {[guild.name for guild in self.guilds ]} as {self.user}')
 
-    @commands.command()
-    async def help(self, ctx):
-        '''
-        This help message
-        '''
-        log = self.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        output = []
-        adminOutput = []
-        tabulate.PRESERVE_WHITESPACE = True
-        for com, value in self.all_commands.items():
-            if not value.hidden:
-                output.append(["\t", com, value.help])
-            elif value.hidden:
-                adminOutput.append(["\t", com, value.help])
-
-        output = tabulate(output, tablefmt="plain")
-        adminOutput = tabulate(adminOutput, tablefmt="plain")
-        
-        user = self.get_user(ctx.author.id)
-
-        try:
-            if ctx.author.id in self.admin_ids:
-                await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
-            else:
-                await user.send(f"```Available Commands:\n{output}```")
-        except discord.Forbidden:
-            log.exception("user either blocked bot or disabled DMs")
-        except Exception:
-            log.exception("error sending help command to user")
-
     async def on_message(self, message):
         # if the bot sends messages to itself don't return anything
         if message.author == self.user:
@@ -110,7 +81,6 @@ class Bot(commands.Bot):
             if self.tracing:
                 duration = time.perf_counter() - t0
                 self.logger.debug(performance=duration,channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
-
 
     async def on_command_error(self, ctx, error):
         self.logger.error(f"Handling error for {ctx.message.content}", exception=error)
@@ -266,6 +236,7 @@ async def init(credentials, options, token, cogs, loop=False):
         bot = Bot(db=db, **options, loop=loop)
     else:
         bot = Bot(db=db, **options)
+
     for cog in cogs:
         bot.load_extension(cog)
 
@@ -281,6 +252,37 @@ async def init(credentials, options, token, cogs, loop=False):
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     bot = loop.run_until_complete(init(credentials, options, token, cogs))
+
+    @bot.command()
+    async def help(ctx):
+        '''
+        This help message
+        '''
+        log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
+        output = []
+        adminOutput = []
+        tabulate.PRESERVE_WHITESPACE = True
+        for com, value in bot.all_commands.items():
+            if not value.hidden:
+                output.append(["\t", com, value.help])
+            elif value.hidden:
+                adminOutput.append(["\t", com, value.help])
+
+        output = tabulate(output, tablefmt="plain")
+        adminOutput = tabulate(adminOutput, tablefmt="plain")
+        
+        user = bot.get_user(ctx.author.id)
+
+        try:
+            if ctx.author.id in bot.admin_ids:
+                await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
+            else:
+                await user.send(f"```Available Commands:\n{output}```")
+        except discord.Forbidden:
+            log.exception("user either blocked bot or disabled DMs")
+        except Exception:
+            log.exception("error sending help command to user")
+
     bot.run(token)
 # except KeyboardInterrupt:
 #     logger.exception("Stopping there")

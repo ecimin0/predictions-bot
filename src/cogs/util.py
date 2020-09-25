@@ -4,6 +4,7 @@ from discord.ext import tasks, commands
 import urllib
 from utils.exceptions import *
 from utils.utils import checkBotReady, nextMatch
+from tabulate import tabulate
 
 class UtilCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
