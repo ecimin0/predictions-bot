@@ -220,7 +220,7 @@ def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
         fixture1.get("goalsHomeTeam") == fixture2.get("goals_home"),
         fixture1.get("goalsAwayTeam") == fixture2.get("goals_away"),
         fixture1.get("league_id") == fixture2.get("league_id"),
-        fixture1.get("status_short") == fixture2.get("status_short")
+        fixture1.get("statusShort") == fixture2.get("status_short")
     ]
     return not all(likeness)
 
