@@ -10,6 +10,7 @@ from tabulate import tabulate
 from typing import List
 import string
 import random
+from typing import Mapping
 
 async def notifyAdmin(bot: commands.Bot, message: str) -> None:
     bot.logger.debug("Received admin notification", message=message, testing_mode=bot.testing_mode)
@@ -267,6 +268,84 @@ def randomAlphanumericString(length):
     letters_and_digits = string.ascii_letters + string.digits
     result_str = ''.join((random.choice(letters_and_digits) for i in range(length)))
     return result_str
+
+def makeEmbed(embedInfo: Mapping) -> discord.Embed:
+    embed = discord.Embed(title=embedInfo.get("title", ""), description=embedInfo.get("description", ""), color=embedInfo.get("color", 0x000000))
+    embed.set_thumbnail(url=embedInfo.get("thumbnail", "")) 
+    embed.add_field(name=embedInfo.get("name", ""), value=embedInfo.get("value", ""), inline=False)
+    return embed
+
+def getArsenalColor():
+    colors = [0x9C824A, 0x023474, 0xEF0107, 0xDB0007]
+    color = random.choice(colors)
+    return color
+
+async def makePaged(bot, ctx, paginated_data):
+    max_page = len(paginated_data) - 1
+    user_max_pages = len(paginated_data)
+    num = 0
+    rank_num = 1
+    embed_color = 0xcd4589
+    first_run = True
+    while True:
+        try:
+            # log.info(num=num, max_page=max_page
+            if first_run:
+                embed = makeEmbed(paginated_data[num])
+                # embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{rank_num}/{user_max_pages}", color=embed_color)
+                # embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
+                # embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
+                first_run = False
+                msg = await ctx.send(embed=embed)
+
+            reactmoji = []
+            if max_page == 0 and num == 0:
+                pass
+            elif num == 0:
+                reactmoji.append('⏩')
+            elif num == max_page:
+                reactmoji.append('⏪')
+            elif num > 0 and num < max_page:
+                reactmoji.extend(['⏪', '⏩'])
+            # reactmoji.append('✅')
+
+            for react in reactmoji:
+                await msg.add_reaction(react)
+
+            def checkReact(reaction, user):
+                if reaction.message.id != msg.id:
+                    return False
+                if user != ctx.message.author:
+                    return False
+                if str(reaction.emoji) not in reactmoji:
+                    return False
+                return True
+
+            try:
+                res, user = await bot.wait_for('reaction_add', timeout=55.0, check=checkReact)
+            except asyncio.TimeoutError:
+                return await msg.clear_reactions()
+
+            # if user != ctx.message.author:
+            #     pass
+            if '⏪' in str(res.emoji):
+                print('<< Going backward')
+                num = num - 1
+                rank_num -= 1
+                embed = makeEmbed(paginated_data[num])
+                await msg.clear_reactions()
+                await msg.edit(embed=embed)
+
+            elif '⏩' in str(res.emoji):
+                print('\t>> Going forward')
+                num = num + 1
+                rank_num += 1
+                embed = makeEmbed(paginated_data[num])
+                await msg.clear_reactions()
+                await msg.edit(embed=embed)
+        except Exception:
+            bot.logger.exception("Error creating or reacting to paged function")
+            break
 
 # def isAdmin()(method):
 #     @wraps(method)

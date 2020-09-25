@@ -79,6 +79,7 @@ class UtilCog(commands.Cog):
         '''
         message = ctx.message.content.replace("+feedback ", "")
         issue_title = f"feedback from {ctx.author.name}"
+        print(issue_title)
         async with aiohttp.ClientSession() as session:
             async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(message)}&labels=feedback", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
                 fixture_info = await resp.json()
