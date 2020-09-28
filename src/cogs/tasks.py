@@ -305,7 +305,7 @@ class TasksCog(commands.Cog):
 
                         # 2 points bonus – all scorers correct
                         if absolutely_correct:
-                            predicted_score += 2
+                            prediction_score += 2
 
                     log.info("calculated prediction", prediction_id=prediction.get("prediction_id"), user_id=prediction.get("user_id"), prediction_string=prediction.get("prediction_string"), prediction_score=prediction_score)
                     try:
