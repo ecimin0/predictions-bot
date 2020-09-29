@@ -274,7 +274,7 @@ class TasksCog(commands.Cog):
                             actual_goal_scorers[goal.get("player_id")] += 1
                 
                     predicted_scorers = {v.get("player_id"):v.get("num_goals") for v in prediction.get("scorers")}
-                    absolutely_correct = True
+                    all_scorers_correct = True
                     
                     # No points for scorers if your prediction's goals exceed the actual goals by 4+
                     # No points for any part of the prediction related to scorers or fgs if predicted goals > actual goals + 4
@@ -285,15 +285,15 @@ class TasksCog(commands.Cog):
                                     prediction_score += count
                                 elif count < predicted_scorers.get(actual_scorer):
                                     prediction_score += count
-                                    absolutely_correct = False
+                                    all_scorers_correct = False
                                 else:
                                     prediction_score += predicted_scorers.get(actual_scorer)
-                                    absolutely_correct = False
+                                    all_scorers_correct = False
 
                         actual_scorers_set = set(actual_goal_scorers.keys())
                         predicted_scorers_set = set(predicted_scorers.keys())
                         if predicted_scorers_set.symmetric_difference(actual_scorers_set):
-                            absolutely_correct = False
+                            all_scorers_correct = False
 
                         # 1 point – correct FGS (first goal scorer, only Arsenal)
                         predicted_fgs = None

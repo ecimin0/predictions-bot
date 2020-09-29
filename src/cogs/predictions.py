@@ -31,12 +31,16 @@ class PredictionsCog(commands.Cog):
             await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have no predictions! Get started by typing `+predict`")
             return
 
-        embed = discord.Embed(title=f"Predictions for {ctx.message.author.display_name}")
+        paginated_data = []
+
+        color = getArsenalColor()
+
 
         total = 0
         offset = 0
         
         self.bot.logger.debug(fixtures=fixtures, len_fixture=len(fixtures), predictions=predictions, len_predictions=len(predictions))
+        fields = []
         for i in range(0,len(fixtures)):
             fixture = fixtures[i]
             if i - offset > len(predictions) - 1:
@@ -45,22 +49,37 @@ class PredictionsCog(commands.Cog):
             self.bot.logger.debug(count=i,fixture_id=fixture.get("fixture_id"), prediction_fixture_id=prediction.get("fixture_id"))
             match = await getMatch(self.bot, fixture.get("fixture_id"))
 
+            home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
+            away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
+
             if not fixture.get("fixture_id") == prediction.get("fixture_id"):
                 offset += 1
-                embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value="Score: 0 `no prediction made`", inline=False)
+                fields.append({
+                    "name": f'{match.get("event_date").strftime("%m/%d/%Y")} {home_emoji} {match.get("home_name")} vs {away_emoji} {match.get("away_name")}', 
+                    "value": "Score: 0 `no prediction made`"
+                })
             else:
                 if prediction.get("prediction_score"):
                     total += prediction.get("prediction_score")
                 prediction_value = "TBD"
                 if prediction.get("prediction_score"):
                     prediction_value = prediction.get("prediction_score")
-                embed.add_field(name=f'{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}', value=f'Score: **{prediction_value}** | `{prediction.get("prediction_string")}`\n\n', inline=False)
+                fields.append({
+                    "name": f'{match.get("event_date").strftime("%m/%d/%Y")} {home_emoji} {match.get("home_name")} vs {away_emoji} {match.get("away_name")}', 
+                    "value": f'Score: **{prediction_value}** | `{prediction.get("prediction_string")}`\n\n'
+                })
                 # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'
+
         if rank == 0:
-            embed.description=f"_League score: **{total}** | League pos. **N/A - no predictions scored**_"
+            description = f"_League score: **{total}** | League pos. **N/A - no predictions scored**_"
         else:
-            embed.description=f"_League score: **{total}** | League pos. **{makeOrdinal(rank)}**_"
-        await ctx.send(f"{ctx.message.author.mention}\n",embed=embed)
+            description = f"_League score: **{total}** | League pos. **{makeOrdinal(rank)}**_"
+
+        for i in range(0, len(fields), self.bot.step):
+            paginated_data.append({"title": f"Predictions for {ctx.message.author.display_name}", "description": description, "color": color, "thumbnail": "", "fields": fields[i:i + self.bot.step]})
+
+        await makePagedEmbed(self.bot, ctx, paginated_data)
+        # await ctx.send(f"{ctx.message.author.mention}\n",embed=embed)
 
 
     @commands.command()
@@ -96,6 +115,7 @@ class PredictionsCog(commands.Cog):
         
         rank_num = 1
         paginated_data = []
+        color = getArsenalColor()
         for v in prediction_dictionary.values():
             # current_embed = embed_dictionary.get(k)
             output_array = []
@@ -116,13 +136,21 @@ class PredictionsCog(commands.Cog):
             self.bot.logger.debug(output_array)
             output_str = "\n".join(output_array)
             self.bot.logger.debug(output_str)
-
-            paginated_data.append({"title": "**Arsenal Prediction League Leaderboard**", "description": f"{rank_num}/{len(prediction_dictionary)}", "color": 0xEF0107, "thumbnail": "https://media.api-sports.io/football/teams/42.png", "name": f"{makeOrdinal(rank_num)}: {user_prediction.get('score')} Points", "value": output_str})
+        
+            paginated_data.append({
+                "title": "**Arsenal Prediction League Leaderboard**", 
+                "description": f"{rank_num}/{len(prediction_dictionary)}", 
+                "color": color, 
+                "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
+                "fields": [
+                    {"name": f"{makeOrdinal(rank_num)}: {user_prediction.get('score')} Points", "value": output_str}
+                    ]
+                })
 
             # paginated_data.append({"rank": f"{rank_num}", "rank_score": f"{user_prediction.get('score')}", "leaders": f"{output_str}"})
             rank_num += 1
 
-        await makePaged(self.bot, ctx, paginated_data)
+        await makePagedEmbed(self.bot, ctx, paginated_data)
 
     @commands.command()
     async def predict(self, ctx: commands.Context):
