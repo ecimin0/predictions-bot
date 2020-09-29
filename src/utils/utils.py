@@ -275,8 +275,12 @@ def randomAlphanumericString(length: int) -> str:
 def makeEmbed(embedInfo: Mapping) -> discord.Embed:
     embed = discord.Embed(title=embedInfo.get("title", ""), description=embedInfo.get("description", ""), color=embedInfo.get("color", 0x000000))
     embed.set_thumbnail(url=embedInfo.get("thumbnail", "")) 
+
     for page in embedInfo.get("fields", []):
-        embed.add_field(name=page.get("name", ""), value=page.get("value", ""), inline=False)
+        value = page.get("value")
+        if value == "":
+            value = "N/A"
+        embed.add_field(name=page.get("name", ""), value=value, inline=False)
     return embed
 
 def getArsenalColor():
@@ -333,7 +337,7 @@ async def makePagedEmbed(bot, ctx, paginated_data):
             # if user != ctx.message.author:
             #     pass
             if '⏪' in str(res.emoji):
-                bot.logger.debug("Going backwards")
+                bot.logger.debug("Going backwards", max=max_page, current=num)
                 num = num - 1
                 rank_num -= 1
                 embed = makeEmbed(paginated_data[num])
@@ -341,7 +345,7 @@ async def makePagedEmbed(bot, ctx, paginated_data):
                 await msg.edit(embed=embed)
 
             elif '⏩' in str(res.emoji):
-                bot.logger.debug("Going forwards")
+                bot.logger.debug("Going forwards", max=max_page, current=num)
                 num = num + 1
                 rank_num += 1
                 embed = makeEmbed(paginated_data[num])
