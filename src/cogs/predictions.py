@@ -56,13 +56,13 @@ class PredictionsCog(commands.Cog):
                 offset += 1
                 fields.append({
                     "name": f'{match.get("event_date").strftime("%m/%d/%Y")} {home_emoji} {match.get("home_name")} vs {away_emoji} {match.get("away_name")}', 
-                    "value": "Score: 0 `no prediction made`"
+                    "value": "Score: **0** | `no prediction made`"
                 })
             else:
                 if prediction.get("prediction_score"):
                     total += prediction.get("prediction_score")
                 prediction_value = "TBD"
-                if prediction.get("prediction_score"):
+                if prediction.get("prediction_score") is not None:
                     prediction_value = prediction.get("prediction_score")
                 fields.append({
                     "name": f'{match.get("event_date").strftime("%m/%d/%Y")} {home_emoji} {match.get("home_name")} vs {away_emoji} {match.get("away_name")}', 
@@ -130,6 +130,7 @@ class PredictionsCog(commands.Cog):
                         output_array.append(f'{user.display_name}')
                     else:
                         self.bot.logger.debug("Missing user", user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
+                        output_array.append("a ghosty boi")
                         # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
                 except discord.NotFound:
                     self.bot.logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
@@ -195,7 +196,7 @@ class PredictionsCog(commands.Cog):
             await ctx.send(f"{ctx.message.author.mention}\nIt looks like you didn't actually predict anything!\nTry something like `+predict 3-2 auba fgs, laca`")
             return 
 
-        goals_regex = r"((\d) ?[:-] ?(\d))"
+        goals_regex = r"((\d{1,2}) ?[:-] ?(\d{1,2}))"
         # player_regex = r"[A-Za-z]{1,18}[,]? ?(\d[xX]|[xX]\d)?"
 
         try:
