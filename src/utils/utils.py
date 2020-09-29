@@ -115,7 +115,6 @@ def prepareTimestamp(timestamp: datetime, tz: dt.tzinfo, str: bool=True):
 
 async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) -> str:
     tz: dt.tzinfo = await getUserTimezone(bot, user)
-    match_time = prepareTimestamp(match.get('event_date'), tz)
 
     time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
     home_emoji = discord.utils.get(bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
@@ -137,7 +136,7 @@ async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) ->
             match_time_str = f"{match.get('event_date').strftime('%m/%d/%Y')}, TBD"
         return f"{league_emoji} **{match.get('league_name')} | {match_time_str}**\n{home_emoji} {match.get('home_name')} {match.get('goals_home')} - {match.get('goals_away')} {away_emoji} {match.get('away_name')}\n" 
     else:
-        match_time_str = match_time
+        match_time_str = prepareTimestamp(match.get('event_date'), tz)
         if match.get("status_short") == "TBD":
             match_time_str = f"{match.get('event_date').strftime('%A, %d %B')}, TBD"
         # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
@@ -276,7 +275,8 @@ def randomAlphanumericString(length: int) -> str:
 def makeEmbed(embedInfo: Mapping) -> discord.Embed:
     embed = discord.Embed(title=embedInfo.get("title", ""), description=embedInfo.get("description", ""), color=embedInfo.get("color", 0x000000))
     embed.set_thumbnail(url=embedInfo.get("thumbnail", "")) 
-    embed.add_field(name=embedInfo.get("name", ""), value=embedInfo.get("value", ""), inline=False)
+    for page in embedInfo.get("fields", []):
+        embed.add_field(name=page.get("name", ""), value=page.get("value", ""), inline=False)
     return embed
 
 def getArsenalColor():
@@ -284,7 +284,7 @@ def getArsenalColor():
     color = random.choice(colors)
     return color
 
-async def makePaged(bot, ctx, paginated_data):
+async def makePagedEmbed(bot, ctx, paginated_data):
     max_page = len(paginated_data) - 1
     user_max_pages = len(paginated_data)
     num = 0
@@ -333,7 +333,7 @@ async def makePaged(bot, ctx, paginated_data):
             # if user != ctx.message.author:
             #     pass
             if '⏪' in str(res.emoji):
-                print('<< Going backward')
+                bot.logger.debug("Going backwards")
                 num = num - 1
                 rank_num -= 1
                 embed = makeEmbed(paginated_data[num])
@@ -341,7 +341,7 @@ async def makePaged(bot, ctx, paginated_data):
                 await msg.edit(embed=embed)
 
             elif '⏩' in str(res.emoji):
-                print('\t>> Going forward')
+                bot.logger.debug("Going forwards")
                 num = num + 1
                 rank_num += 1
                 embed = makeEmbed(paginated_data[num])
@@ -351,27 +351,65 @@ async def makePaged(bot, ctx, paginated_data):
             bot.logger.exception("Error creating or reacting to paged function")
             break
 
-# def isAdmin()(method):
-#     @wraps(method)
-#     async def predicate(self, ctx):
-#         if ctx.message.author.id in self.bot.admin_ids:
-#             return True
-#         else:
-#             raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
-#     return commands.check(predicate)
 
+async def makePaged(bot: commands.Bot, ctx: commands.Context, paginated_data: List[str]):
+    max_page = len(paginated_data) - 1
+    user_max_pages = len(paginated_data)
+    num = 0
+    rank_num = 1
+    embed_color = 0xcd4589
+    first_run = True
+    while True:
+        try:
+            # log.info(num=num, max_page=max_page
+            if first_run:
+                first_run = False
+                msg = await ctx.send(content=paginated_data[num])
 
-#this already exists as @commands.cooldown()
-# def rateLimit(seconds, name, last_run):
-#     async def predicate(ctx):
-#         if name not in last_run:
-#             last_run[name] = datetime.utcnow()
-#             return True
-#         else:
-#             seconds_since_last_run = (datetime.utcnow() - last_run[name]).total_seconds()
-#             if seconds_since_last_run > seconds:
-#                 last_run[name] = datetime.utcnow()
-#                 return True
-#             else:
-#                 raise RateLimit(f"+{name} command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
-#     return commands.check(predicate)
+            reactmoji = []
+            if max_page == 0 and num == 0:
+                pass
+            elif num == 0:
+                reactmoji.append('⏩')
+            elif num == max_page:
+                reactmoji.append('⏪')
+            elif num > 0 and num < max_page:
+                reactmoji.extend(['⏪', '⏩'])
+            # reactmoji.append('✅')
+
+            for react in reactmoji:
+                await msg.add_reaction(react)
+
+            def checkReact(reaction, user):
+                if reaction.message.id != msg.id:
+                    return False
+                if user != ctx.message.author:
+                    return False
+                if str(reaction.emoji) not in reactmoji:
+                    return False
+                return True
+
+            try:
+                res, user = await bot.wait_for('reaction_add', timeout=55.0, check=checkReact)
+            except asyncio.TimeoutError:
+                return await msg.clear_reactions()
+
+            # if user != ctx.message.author:
+            #     pass
+            if '⏪' in str(res.emoji):
+                bot.logger.debug('Going backwards')
+                num = num - 1
+                rank_num -= 1
+                await msg.clear_reactions()
+                await msg.edit(content=paginated_data[num])
+
+            elif '⏩' in str(res.emoji):
+                bot.logger.debug("Going forwards")
+                num = num + 1
+                rank_num += 1
+                await msg.clear_reactions()
+                await msg.edit(content=paginated_data[num])
+        except Exception:
+            bot.logger.exception("Error creating or reacting to paged function")
+            break
+

@@ -39,7 +39,7 @@ class UserCog(commands.Cog):
                 log.error("User encoutered error changing timezone")
             await ctx.send(f"{ctx.message.author.mention}\nYour timezone has been set to {tz}")
         else:
-            await ctx.send(f"{ctx.message.author.mention}\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'")
+            await ctx.send(f"{ctx.message.author.mention}\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'\nSee here for a list of timezones:\nhttps://gist.githubusercontent.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568/raw/daacf0e4496ccc60a36e493f0252b7988bceb143/pytz-time-zones.py")
 
 def setup(bot):
     bot.add_cog(UserCog(bot))

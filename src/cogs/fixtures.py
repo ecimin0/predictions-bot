@@ -2,7 +2,7 @@ import discord
 import datetime as dt
 from discord.ext import commands
 from tabulate import tabulate
-from utils.utils import getTeamId, formatMatch, nextMatches, getStandings, formatStandings, checkUserExists, getUserTimezone, prepareTimestamp, completedMatches
+from utils.utils import getTeamId, formatMatch, nextMatches, getStandings, formatStandings, checkUserExists, getUserTimezone, prepareTimestamp, completedMatches, makePaged
 from typing import Mapping, List
 
 class FixturesCog(commands.Cog):
@@ -46,7 +46,7 @@ class FixturesCog(commands.Cog):
         msg: str = ctx.message.content
 
         split_msg = msg.split()
-        
+        output_array = []
         if len(split_msg) > 2:
             await ctx.send(f"{ctx.message.author.mention}\nToo many arguments; should be '+next 2' or similar")
             return
@@ -72,8 +72,13 @@ class FixturesCog(commands.Cog):
                 log.exception("Error retrieving nextMatches from database")
             output = f"{ctx.message.author.mention}\n**Next {count} matches:**\n\n"
             for match in next_matches:
-                output += await formatMatch(self.bot, match, ctx.message.author.id)
-            await ctx.send(f"{output}")
+                output_array.append(await formatMatch(self.bot, match, ctx.message.author.id))
+
+        paged_results = []
+        for i in range(0, len(output_array), self.bot.step):
+            paged_results.append(output + ''.join(output_array[i:i+self.bot.step]))
+
+        await makePaged(self.bot, ctx, paged_results)
 
     @commands.command()
     @commands.cooldown(1, 60, commands.BucketType.default)
@@ -112,8 +117,14 @@ class FixturesCog(commands.Cog):
         # done_matches_output = f'```{tabulate(done_matches_output, headers=["Date", "Home", "Score", "Away"], tablefmt="github", colalign=("center","center","center","center"))}```'
             done_matches_output.append(await formatMatch(self.bot, match, ctx.message.author.id, score=True))
         
-        done_matches_output_str = "\n".join(done_matches_output)
-        await ctx.send(f"{ctx.message.author.mention}\n**Past Match Results**\n\n{done_matches_output_str}")
+        paged_results = []
+        for i in range(0, len(done_matches_output), self.bot.step):
+            paged_results.append(f"{ctx.message.author.mention}\n**Past Match Results**\n\n" + '\n'.join(done_matches_output[i:i+self.bot.step]))
+
+        await makePaged(self.bot, ctx, paged_results)
+
+        # done_matches_output_str = "\n".join(done_matches_output)
+        # await ctx.send(f"{ctx.message.author.mention}\n**Past Match Results**\n\n{done_matches_output_str}")
 
 def setup(bot):
     bot.add_cog(FixturesCog(bot))

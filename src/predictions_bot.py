@@ -47,6 +47,7 @@ class Bot(commands.Bot):
         self.season = kwargs.pop("season")
         self.channel = kwargs.pop("channel")
         self.gitlab_api = kwargs.pop("gitlab_api")
+        self.step = kwargs.pop("step", 5)
         self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short"
 
     async def close(self):
@@ -76,11 +77,14 @@ class Bot(commands.Bot):
         if message.channel.name == self.channel or message.channel.name == "Channel_0":
             self.logger.info("Received message", channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
             # logger.info(f"{message.channel.name} | {message.author} | {message.author.id} | {message.content}")
-            t0= time.perf_counter()
-            await self.process_commands(message)
-            if self.tracing:
-                duration = time.perf_counter() - t0
-                self.logger.debug(performance=duration,channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
+            if re.match(r"\+\s+\w+.*", message.content):
+                await message.channel.send(f"{message.author.mention}```{message.content}```Do not include any spaces after '+'\nExamples: `+help | +rules | +predict ...`")
+            else:    
+                t0= time.perf_counter()
+                await self.process_commands(message)
+                if self.tracing:
+                    duration = time.perf_counter() - t0
+                    self.logger.debug(performance=duration,channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
 
     async def on_command_error(self, ctx, error):
         self.logger.error(f"Handling error for {ctx.message.content}", exception=error)
@@ -227,8 +231,7 @@ cogs = [
     "cogs.develop",
     "cogs.predictions",
     "cogs.user",
-    "cogs.util",
-    "cogs.tasks"
+    "cogs.util"
 ]
 
 async def init(credentials, options, token, cogs, loop=False):
@@ -241,8 +244,10 @@ async def init(credentials, options, token, cogs, loop=False):
     for cog in cogs:
         bot.load_extension(cog)
 
-    if testing_mode and not os.environ.get("RUN_TASKS_ANYWAY", False):
-        bot.unload_extension("cogs.tasks")
+    if testing_mode and os.environ.get("RUN_TASKS_ANYWAY", False):
+        bot.load_extension("cogs.tasks")
+    elif not testing_mode:
+        bot.load_extension("cogs.tasks")
 
     return bot
 
