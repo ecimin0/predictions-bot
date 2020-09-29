@@ -116,6 +116,7 @@ class PredictionsCog(commands.Cog):
         rank_num = 1
         paginated_data = []
         color = getArsenalColor()
+        output_paged_atrray = []
         for v in prediction_dictionary.values():
             # current_embed = embed_dictionary.get(k)
             output_array = []
@@ -137,19 +138,30 @@ class PredictionsCog(commands.Cog):
             self.bot.logger.debug(output_array)
             output_str = "\n".join(output_array)
             self.bot.logger.debug(output_str)
+            output_paged_atrray.append({"name": f"{makeOrdinal(rank_num)}: {user_prediction.get('score')} Points", "value": output_str})
         
-            paginated_data.append({
-                "title": "**Arsenal Prediction League Leaderboard**", 
-                "description": f"{rank_num}/{len(prediction_dictionary)}", 
-                "color": color, 
-                "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
-                "fields": [
-                    {"name": f"{makeOrdinal(rank_num)}: {user_prediction.get('score')} Points", "value": output_str}
-                    ]
-                })
+            if len(output_paged_atrray) == self.bot.step:        
+                paginated_data.append({
+                    "title": "**Arsenal Prediction League Leaderboard**", 
+                    "description": "", 
+                    # "description": f"{rank_num}/{len(prediction_dictionary)}", 
+                    "color": color, 
+                    "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
+                    "fields": output_paged_atrray
+                    })
+                output_paged_atrray = []
 
             # paginated_data.append({"rank": f"{rank_num}", "rank_score": f"{user_prediction.get('score')}", "leaders": f"{output_str}"})
             rank_num += 1
+        if output_paged_atrray:
+            paginated_data.append({
+                    "title": "**Arsenal Prediction League Leaderboard**", 
+                    "description": "", 
+                    # "description": f"{rank_num}/{len(prediction_dictionary)}", 
+                    "color": color, 
+                    "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
+                    "fields": output_paged_atrray
+                    })
 
         await makePagedEmbed(self.bot, ctx, paginated_data)
 
