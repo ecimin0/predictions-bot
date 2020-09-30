@@ -131,7 +131,7 @@ class PredictionsCog(commands.Cog):
                         output_array.append(f'{user.display_name}')
                     else:
                         self.bot.logger.debug("Missing user", user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
-                        output_array.append("a ghosty boi")
+                        output_array.append("*transferred to spurs*")
                         # current_embed.add_field(name=f"Rank: {user.display_name}", value=f'{user_prediction.get("score")} points', inline=True)
                 except discord.NotFound:
                     self.bot.logger.warning("Missing user mapping", user=user_prediction.get("user_id"))
@@ -165,10 +165,10 @@ class PredictionsCog(commands.Cog):
 
         await makePagedEmbed(self.bot, ctx, paginated_data)
 
-    @commands.command()
-    async def predict(self, ctx: commands.Context):
+    @commands.command(brief="Make a prediction.")
+    async def predict(self, ctx: commands.Context, *, prediction: str):
         '''
-        Make a new prediction
+        Make a new prediction | +predict 1-1 auba fgs
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
@@ -203,8 +203,8 @@ class PredictionsCog(commands.Cog):
             await ctx.send(f"{ctx.message.author.mention}\nPrediction time too close to match start time. Go support {team} instead.")
             return
 
-        temp_msg = ctx.message.content
-        if len(temp_msg.split()) < 2:
+        # temp_msg = ctx.message.content
+        if not prediction:
             await ctx.send(f"{ctx.message.author.mention}\nIt looks like you didn't actually predict anything!\nTry something like `+predict 3-2 auba fgs, laca`")
             return 
 
@@ -212,14 +212,11 @@ class PredictionsCog(commands.Cog):
         # player_regex = r"[A-Za-z]{1,18}[,]? ?(\d[xX]|[xX]\d)?"
 
         try:
-            prediction_string = temp_msg
-            temp_msg = temp_msg.replace("+predict ", "")
-
-            goals_match = re.search(goals_regex, temp_msg)
+            goals_match = re.search(goals_regex, prediction)
         
-            temp_msg = re.sub(goals_regex, "", temp_msg)
+            prediction = re.sub(goals_regex, "", prediction)
 
-            scorers = temp_msg.strip().split(",")
+            scorers = prediction.strip().split(",")
 
             scorers = [player.strip() for player in scorers]
 
@@ -253,7 +250,10 @@ class PredictionsCog(commands.Cog):
                     real_name = player_real_name.get("player_name")
                 except Exception as e:
                     await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
-                    return 
+                    # names = await playerNames(self.bot, player.strip())
+                    # names_str = '\n'.join(names)
+                    # await ctx.send(f"Here are some possible players\n{names_str}")
+                    return
 
                 if player_id not in player_scores:
                     player_scores[player_id] = {"name": player.strip(), "fgs": fgs, "num_goals": num_goals, "fgs_string": fgs_str, "real_name": real_name}
@@ -267,7 +267,7 @@ class PredictionsCog(commands.Cog):
 
             scorer_properties = [player for player in player_scores.values()]
             if len([player for player in player_scores.values() if player.get("fgs")]) > 1:
-                await ctx.send(f"{ctx.message.author.mention}\nWhy are you the way that you are?\nTwo players cannot be first goal scorer. Predict again.")
+                await ctx.send(f"{ctx.message.author.mention}\nTwo players cannot be first goal scorer, predict again.")
                 return
 
         except Exception as e:
@@ -294,7 +294,7 @@ class PredictionsCog(commands.Cog):
             predicted_goal_count += scorer.get("num_goals", 0)
 
         if predicted_goal_count > arsenal_goals:
-            await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
+            await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
             return
 
         try:
@@ -316,9 +316,9 @@ class PredictionsCog(commands.Cog):
                         prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2", ctx.message.author.id, fixture_id)
                         if prev_prediction:
                             successful_or_updated = "updated"
-                            await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, ctx.message.author.id, fixture_id)
+                            await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction, home_goals, away_goals, scorer_properties, ctx.message.author.id, fixture_id)
                         else:
-                            await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
+                            await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction, fixture_id, home_goals, away_goals, scorer_properties)
                     except Exception as e:
                         log.exception("Error adding prediction")
                         await ctx.send(f"{ctx.message.author.mention}\nThere was an error adding your prediction, please try again later.")
@@ -328,7 +328,7 @@ class PredictionsCog(commands.Cog):
             goal_scorers = "\n".join(goal_scorers_array)
             home_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('home_name').lower().replace(' ', ''))
             away_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('away_name').lower().replace(' ', ''))
-            output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n\n`{ctx.message.content}`"""
+            output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n`{ctx.message.content}`"""
             output += f"""\n\n**Score**\n{home_emoji} {current_match.get('home_name')} {home_goals} - {away_goals} {away_emoji} {current_match.get('away_name')}\n\n"""
             if goal_scorers:
                 output += f"""**Goal Scorers**\n{goal_scorers}"""

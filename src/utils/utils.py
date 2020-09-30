@@ -78,6 +78,12 @@ async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
         raise Exception(f"no player named {userInput}")
     return player.get("player_id")
 
+async def playerNames(bot: commands.Bot, userInput: str) -> List[str]:
+    if len(userInput) >= 3:
+        player_obj = await bot.db.fetch("SELECT * FROM predictionsbot.players WHERE EXISTS (SELECT 1 FROM unnest(nicknames) as name WHERE name LIKE $1 OR lastname ILIKE $1 OR firstname ILIKE $1)", f"%{userInput}%")
+        return([f"{player.get('firstname')} {player.get('lastname')}: {', '.join(player.get('nicknames'))}" for player in player_obj])
+    return([])
+
 async def getTeamId(bot: commands.Bot, userInput: str) -> int:
     player = await bot.db.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
     if not player:

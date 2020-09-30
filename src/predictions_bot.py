@@ -94,7 +94,7 @@ class Bot(commands.Bot):
         if isinstance(error, BadArgument):
             await ctx.send(f"Bad argument for {ctx.message.content}, {error}")
         if isinstance(error, MissingRequiredArgument):
-            await ctx.send(f"Missing argument `{error.param}` for command `{ctx.message.content}`")
+            await ctx.send(f"Missing argument `{error.param.name}` for command `{ctx.message.content}`\n```{ctx.command.help}```")
         if isinstance(error, CommandOnCooldown):
             # raise RateLimit(f"+{name} command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
             await ctx.send(f"{ctx.message.content.split()[0]} is under a rate limit, try again in {error.retry_after:.2f} seconds.")

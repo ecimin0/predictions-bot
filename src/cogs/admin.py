@@ -95,7 +95,7 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
 
     @commands.command(hidden=True)
-    async def addNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname:str):
+    async def addNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname: str):
         '''
         Add a nickname to database | +addNickname (player|team) <id> <nickname string>
         '''
@@ -156,6 +156,30 @@ class AdminCog(commands.Cog):
             await ctx.send(f"{ctx.message.author.mention}\n{tabulate(output)}")
         else:
             await ctx.send(f"{ctx.message.author.mention}\nCan only view nicknames/id for `player` and `team`.")
+
+    @commands.command(hidden=True)
+    async def disable(self, ctx: commands.Context, command_name: str):
+        '''
+        Disables a function/command | +disable <function name>
+        '''
+        if command_name in self.bot.all_commands:
+            command = self.bot.all_commands.get(command_name)
+            print(f"{command} {command.name}")
+            command.update(enabled=False)
+            await ctx.send(f"Disabled your shit. {command_name}")
+            return
+
+    @commands.command(hidden=True)
+    async def enable(self, ctx: commands.Context, command_name: str):
+        '''
+        Enables a function/command | +disable <function name>
+        '''
+        if command_name in self.bot.all_commands:
+            command = self.bot.all_commands.get(command_name)
+            print(f"{command} {command.name}")
+            command.update(enabled=True)
+            await ctx.send(f"Enabled your shit. {command_name}")
+            return
 
 def setup(bot):
     bot.add_cog(AdminCog(bot))
