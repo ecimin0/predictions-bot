@@ -72,6 +72,14 @@ async def completedMatches(bot: commands.Bot, count: int=1, offset: int=0) -> Li
     matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
+async def getUsersPredictionCurrentMatch(bot: commands.Bot) -> List[asyncpg.Record]:
+    users = await bot.db.fetch(f"SELECT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1)")
+    return users
+
+async def getUserPredictedLastMatches(bot: commands.Bot) -> List[asyncpg.Record]:
+    users = await bot.db.fetch(f"SELECT DISTINCT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT 2)")
+    return users
+
 async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
     player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
     if not player:

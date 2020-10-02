@@ -79,7 +79,7 @@ class UtilCog(commands.Cog):
         '''
         message: str = ctx.message.content.replace("+feedback ", "")
         message = message.replace("+bug ", "")
-        if not message or "+feedback" in message or "+bug":
+        if not message or "+feedback" in message or "+bug" in message:
             await ctx.send("Missing feedback, please ensure you included something.")
             ctx.command.reset_cooldown(ctx)
         else:

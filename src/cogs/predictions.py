@@ -14,7 +14,7 @@ class PredictionsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
+    @commands.command(aliases=["prediction"])
     async def predictions(self, ctx: commands.Context):
         '''
         Show your past predictions
@@ -165,6 +165,7 @@ class PredictionsCog(commands.Cog):
 
         await makePagedEmbed(self.bot, ctx, paginated_data)
 
+
     @commands.command(brief="Make a prediction.")
     async def predict(self, ctx: commands.Context, *, prediction: str):
         '''
@@ -210,7 +211,7 @@ class PredictionsCog(commands.Cog):
 
         goals_regex = r"((\d{1,2}) ?[:-] ?(\d{1,2}))"
         # player_regex = r"[A-Za-z]{1,18}[,]? ?(\d[xX]|[xX]\d)?"
-
+        prediction_string = ctx.message.content
         try:
             goals_match = re.search(goals_regex, prediction)
         
@@ -294,7 +295,7 @@ class PredictionsCog(commands.Cog):
             predicted_goal_count += scorer.get("num_goals", 0)
 
         if predicted_goal_count > arsenal_goals:
-            await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
+            await ctx.send(f"{ctx.message.author.mention}\nIt looks like you have predicted Arsenal to score {arsenal_goals}, but have included too many goal scorers:\nPrediction: `{prediction_string}`\nNumber of scorers predicted: {predicted_goal_count} | Predicted goals scored: {arsenal_goals}")
             return
 
         try:
@@ -316,9 +317,9 @@ class PredictionsCog(commands.Cog):
                         prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2", ctx.message.author.id, fixture_id)
                         if prev_prediction:
                             successful_or_updated = "updated"
-                            await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction, home_goals, away_goals, scorer_properties, ctx.message.author.id, fixture_id)
+                            await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, ctx.message.author.id, fixture_id)
                         else:
-                            await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction, fixture_id, home_goals, away_goals, scorer_properties)
+                            await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
                     except Exception as e:
                         log.exception("Error adding prediction")
                         await ctx.send(f"{ctx.message.author.mention}\nThere was an error adding your prediction, please try again later.")

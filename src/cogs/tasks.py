@@ -179,6 +179,16 @@ class TasksCog(commands.Cog):
         except Exception:
             log.exception()
 
+    @tasks.loop(minutes=1)
+    async def sendNotifications(self, ctx: commands.Context):
+        if datetime.utcnow().minute % 15 == 0:
+            # if checkTimeToMatch < threshold and notification not sent: 
+            #  send notifications
+            #  mark as sent
+            # fixutres table will need a new field - notifications_sent
+            old_users = await getUserPredictedLastMatches(self.bot)
+            new_users = await getUsersPredictionCurrentMatch(self.bot)
+            await ctx.send(f"Users who might be morons:\n{set(old_users) - set(new_users)}")
 
     # @bot.command(hidden=True)
     # @commands.check(isAdmin())
@@ -223,13 +233,17 @@ class TasksCog(commands.Cog):
                     fixture_info = fixture_response['api']['fixtures'][0]
                     goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
                     scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
-                    scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
+                    if scorable_fixtures[fix]["goals"]:
+                        scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
+                    else:
+                        scorable_fixtures[fix]["fgs"] = None
                 except asyncio.TimeoutError:
                     log.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
                 except Exception:
                     log.exception("error retrieving scorable fixture", fixture=fix)
                     raise PleaseTellMeAboutIt(f"error retrieving scorable fixture: {fix}")
 
+            log.debug("Predictions to score", predictions=unscored_predictions, scorable_fixtures=scorable_fixtures)
             for prediction in unscored_predictions:
                 if prediction.get("fixture_id") in scorable_fixtures:
                     match_results = scorable_fixtures[prediction.get("fixture_id")]
@@ -300,11 +314,11 @@ class TasksCog(commands.Cog):
                         for player in prediction.get("scorers"):
                             if player.get("fgs"):
                                 predicted_fgs = player.get("player_id")
-                        if predicted_fgs == match_results.get("fgs"):
+                        if predicted_fgs == match_results.get("fgs") and match_results.get("fgs"):
                             prediction_score += 1
 
                         # 2 points bonus – all scorers correct
-                        if absolutely_correct:
+                        if all_scorers_correct:
                             prediction_score += 2
 
                     log.info("calculated prediction", prediction_id=prediction.get("prediction_id"), user_id=prediction.get("user_id"), prediction_string=prediction.get("prediction_string"), prediction_score=prediction_score)
