@@ -54,7 +54,7 @@ class UserCog(commands.Cog):
             async with self.bot.db.acquire() as connection:
                 async with connection.transaction():
                     await connection.execute("UPDATE predictionsbot.users SET allow_notifications = $1 WHERE user_id = $2", not notify.get("allow_notifications"), ctx.message.author.id)
-            await ctx.send(f"{ctx.message.author.mention}\nSending notifications set to **`{not notify.get('allow_notifications')}`**")
+            await ctx.send(f"{ctx.message.author.mention}\nSend prediction reminders set to **`{not notify.get('allow_notifications')}`**")
         except Exception:
             log.debug("Failed to update notifcation preference")
 
