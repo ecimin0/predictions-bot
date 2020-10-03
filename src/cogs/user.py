@@ -41,5 +41,22 @@ class UserCog(commands.Cog):
         else:
             await ctx.send(f"{ctx.message.author.mention}\nThat is not a recognized timezone!\nExpected format looks like: 'US/Mountain' or 'America/Chicago' or 'Europe/London'\nSee here for a list of timezones:\nhttps://gist.githubusercontent.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568/raw/daacf0e4496ccc60a36e493f0252b7988bceb143/pytz-time-zones.py")
 
+    @commands.command()
+    async def remindme(self, ctx):
+        '''
+        Toggle prediction reminders on/off
+        '''
+        log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
+        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+        try:
+            notify = await self.bot.db.fetchrow("SELECT allow_notifications FROM predictionsbot.users WHERE user_id = $1", ctx.message.author.id)
+            # if not notify:
+            async with self.bot.db.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute("UPDATE predictionsbot.users SET allow_notifications = $1 WHERE user_id = $2", not notify.get("allow_notifications"), ctx.message.author.id)
+            await ctx.send(f"{ctx.message.author.mention}\nSending notifications set to **`{not notify.get('allow_notifications')}`**")
+        except Exception:
+            log.debug("Failed to update notifcation preference")
+
 def setup(bot):
     bot.add_cog(UserCog(bot))

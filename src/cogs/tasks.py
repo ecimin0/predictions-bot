@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import discord
 from discord.ext import tasks, commands
 import json 
@@ -32,18 +32,23 @@ class TasksCog(commands.Cog):
             "AWD": True,
             "WO": True
         }
-        self.updateFixtures.add_exception_type(Exception)
-        self.updateFixtures.start()
-        self.updateFixturesbyLeague.add_exception_type(Exception)
-        self.updateFixturesbyLeague.start()
-        self.calculatePredictionScores.add_exception_type(Exception)
-        self.calculatePredictionScores.start()
+
+        self.sendNotifications.start()
+
+        # self.updateFixtures.add_exception_type(Exception)
+        # self.updateFixtures.start()
+        # self.updateFixturesbyLeague.add_exception_type(Exception)
+        # self.updateFixturesbyLeague.start()
+        # self.calculatePredictionScores.add_exception_type(Exception)
+        # self.calculatePredictionScores.start()
+        
         # self.updateTeams.add_exception_type(Exception)
         # self.updateTeams.start()
-        self.updatePlayers.add_exception_type(Exception)
-        self.updatePlayers.start()
-        self.updateLeagues.add_exception_type(Exception)
-        self.updateLeagues.start()
+        
+        # self.updatePlayers.add_exception_type(Exception)
+        # self.updatePlayers.start()
+        # self.updateLeagues.add_exception_type(Exception)
+        # self.updateLeagues.start()
 
 
     # @bot.command(hidden=True)
@@ -80,7 +85,7 @@ class TasksCog(commands.Cog):
                     async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
 
-                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4 WHERE fixture_id = $5", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture.get('statusShort'), fixture.get('fixture_id'))
+                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4 WHERE fixture_id = $5", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture_info.get('statusShort'), fixture.get('fixture_id'))
                 except Exception:
                     log.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
                     raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
@@ -180,15 +185,64 @@ class TasksCog(commands.Cog):
             log.exception()
 
     @tasks.loop(minutes=1)
-    async def sendNotifications(self, ctx: commands.Context):
-        if datetime.utcnow().minute % 15 == 0:
-            # if checkTimeToMatch < threshold and notification not sent: 
-            #  send notifications
-            #  mark as sent
-            # fixutres table will need a new field - notifications_sent
-            old_users = await getUserPredictedLastMatches(self.bot)
-            new_users = await getUsersPredictionCurrentMatch(self.bot)
-            await ctx.send(f"Users who might be morons:\n{set(old_users) - set(new_users)}")
+    async def sendNotifications(self):
+        await self.bot.wait_until_ready()
+        log = self.bot.logger.bind(task="sendNotifications")
+        try:
+            now = datetime.utcnow()
+            log.debug("Checking if notifications are ready", now=now)
+            if now.minute % 5 == 0:
+                # if checkTimeToMatch < threshold and notification not sent: 
+                #  send notifications
+                #  mark as sent
+                # fixutres table will need a new field - notifications_sent
+
+                next_match = await nextMatch(self.bot)
+
+                time_limit_offset: Dict[str, float] = {
+                    self.bot.league_dict["europa_league"]: 1.5
+                }
+                time_offset = 1.0
+                if next_match.get("league_id") in time_limit_offset:
+                    time_offset = time_limit_offset[next_match.get("league_id")]
+
+                time_limit = next_match.get("event_date") - timedelta(hours=time_offset + 1)
+
+                log.debug(next_match=next_match.get("fixture_id"), time_limit=time_limit)
+                if next_match.get("notifications_sent") == False and now > time_limit:
+                    old_users = await getUserPredictedLastMatches(self.bot)
+                    new_users = await getUsersPredictionCurrentMatch(self.bot)
+                    users_missing_predictions = set(old_users) - set(new_users)
+
+                    for channel in self.bot.get_all_channels():
+                        if channel.name == self.bot.channel:
+                            channel_str = channel.mention
+                    if self.bot.testing_mode:
+                        users_missing_predictions = [user.get("user_id") for user in users_missing_predictions if user.get("user_id") in self.bot.admin_ids]
+                    else:
+                        users_missing_predictions = [user.get("user_id") for user in users_missing_predictions]
+                    log.debug(users_missing_predictions=users_missing_predictions)
+                    
+                    for user in users_missing_predictions:
+                        allow_notifications = await checkOptOut(self.bot, user)
+                        log.debug(user=user, allow_notifications=allow_notifications)
+                        if allow_notifications:
+                            user_obj = await self.bot.fetch_user(user)
+                            match_str = await formatMatch(self.bot, next_match, user)
+
+                            # user_tz = await getUserTimezone(self.bot, ctx.message.author.id)
+                            # match_str = await formatMatch()
+                            try:
+                                await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon and you haven't submitted a prediction.\n\n{match_str}Make a prediction in the {channel_str} channel.")
+                            except:
+                                log.exception()
+                    log.debug("Sent notifications for upcoming match", number=len(users_missing_predictions), next_match=next_match.get("fixture_id"))
+                    async with self.bot.db.acquire() as connection:
+                        async with connection.transaction():
+                            await connection.execute("UPDATE predictionsbot.fixtures SET notifications_sent = $1 WHERE fixture_id = $2", True, next_match.get("fixture_id"))
+        except:
+            log.exception()
+
 
     # @bot.command(hidden=True)
     # @commands.check(isAdmin())

@@ -127,6 +127,10 @@ def prepareTimestamp(timestamp: datetime, tz: dt.tzinfo, str: bool=True):
     else:
         return datet
 
+async def checkOptOut(bot: commands.Bot, user: int):
+    notification_preference = await bot.db.fetchrow("SELECT allow_notifications FROM predictionsbot.users WHERE user_id = $1", user)
+    return notification_preference.get("allow_notifications", False)
+
 async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) -> str:
     tz: dt.tzinfo = await getUserTimezone(bot, user)
 

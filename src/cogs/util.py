@@ -5,6 +5,7 @@ import urllib
 from utils.exceptions import *
 from utils.utils import checkBotReady, nextMatch
 from tabulate import tabulate
+from typing import Optional
 
 class UtilCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -71,21 +72,25 @@ class UtilCog(commands.Cog):
     #     spurs_status = "SHIT"
     #     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
     
-    @commands.command(aliases=["bug"])
-    @commands.cooldown(1, 86400, commands.BucketType.user)
-    async def feedback(self, ctx: commands.Context):
+    @commands.command(aliases=["bug", "request"])
+    @commands.cooldown(1, 21600, commands.BucketType.user)
+    async def feedback(self, ctx: commands.Context, *, feedback: Optional[str]):
         '''
         Feedback function | leave a short feedback message
         '''
-        message: str = ctx.message.content.replace("+feedback ", "")
-        message = message.replace("+bug ", "")
-        if not message or "+feedback" in message or "+bug" in message:
+
+        label = "feedback"
+        for feedback_type in ["bug", "request", "feedback"]:
+            if feedback_type in ctx.message.content:
+                label = feedback_type
+
+        if not feedback:
             await ctx.send("Missing feedback, please ensure you included something.")
             ctx.command.reset_cooldown(ctx)
         else:
             issue_title: str = f"feedback from {ctx.author.name}"
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(message)}&labels=feedback", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
+                async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(feedback)}&labels={label}", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
                     fixture_info = await resp.json()
             await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
 
