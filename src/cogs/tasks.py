@@ -190,7 +190,6 @@ class TasksCog(commands.Cog):
         log = self.bot.logger.bind(task="sendNotifications")
         try:
             now = datetime.utcnow()
-            log.debug("Checking if notifications are ready", now=now)
             if now.minute % 5 == 0:
                 # if checkTimeToMatch < threshold and notification not sent: 
                 #  send notifications
