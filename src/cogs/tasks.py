@@ -42,8 +42,8 @@ class TasksCog(commands.Cog):
         self.calculatePredictionScores.add_exception_type(Exception)
         self.calculatePredictionScores.start()
         
-        self.updateTeams.add_exception_type(Exception)
-        self.updateTeams.start()
+        # self.updateTeams.add_exception_type(Exception)
+        # self.updateTeams.start()
         
         self.updatePlayers.add_exception_type(Exception)
         self.updatePlayers.start()
