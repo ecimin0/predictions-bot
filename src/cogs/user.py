@@ -13,7 +13,7 @@ class UserCog(commands.Cog):
     @commands.command()
     async def timezone(self, ctx):
         '''
-        Change timezone
+        Change timezone | +timezone Europe/London
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         await checkUserExists(self.bot, ctx.message.author.id, ctx)

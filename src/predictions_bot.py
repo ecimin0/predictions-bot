@@ -97,7 +97,8 @@ class Bot(commands.Bot):
             await ctx.send(f"Missing argument `{error.param.name}` for command `{ctx.message.content}`\n```{ctx.command.help}```")
         if isinstance(error, CommandOnCooldown):
             # raise RateLimit(f"+{name} command is under a rate limit. May run again in {seconds - seconds_since_last_run:.0f} seconds.")
-            await ctx.send(f"{ctx.message.content.split()[0]} is under a rate limit, try again in {error.retry_after:.2f} seconds.")
+            # await ctx.send(f"{ctx.message.content.split()[0]} is under a rate limit, try again in {error.retry_after:.2f} seconds.")
+            await ctx.send(f"{ctx.message.content.split()[0]} is under a rate limit, try again in {str(timedelta(seconds=round(error.retry_after)))}.")
         if isinstance(error, CommandNotFound):
             await ctx.send(f"`{ctx.message.content}` is not a recognized command, try `+help` to see available commands")
         if isinstance(error, CommandInvokeError):

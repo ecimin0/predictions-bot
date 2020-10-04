@@ -6,6 +6,7 @@ from utils.exceptions import *
 from utils.utils import checkBotReady, nextMatch
 from tabulate import tabulate
 from typing import Optional
+import os
 
 class UtilCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -78,21 +79,45 @@ class UtilCog(commands.Cog):
         '''
         Feedback function | leave a short feedback message
         '''
+        log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
-        label = "feedback"
+        label = "user"
         for feedback_type in ["bug", "request", "feedback"]:
-            if feedback_type in ctx.message.content:
-                label = feedback_type
+            if f"+{feedback_type}" in ctx.message.content:
+                feedback_type = feedback_type
+                label = f"{feedback_type},{label}"
 
         if not feedback:
             await ctx.send("Missing feedback, please ensure you included something.")
             ctx.command.reset_cooldown(ctx)
         else:
-            issue_title: str = f"feedback from {ctx.author.name}"
+            issue_title: str = f"{ctx.author.name}: {feedback}"
             async with aiohttp.ClientSession() as session:
                 async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(feedback)}&labels={label}", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
                     fixture_info = await resp.json()
             await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
+
+    @commands.command()
+    async def botissues(self, ctx: commands.Context):
+        '''
+        See list of open bugs, requests, and feedback
+        '''
+        log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
+
+        all_issues = []
+        output = "**Open Issues:**\n"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"https://gitlab.com/api/v4/projects/15728299/issues?labels=user&state=opened", headers={'PRIVATE-TOKEN': os.environ.get('GITLAB_API', None)}, timeout=30) as resp:
+                    issues = await resp.json()
+            for issue in issues:
+                all_issues.append(issue)
+
+            for issue in all_issues:
+                output += f"**{issue.get('references').get('short')}** - `{', '.join(issue.get('labels'))}` | {issue.get('title')}\n"
+            await ctx.send(output)
+        except Exception:
+            log.debug("Error getting issues", all_issues)
 
 def setup(bot):
     bot.add_cog(UtilCog(bot))
