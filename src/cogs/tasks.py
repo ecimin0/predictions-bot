@@ -35,21 +35,20 @@ class TasksCog(commands.Cog):
 
         self.sendNotifications.start()
 
-        # self.updateFixtures.add_exception_type(Exception)
-        # self.updateFixtures.start()
-        # self.updateFixturesbyLeague.add_exception_type(Exception)
-        # self.updateFixturesbyLeague.start()
-        # self.calculatePredictionScores.add_exception_type(Exception)
-        # self.calculatePredictionScores.start()
+        self.updateFixtures.add_exception_type(Exception)
+        self.updateFixtures.start()
+        self.updateFixturesbyLeague.add_exception_type(Exception)
+        self.updateFixturesbyLeague.start()
+        self.calculatePredictionScores.add_exception_type(Exception)
+        self.calculatePredictionScores.start()
         
-        # self.updateTeams.add_exception_type(Exception)
-        # self.updateTeams.start()
+        self.updateTeams.add_exception_type(Exception)
+        self.updateTeams.start()
         
-        # self.updatePlayers.add_exception_type(Exception)
-        # self.updatePlayers.start()
-        # self.updateLeagues.add_exception_type(Exception)
-        # self.updateLeagues.start()
-
+        self.updatePlayers.add_exception_type(Exception)
+        self.updatePlayers.start()
+        self.updateLeagues.add_exception_type(Exception)
+        self.updateLeagues.start()
 
     # @bot.command(hidden=True)
     # runs every 15 min to check if fixtures within 5 hours before and after now are complete/scorable for predictions
