@@ -83,7 +83,7 @@ class PredictionsCog(commands.Cog):
 
 
     @commands.command()
-    @commands.cooldown(1, 60, commands.BucketType.default)
+    @commands.cooldown(1, 30, commands.BucketType.default)
     async def leaderboard(self, ctx: commands.Context):
         '''
         Show leaderboard

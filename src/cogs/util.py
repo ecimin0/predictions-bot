@@ -81,7 +81,7 @@ class UtilCog(commands.Cog):
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
-        label = "user"
+        label = "feedback"
         for feedback_type in ["bug", "request", "feedback"]:
             if f"+{feedback_type}" in ctx.message.content:
                 feedback_type = feedback_type
@@ -108,7 +108,7 @@ class UtilCog(commands.Cog):
         output = "**Open Issues:**\n"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"https://gitlab.com/api/v4/projects/15728299/issues?labels=user&state=opened", headers={'PRIVATE-TOKEN': os.environ.get('GITLAB_API', None)}, timeout=30) as resp:
+                async with session.get(f"https://gitlab.com/api/v4/projects/15728299/issues?labels=feedback&state=opened", headers={'PRIVATE-TOKEN': os.environ.get('GITLAB_API', None)}, timeout=30) as resp:
                     issues = await resp.json()
             for issue in issues:
                 all_issues.append(issue)

@@ -44,7 +44,7 @@ class UserCog(commands.Cog):
     @commands.command()
     async def remindme(self, ctx):
         '''
-        Toggle prediction reminders on/off
+        Toggle reminders; sent 2h before kickoff if predicted 1 out of 2 past matches
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         await checkUserExists(self.bot, ctx.message.author.id, ctx)

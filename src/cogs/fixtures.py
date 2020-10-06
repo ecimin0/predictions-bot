@@ -80,7 +80,7 @@ class FixturesCog(commands.Cog):
 
         await makePaged(self.bot, ctx, paged_results)
 
-    @commands.command()
+    @commands.command(aliases=["table"])
     @commands.cooldown(1, 60, commands.BucketType.default)
     async def pltable(self, ctx: commands.Context):
         '''
