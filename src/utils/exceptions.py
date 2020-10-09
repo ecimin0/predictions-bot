@@ -1,5 +1,7 @@
 from discord.ext import commands
 
+class TooManyResults(Exception):
+    pass
 
 class PleaseTellMeAboutIt(Exception):
     pass

@@ -6,7 +6,7 @@ from typing import Union
 from utils.exceptions import *
 from utils.utils import isAdmin
 
-class AdminCog(commands.Cog):
+class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
 
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot
@@ -18,7 +18,7 @@ class AdminCog(commands.Cog):
             raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
 
        
-    @commands.command(name='list_cogs', hidden=True)
+    @commands.command(name='list_cogs')
     async def list_cogs(self, ctx: commands.Context):
         output = ""
         for cog in self.bot.cogs:
@@ -26,7 +26,7 @@ class AdminCog(commands.Cog):
         await ctx.send(output) 
         
 
-    @commands.command(name='load', hidden=True)
+    @commands.command(name='load')
     async def load(self, ctx: commands.Context, *, cog: str):
         """Command which Loads a Module.
         Remember to use dot path. e.g: cogs.owner"""
@@ -38,7 +38,7 @@ class AdminCog(commands.Cog):
         else:
             await ctx.send('**`SUCCESS`**')
 
-    @commands.command(name='unload', hidden=True)
+    @commands.command(name='unload')
     async def unload(self, ctx: commands.Context, *, cog: str):
         """Command which Unloads a Module.
         Remember to use dot path. e.g: cogs.owner"""
@@ -50,7 +50,7 @@ class AdminCog(commands.Cog):
         else:
             await ctx.send('**`SUCCESS`**')
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def userLookup(self, ctx: commands.Context, *input_str:str):
         '''
         Return possible user matches and user ID
@@ -72,7 +72,7 @@ class AdminCog(commands.Cog):
                     output += f"{user.display_name} | {user.id}\n"
                 await ctx.send(f"{output}")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def messageLookup(self, ctx: commands.Context, input_id: int):
         '''
         Return message ID and ID of message author
@@ -94,7 +94,7 @@ class AdminCog(commands.Cog):
         else:
             await ctx.send(f"Message id {id_to_lookup} | Author: {output.author.id}")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def addNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname: str):
         '''
         Add a nickname to database | +addNickname (player|team) <id> <nickname string>
@@ -115,7 +115,7 @@ class AdminCog(commands.Cog):
         except asyncpg.DataError as e:
             await ctx.send(f"Unable to add nickname: `{nickname}` for id {id} status: `{e}`")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def removeNickname(self, ctx: commands.Context, nicknameType:str, id:int, nickname:str):
         '''
         Remove a nickname from database | +removeNickname (player|team) <id> <nickname string>
@@ -136,7 +136,7 @@ class AdminCog(commands.Cog):
         except asyncpg.DataError as e:
             await ctx.send(f"Unable to add nickname: `{nickname}` for id {id} status: `{e}`")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def listPlayers(self, ctx: commands.Context):
         '''
         list nicknames in database
@@ -157,7 +157,7 @@ class AdminCog(commands.Cog):
         else:
             await ctx.send(f"{ctx.message.author.mention}\nCan only view nicknames/id for `player` and `team`.")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def disable(self, ctx: commands.Context, command_name: str):
         '''
         Disables a function/command | +disable <function name>
@@ -169,7 +169,7 @@ class AdminCog(commands.Cog):
             await ctx.send(f"Disabled your shit. {command_name}")
             return
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def enable(self, ctx: commands.Context, command_name: str):
         '''
         Enables a function/command | +disable <function name>

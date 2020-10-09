@@ -8,7 +8,7 @@ from tabulate import tabulate
 from typing import Optional
 import os
 
-class UtilCog(commands.Cog):
+class Utilities(commands.Cog, name="Utility"): # type: ignore
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot
         self.rules_set: str = \
@@ -77,7 +77,7 @@ class UtilCog(commands.Cog):
     @commands.cooldown(1, 21600, commands.BucketType.user)
     async def feedback(self, ctx: commands.Context, *, feedback: Optional[str]):
         '''
-        Feedback function | leave a short feedback message
+        Open an issue on GitLab | +feedback +bug +request
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
@@ -120,4 +120,4 @@ class UtilCog(commands.Cog):
             log.debug("Error getting issues", all_issues)
 
 def setup(bot):
-    bot.add_cog(UtilCog(bot))
+    bot.add_cog(Utilities(bot))

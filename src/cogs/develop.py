@@ -5,7 +5,7 @@ from discord.ext import commands
 from utils.exceptions import *
 from typing import List, Union, Mapping
 
-class DevelopCog(commands.Cog):
+class DevelopCog(commands.Cog): # type: ignore
 
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot

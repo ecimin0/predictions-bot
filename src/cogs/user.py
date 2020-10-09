@@ -6,14 +6,14 @@ import re
 from utils.exceptions import *
 from utils.utils import getUserTimezone, checkUserExists
 
-class UserCog(commands.Cog):
+class UserFunctions(commands.Cog, name="User Functions"): # type: ignore
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot
 
-    @commands.command()
+    @commands.command(aliases=["tz"])
     async def timezone(self, ctx):
         '''
-        Change timezone | +timezone Europe/London
+        Change timezone | +timezone Europe/London | https://stackoverflow.com/questions/13866926/is-there-a-list-of-pytz-timezones
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
@@ -59,4 +59,4 @@ class UserCog(commands.Cog):
             log.debug("Failed to update notifcation preference")
 
 def setup(bot):
-    bot.add_cog(UserCog(bot))
+    bot.add_cog(UserFunctions(bot))

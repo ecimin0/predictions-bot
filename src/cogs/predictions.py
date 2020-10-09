@@ -9,8 +9,9 @@ import asyncio
 
 from utils.utils import *
 from utils.exceptions import *
-from typing import List, Dict
-class PredictionsCog(commands.Cog):
+from typing import List, Dict, Optional
+
+class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
     def __init__(self, bot):
         self.bot = bot
 
@@ -86,7 +87,7 @@ class PredictionsCog(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.default)
     async def leaderboard(self, ctx: commands.Context):
         '''
-        Show leaderboard
+        Show leaderboard | Once every 30 seconds
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         # embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description="\u200b", color=embed_color)
@@ -169,7 +170,7 @@ class PredictionsCog(commands.Cog):
     @commands.command(brief="Make a prediction.")
     async def predict(self, ctx: commands.Context, *, prediction: str):
         '''
-        Make a new prediction | +predict 1-1 auba fgs
+        Make a new prediction | +predict 1-1 auba fgs, laca | Type scores as home - away.'
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
@@ -224,29 +225,29 @@ class PredictionsCog(commands.Cog):
             scorer_properties = []
 
             player_scores: Dict[int, Dict] = {}
-            
+            first_player: Optional[int] = None
             for player in scorers:
                 if not player:
                     continue
 
                 fgs = False
                 num_goals = 1
+                fgs_str = ""
 
                 if re.search("[fF][gG][sS]", player) or len(scorers) == 1:
                     fgs = True
                     player = re.sub("[fF][gG][sS]", "", player)
+                    fgs_str = "fgs"
 
                 goals_scored = re.search(r'[xX]?(\d)[xX]?', player)
                 if goals_scored:
                     player = re.sub(r'[xX]?(\d)[xX]?', "", player)
                     num_goals = int(goals_scored.group(1))
 
-                fgs_str = ""
-                if fgs:
-                    fgs_str = "fgs"
-
                 try:
                     player_id = await getPlayerId(self.bot, player.strip())
+                    if not first_player:
+                        first_player = player_id
                     player_real_name = await self.bot.db.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1;", player_id)
                     real_name = player_real_name.get("player_name")
                 except Exception as e:
@@ -264,12 +265,17 @@ class PredictionsCog(commands.Cog):
                         player_scores[player_id]["fgs"] = True
                         player_scores[player_id]["fgs_string"] = "fgs"
 
+            if not any([score.get('fgs') for score in player_scores.values()]) and first_player:
+                player_scores[first_player]["fgs"] = True
+                player_scores[first_player]["fgs_string"] = "fgs"
+
             log.debug(player_scores)
 
             scorer_properties = [player for player in player_scores.values()]
             if len([player for player in player_scores.values() if player.get("fgs")]) > 1:
                 await ctx.send(f"{ctx.message.author.mention}\nTwo players cannot be first goal scorer, predict again.")
                 return
+
 
         except Exception as e:
             log.exception(f"{e}")
@@ -342,4 +348,4 @@ class PredictionsCog(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(PredictionsCog(bot))
+    bot.add_cog(Predictions(bot))

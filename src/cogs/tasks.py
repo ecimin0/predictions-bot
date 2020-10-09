@@ -8,7 +8,7 @@ from utils.exceptions import *
 from utils.utils import *
 from typing import Dict
 
-class TasksCog(commands.Cog):
+class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot

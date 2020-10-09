@@ -2,83 +2,114 @@ import discord
 import datetime as dt
 from discord.ext import commands
 from tabulate import tabulate
+from utils.exceptions import *
 from utils.utils import getTeamId, formatMatch, nextMatches, getStandings, formatStandings, checkUserExists, getUserTimezone, prepareTimestamp, completedMatches, makePaged
-from typing import Mapping, List
+from typing import Mapping, List, Union, Optional
 
-class FixturesCog(commands.Cog):
+class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
 
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot
 
-    @commands.command()
-    async def when(self, ctx: commands.Context):
+    # @commands.command()
+    # async def when(self, ctx: commands.Context, msg: Optional[Union[int, str]]):
+    #     '''
+    #     Return next match against given team | +when <team>
+    #     '''
+    #     # msg: str = ctx.message.content
+    #     try:
+    #         team = msg.split(" ", 1)[1]
+    #     except: 
+    #         await ctx.send("Missing a team!")
+    #         return
+
+    #     try:
+    #         team_id = await getTeamId(self.bot, team)
+    #         if team_id == self.bot.main_team:
+    #             await ctx.send(f"You are on the channel for the {team}, we cannot play against ourselves.")
+    #             return
+    #     except:
+    #         self.bot.logger.exception()
+    #         await ctx.send(f"{ctx.message.author.mention}\n{team} does not seem to be a team I recognize.")
+    #         return
+
+    #     next_match = await self.bot.db.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {self.bot.main_team} AND away = $1) OR (away = {self.bot.main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
+    #     next_match = await formatMatch(self.bot, next_match, ctx.message.author.id)
+    #     await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
+
+
+    @commands.command(aliases=["fixtures", "when"])
+    async def next(self, ctx: commands.Context, *, msg: Optional[Union[int, str]]):
         '''
-        Return next match against given team | +when <team>
-        '''
-        msg: str = ctx.message.content
-        try:
-            team = msg.split(" ", 1)[1]
-        except: 
-            await ctx.send("Missing a team!")
-            return
-
-        try:
-            team_id = await getTeamId(self.bot, team)
-            if team_id == self.bot.main_team:
-                await ctx.send(f"You are on the channel for the {team}, we cannot play against ourselves.")
-                return
-        except:
-            self.bot.logger.exception()
-            await ctx.send(f"{ctx.message.author.mention}\n{team} does not seem to be a team I recognize.")
-            return
-
-        next_match = await self.bot.db.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {self.bot.main_team} AND away = $1) OR (away = {self.bot.main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
-        next_match = await formatMatch(self.bot, next_match, ctx.message.author.id)
-        await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
-
-
-    @commands.command(aliases=["fixtures"])
-    async def next(self, ctx: commands.Context):
-        '''
-        Next <number> matches | +next 3
+        Upcoming matches or next match against another side | [+next 3 | +next wolves]
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        msg: str = ctx.message.content
+        # msg: str = ctx.message.content
 
-        split_msg = msg.split()
-        output_array = []
-        if len(split_msg) > 2:
-            await ctx.send(f"{ctx.message.author.mention}\nToo many arguments; should be '+next 2' or similar")
-            return
+        if type(msg) == int or not msg:
+            # split_msg = msg.split()
+            output_array = []
+            # if len(split_msg) > 2:
+            #     await ctx.send(f"{ctx.message.author.mention}\nToo many arguments; should be '+next 2' or similar")
+            #     return
 
-        elif len(split_msg) > 1:
-            count_str = split_msg[1]
+            # elif len(split_msg) > 1:
+            #     count_str = split_msg[1]
+            #     try:
+            #         count: int = int(count_str)
+            #     except:
+            #         await ctx.send(f"{ctx.message.author.mention}\nExpected usage:\n`+next [1-10]`")
+            #         return
+            if not msg:
+                count = 2
+            else:
+                count = int(msg)
+                
+            if count <= 0:
+                await ctx.send(f"{ctx.message.author.mention}\nNumber of next matches cannot be a negative number")
+            elif count >= 20:
+                await ctx.send(f"{ctx.message.author.mention}\nNumber of next matches cannot be greater than 20")
+            else:
+                try:
+                    next_matches = await nextMatches(self.bot, count=count)
+                except Exception:
+                    log.exception("Error retrieving nextMatches from database")
+                output = f"{ctx.message.author.mention}\n**Next {count} matches:**\n\n"
+                for match in next_matches:
+                    output_array.append(await formatMatch(self.bot, match, ctx.message.author.id))
+
+            paged_results = []
+            for i in range(0, len(output_array), self.bot.step):
+                paged_results.append(output + ''.join(output_array[i:i+self.bot.step]))
+
+            await makePaged(self.bot, ctx, paged_results)
+        elif type(msg) == str:
+            # try:
+            #     team = msg.split(" ", 1)[1]
+            # except: 
+            #     await ctx.send("Missing a team!")
+            #     return
+            team = str(msg)
             try:
-                count: int = int(count_str)
-            except:
-                await ctx.send(f"{ctx.message.author.mention}\nExpected usage:\n`+next [1-10]`")
+                team_id = await getTeamId(self.bot, team)
+                if team_id == self.bot.main_team:
+                    await ctx.send(f"You are on the channel for {team.capitalize()}, we cannot play against ourselves.")
+                    return
+            except TooManyResults as e:
+                log.exception()
+                await ctx.send(f"{ctx.message.author.mention}\n{e}")
                 return
-        else: 
-            count = 2
-            
-        if count <= 0:
-            await ctx.send(f"{ctx.message.author.mention}\nNumber of next matches cannot be a negative number")
-        elif count > 30:
-            await ctx.send(f"{ctx.message.author.mention}\nNumber of next matches cannot be greater than 10")
-        else:
-            try:
-                next_matches = await nextMatches(self.bot, count=count)
             except Exception:
-                log.exception("Error retrieving nextMatches from database")
-            output = f"{ctx.message.author.mention}\n**Next {count} matches:**\n\n"
-            for match in next_matches:
-                output_array.append(await formatMatch(self.bot, match, ctx.message.author.id))
+                log.exception()
+                await ctx.send(f"{ctx.message.author.mention}\n{team} does not seem to be a team I recognize.")
+                return
 
-        paged_results = []
-        for i in range(0, len(output_array), self.bot.step):
-            paged_results.append(output + ''.join(output_array[i:i+self.bot.step]))
-
-        await makePaged(self.bot, ctx, paged_results)
+            next_match = await self.bot.db.fetchrow(f"SELECT {self.bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {self.bot.main_team} AND away = $1) OR (away = {self.bot.main_team} AND home = $1)) ORDER BY event_date LIMIT 1", team_id)
+            if not next_match:
+                await ctx.send(f"{ctx.message.author.mention}\n{self.bot.main_team_name} does not have any upcoming matches against {team}.")
+            else:
+                next_match = await formatMatch(self.bot, next_match, ctx.message.author.id)
+                await ctx.send(f"{ctx.message.author.mention}\n{next_match}")
 
     @commands.command(aliases=["table"])
     @commands.cooldown(1, 60, commands.BucketType.default)
@@ -102,7 +133,7 @@ class FixturesCog(commands.Cog):
     @commands.command()
     async def results(self, ctx: commands.Context):
         '''
-        Return historical match results
+        Return past fixture results
         '''
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
         user_tz: dt.tzinfo = await getUserTimezone(self.bot, ctx.message.author.id)
@@ -127,4 +158,4 @@ class FixturesCog(commands.Cog):
         # await ctx.send(f"{ctx.message.author.mention}\n**Past Match Results**\n\n{done_matches_output_str}")
 
 def setup(bot):
-    bot.add_cog(FixturesCog(bot))
+    bot.add_cog(Fixtures(bot))

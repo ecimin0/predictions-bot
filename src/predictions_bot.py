@@ -33,12 +33,13 @@ class Bot(commands.Bot):
         super().__init__(
             description=kwargs.pop("description"),
             command_prefix=kwargs.pop("prefix"),
-            help_command=None
+            help_command=commands.DefaultHelpCommand(dm_help=True)
         )
         self.db = db
         self.testing_mode = kwargs.pop("testing_mode")
         self.admin_ids = kwargs.pop("admin_ids")
         self.main_team = kwargs.pop("main_team")
+        self.main_team_name = kwargs.pop("main_team_name")
         self.logger = kwargs.pop("logger")
         self.api_key = kwargs.pop("api_key")
         self.tracing = kwargs.pop("tracing", False)
@@ -48,7 +49,7 @@ class Bot(commands.Bot):
         self.channel = kwargs.pop("channel")
         self.gitlab_api = kwargs.pop("gitlab_api")
         self.step = kwargs.pop("step", 5)
-        self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = 42 THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = 42 THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short, notifications_sent"
+        self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = {self.main_team} THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = {self.main_team} THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short, notifications_sent"
 
     async def close(self):
         await self.notifyAdmin("Closing bot connection to discord and postgres")
@@ -73,7 +74,19 @@ class Bot(commands.Bot):
         if message.author == self.user:
             return
         if type(message.channel) == discord.DMChannel:
-            await message.channel.send("Don't talk to me here.")
+            if "+help" in message.content:
+                t0= time.perf_counter()
+                await self.process_commands(message)
+                if self.tracing:
+                    duration = time.perf_counter() - t0
+                    self.logger.debug(performance=duration,channel="DM", author=message.author.name, author_id=message.author.id, content=message.content)
+
+            else:
+                channel_str = ""
+                for channel in self.get_all_channels():
+                    if channel.name == self.channel:
+                        channel_str = channel.mention
+                await message.channel.send(f"I only respond to help commands in DMs. Everything else needs to be in the {channel_str} channel.")
             return
         if message.channel.name == self.channel or message.channel.name == "Channel_0":
             self.logger.info("Received message", channel=message.channel.name, author=message.author.name, author_id=message.author.id, content=message.content)
@@ -199,6 +212,7 @@ else:
 
 # API team id to use as 'main' team
 main_team = 42 # arsenal
+main_team_name = "Arsenal"
 main_league = 2790
 
 token = os.environ.get("TOKEN", None)
@@ -211,11 +225,12 @@ if not token:
 credentials = {"user": aws_dbuser, "password": aws_dbpass, "database": aws_dbname, "host": aws_db_ip}
 
 options = {
-    "description": "this bot is for the purpose of predicting the future",
+    "description": "**Arsenal Discord Prediction League Bot**",
     "testing_mode": testing_mode,
     # "admin_ids": [],
     "admin_ids": [260908554758782977, 249231078303203329],
     "main_team": main_team,
+    "main_team_name": main_team_name,
     "logger": logger,
     "api_key": api_key,
     "league_dict": league_dict,
@@ -258,35 +273,35 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     bot = loop.run_until_complete(init(credentials, options, token, cogs))
 
-    @bot.command()
-    async def help(ctx):
-        '''
-        This help message
-        '''
-        log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        output = []
-        adminOutput = []
-        tabulate.PRESERVE_WHITESPACE = True
-        for com, value in bot.all_commands.items():
-            if not value.hidden:
-                output.append(["\t", com, value.help])
-            elif value.hidden:
-                adminOutput.append(["\t", com, value.help])
+    # @bot.command()
+    # async def help(ctx):
+    #     '''
+    #     This help message
+    #     '''
+    #     log = logger.bind(content=ctx.message.content, author=ctx.message.author.name)
+    #     output = []
+    #     adminOutput = []
+    #     tabulate.PRESERVE_WHITESPACE = True
+    #     for com, value in bot.all_commands.items():
+    #         if not value.hidden:
+    #             output.append(["\t", com, value.help])
+    #         elif value.hidden:
+    #             adminOutput.append(["\t", com, value.help])
 
-        output = tabulate(output, tablefmt="plain")
-        adminOutput = tabulate(adminOutput, tablefmt="plain")
+    #     output = tabulate(output, tablefmt="plain")
+    #     adminOutput = tabulate(adminOutput, tablefmt="plain")
         
-        user = bot.get_user(ctx.author.id)
+    #     user = bot.get_user(ctx.author.id)
 
-        try:
-            if ctx.author.id in bot.admin_ids:
-                await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
-            else:
-                await user.send(f"```Available Commands:\n{output}```")
-        except discord.Forbidden:
-            log.exception("user either blocked bot or disabled DMs")
-        except Exception:
-            log.exception("error sending help command to user")
+    #     try:
+    #         if ctx.author.id in bot.admin_ids:
+    #             await user.send(f"```Available Commands:\n{output}```\n```Available Administrative Commands:\n{adminOutput}```")
+    #         else:
+    #             await user.send(f"```Available Commands:\n{output}```")
+    #     except discord.Forbidden:
+    #         log.exception("user either blocked bot or disabled DMs")
+    #     except Exception:
+    #         log.exception("error sending help command to user")
 
     bot.run(token)
 # except KeyboardInterrupt:

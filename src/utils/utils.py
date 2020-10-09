@@ -37,7 +37,7 @@ async def getMatch(bot: commands.Bot, fixture_id: int) -> asyncpg.Record:
     return match
 
 async def getRandomTeam(bot: commands.Bot) -> str:
-    team = await bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id != 42 ORDER BY random() LIMIT 1;")
+    team = await bot.db.fetchrow(f"SELECT * FROM predictionsbot.teams WHERE team_id != {bot.main_team} ORDER BY random() LIMIT 1;")
     return team.get("name")
 
 async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context) -> Optional[bool]:
@@ -81,10 +81,18 @@ async def getUserPredictedLastMatches(bot: commands.Bot) -> List[asyncpg.Record]
     return users
 
 async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
-    player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
-    if not player:
+    # player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
+    player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} AND (exists (select 1 from unnest(nicknames) as name where unaccent(name) like $1) OR unaccent(lastname) ILIKE $1 OR unaccent(firstname) ILIKE $1);", f"%{userInput}%")
+    if not player_obj:
         raise Exception(f"no player named {userInput}")
-    return player.get("player_id")
+    elif len(player_obj) > 1:
+        # if exactly matches a  nickname then prefer this one
+        for player in player_obj:
+            if userInput.lower() in player.get("nicknames"):
+                return player.get("player_id")
+        player_str = "\n".join([f"  - {player.get('player_name')}" for player in player_obj])
+        raise Exception(f"`{userInput}` matches more than 1 player, you need to be more specific.\n**Matched Players:**\n{player_str}")
+    return player_obj[0].get("player_id")
 
 async def playerNames(bot: commands.Bot, userInput: str) -> List[str]:
     if len(userInput) >= 3:
@@ -93,10 +101,20 @@ async def playerNames(bot: commands.Bot, userInput: str) -> List[str]:
     return([])
 
 async def getTeamId(bot: commands.Bot, userInput: str) -> int:
-    player = await bot.db.fetchrow("SELECT team_id FROM predictionsbot.teams WHERE $1 = ANY(nicknames);", userInput.lower())
-    if not player:
+    team_obj = await bot.db.fetch("SELECT team_id, name, nicknames FROM predictionsbot.teams WHERE (EXISTS (select 1 from unnest(nicknames) as nickname where unaccent(nickname) like $1) OR unaccent(name) ILIKE $1);", f"%{userInput}%")
+    if not team_obj:
         raise Exception(f"no team named {userInput}")
-    return player.get("team_id")
+    elif len(team_obj) > 1:
+        # if exactly matches a  nickname then prefer this one
+        for team in team_obj:
+            if team.get("nicknames") and userInput.lower() in team.get("nicknames"):
+                return team.get("team_id")
+        if len(team_obj) < 10:
+            team_str = "\n".join([f"  - {team.get('name')}" for team in team_obj])
+            raise TooManyResults(f"`{userInput}` matches more than 1 team, you need to be more specific.\n**Matched Teams:**\n{team_str}")
+        elif len(team_obj) >= 10:
+            raise TooManyResults(f"`{userInput}` matches more than 10 teams, you need to be more specific.")
+    return team_obj[0].get("team_id")
 
 async def getUserTimezone(bot: commands.Bot, user: int) -> dt.tzinfo:
     user_tz = await bot.db.fetchrow(f"SELECT tz FROM predictionsbot.users WHERE user_id = $1;", user)
