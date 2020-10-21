@@ -26,9 +26,6 @@ class DevelopCog(commands.Cog): # type: ignore
         # emoji_list = sorted(emojis)
         emoji_list = "\n".join(emojis)
         output = f'{emoji_list}'
-        # for emoji in emojis:
-        #     # print(emoji)
-        #     emoji_list.append(f"{emoji.name}")
         await ctx.send(output)
 
 

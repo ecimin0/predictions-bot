@@ -13,23 +13,23 @@ import string
 import random
 from typing import Mapping
 
-async def getFixturesWithPredictions(bot: commands.Bot) -> List:
-    fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id GROUP BY f.fixture_id ORDER BY f.event_date DESC")
+async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
+    fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id AND guild_id = $1 GROUP BY f.fixture_id ORDER BY f.event_date DESC", ctx.guild.id)
     return fixtures
 
-async def getUserRank(bot: commands.Bot, user_id: int) -> int:
+async def getUserRank(bot: commands.Bot, ctx: commands.Context) -> int:
     user_rank = 0
-    ranks = await bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+    ranks = await bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL AND guild_id = $1 GROUP BY user_id ORDER BY SUM(prediction_score) DESC", ctx.guild.id)
     for rank in ranks:
-        if rank.get("user_id") == user_id:
+        if rank.get("user_id") == ctx.message.author.id:
             user_rank = rank.get("rank")
     return user_rank
 
-async def getUserPredictions(bot: commands.Bot, user_id: int) -> List[asyncpg.Record]:
+async def getUserPredictions(bot: commands.Bot, ctx: commands.Context) -> List[asyncpg.Record]:
     '''
     Return the last 10 predictions by user
     '''
-    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10;", user_id)
+    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND guild_id = $2 ORDER BY timestamp DESC LIMIT 10;", ctx.message.author.id, ctx.guild.id)
     return predictions
 
 async def getMatch(bot: commands.Bot, fixture_id: int) -> asyncpg.Record:
@@ -72,6 +72,7 @@ async def completedMatches(bot: commands.Bot, count: int=1, offset: int=0) -> Li
     matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
+# todo will need context eventually
 async def getUsersPredictionCurrentMatch(bot: commands.Bot) -> List[asyncpg.Record]:
     users = await bot.db.fetch(f"SELECT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1)")
     return users
@@ -82,11 +83,11 @@ async def getUserPredictedLastMatches(bot: commands.Bot) -> List[asyncpg.Record]
 
 async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
     # player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
-    player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} AND (exists (select 1 from unnest(nicknames) as name where unaccent(name) like $1) OR unaccent(lastname) ILIKE $1 OR unaccent(firstname) ILIKE $1);", f"%{userInput}%")
+    player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} AND (exists (SELECT 1 FROM unnest(nicknames) AS name WHERE unaccent(name) ILIKE $1) OR unaccent(lastname) ILIKE $1 OR unaccent(firstname) ILIKE $1);", f"%{userInput}%")
     if not player_obj:
         raise Exception(f"no player named {userInput}")
     elif len(player_obj) > 1:
-        # if exactly matches a  nickname then prefer this one
+        # if input exactly matches a nickname then prefer results with nicknames
         for player in player_obj:
             if userInput.lower() in player.get("nicknames"):
                 return player.get("player_id")
@@ -105,7 +106,7 @@ async def getTeamId(bot: commands.Bot, userInput: str) -> int:
     if not team_obj:
         raise Exception(f"no team named {userInput}")
     elif len(team_obj) > 1:
-        # if exactly matches a  nickname then prefer this one
+        # if input exactly matches a nickname then prefer results with nicknames
         for team in team_obj:
             if team.get("nicknames") and userInput.lower() in team.get("nicknames"):
                 return team.get("team_id")
@@ -240,13 +241,13 @@ def formatStandings(standings: List[Mapping]) -> str:
     standings_formatted = []
     for standing in standings:
         # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
-        standings_formatted.append([standing["rank"], standing["teamName"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["points"]])
+        standings_formatted.append([standing["rank"], standing["teamName"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["points"]])
 
-    return tabulate(standings_formatted, headers=["Rank", "Team", "W-D-L", "GD", "Pts"], tablefmt="github")
+    return tabulate(standings_formatted, headers=["Rank", "Team", "P", "W-D-L", "GD", "Pts"], tablefmt="github")
 
 
 def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
-    # likeness of bools of these comparisons
+    # list of Boolean evaluations of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
         fixture1.get("home") == fixture2.get("home"),
@@ -260,7 +261,7 @@ def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
     return not all(likeness)
 
 def changesExistLeague(league1: Mapping, league2: Mapping) -> bool:
-    # likeness of bools of these comparisons
+    # list of Boolean evaluations of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
         league1.get("name") == league2.get("name"),
@@ -271,7 +272,7 @@ def changesExistLeague(league1: Mapping, league2: Mapping) -> bool:
     return not all(likeness)
 
 def changesExistPlayer(player1: Mapping, player2: Mapping) -> bool:
-    # likeness of bools of these comparisons
+    # list of Boolean evaluations of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
         player1.get("lastname") == player2.get("lastname"),
@@ -282,7 +283,7 @@ def changesExistPlayer(player1: Mapping, player2: Mapping) -> bool:
     return not all(likeness)
 
 def changesExistTeam(team1: Mapping, team2: Mapping) -> bool:
-    # likeness of bools of these comparisons
+    # list of Boolean evaluations of these comparisons
     # all() returns True if all elements of likeness are True
     likeness = [
         team1.get("name") == team2.get("name"),
@@ -340,7 +341,7 @@ async def makePagedEmbed(bot, ctx, paginated_data):
                 # embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
                 # embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
                 first_run = False
-                msg = await ctx.send(embed=embed)
+                msg = await ctx.send(f"{ctx.message.author.mention}", embed=embed)
 
             reactmoji = []
             if max_page == 0 and num == 0:

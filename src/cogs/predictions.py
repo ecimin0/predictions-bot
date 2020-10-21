@@ -23,9 +23,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
 
         #compare all fixtures with predictions to user predictions
-        predictions = await getUserPredictions(self.bot, ctx.message.author.id)
-        fixtures = await getFixturesWithPredictions(self.bot)
-        rank = await getUserRank(self.bot, ctx.message.author.id)
+        predictions = await getUserPredictions(self.bot, ctx)
+        fixtures = await getFixturesWithPredictions(self.bot, ctx)
+        rank = await getUserRank(self.bot, ctx)
         # print(rank)
 
         if not predictions:
@@ -35,7 +35,6 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         paginated_data = []
 
         color = getArsenalColor()
-
 
         total = 0
         offset = 0
@@ -95,9 +94,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
 
         # if need to change the way the tied users are displayed change "RANK()" to "DENSE_RANK()"
         try:
-            leaderboard = await self.bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL GROUP BY user_id ORDER BY SUM(prediction_score) DESC")
+            leaderboard = await self.bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL AND guild_id = $1 GROUP BY user_id ORDER BY SUM(prediction_score) DESC", ctx.guild.id)
         except Exception:
-            log.error("Failed to retrieve predictions leaderboard from database")
+            log.exception("Failed to retrieve predictions leaderboard from database")
 
         prediction_dictionary: Dict[int, List] = {}
         # embed_dictionary = {}
@@ -117,7 +116,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         rank_num = 1
         paginated_data = []
         color = getArsenalColor()
-        output_paged_atrray = []
+        output_paged_array = []
         for v in prediction_dictionary.values():
             # current_embed = embed_dictionary.get(k)
             output_array = []
@@ -125,7 +124,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                 try:
                     # for user in all_members:
                     #     if user.id == user_prediction.get("user_id"):
-                    user = self.bot.get_user(user_prediction.get("user_id"))
+
+                    user = ctx.guild.get_member(user_prediction.get("user_id"))
+                    # user = self.bot.get_user(user_prediction.get("user_id"))
                     # self.bot.logger.debug(user=user, rank=user_prediction.get("rank"))
                     if user:
                         self.bot.logger.debug(user_id=user_prediction.get("user_id"), rank=user_prediction.get("rank"))
@@ -139,29 +140,29 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             self.bot.logger.debug(output_array)
             output_str = "\n".join(output_array)
             self.bot.logger.debug(output_str)
-            output_paged_atrray.append({"name": f"{makeOrdinal(rank_num)}: {user_prediction.get('score')} Points", "value": output_str})
+            output_paged_array.append({"name": f"{makeOrdinal(rank_num)}: {user_prediction.get('score')} Points", "value": output_str})
         
-            if len(output_paged_atrray) == self.bot.step:        
+            if len(output_paged_array) == self.bot.step:        
                 paginated_data.append({
                     "title": "**Arsenal Prediction League Leaderboard**", 
                     "description": "", 
                     # "description": f"{rank_num}/{len(prediction_dictionary)}", 
                     "color": color, 
                     "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
-                    "fields": output_paged_atrray
+                    "fields": output_paged_array
                     })
-                output_paged_atrray = []
+                output_paged_array = []
 
             # paginated_data.append({"rank": f"{rank_num}", "rank_score": f"{user_prediction.get('score')}", "leaders": f"{output_str}"})
             rank_num += 1
-        if output_paged_atrray:
+        if output_paged_array:
             paginated_data.append({
                     "title": "**Arsenal Prediction League Leaderboard**", 
                     "description": "", 
                     # "description": f"{rank_num}/{len(prediction_dictionary)}", 
                     "color": color, 
                     "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
-                    "fields": output_paged_atrray
+                    "fields": output_paged_array
                     })
 
         await makePagedEmbed(self.bot, ctx, paginated_data)
@@ -320,12 +321,12 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                         schema='pg_catalog'
                     )
                     try:
-                        prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2", ctx.message.author.id, fixture_id)
+                        prev_prediction = await connection.fetchrow("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND fixture_id = $2 AND guild_id = $3", ctx.message.author.id, fixture_id, ctx.guild.id)
                         if prev_prediction:
                             successful_or_updated = "updated"
-                            await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6", prediction_string, home_goals, away_goals, scorer_properties, ctx.message.author.id, fixture_id)
+                            await connection.execute(f"UPDATE predictionsbot.predictions SET prediction_string = $1, home_goals = $2, away_goals = $3, scorers = $4::json, timestamp = now() WHERE user_id = $5 AND fixture_id = $6 AND guild_id = $7", prediction_string, home_goals, away_goals, scorer_properties, ctx.message.author.id, fixture_id, ctx.guild.id)
                         else:
-                            await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers) VALUES ($1, $2, $3, $4, $5, $6, $7);", prediction_id, ctx.message.author.id, prediction_string, fixture_id, home_goals, away_goals, scorer_properties)
+                            await connection.execute("INSERT INTO predictionsbot.predictions (prediction_id, user_id, prediction_string, fixture_id, home_goals, away_goals, scorers, guild_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);", prediction_id, ctx.message.author.id, prediction_string, fixture_id, home_goals, away_goals, scorer_properties, ctx.guild.id)
                     except Exception as e:
                         log.exception("Error adding prediction")
                         await ctx.send(f"{ctx.message.author.mention}\nThere was an error adding your prediction, please try again later.")

@@ -33,6 +33,7 @@ class Bot(commands.Bot):
         super().__init__(
             description=kwargs.pop("description"),
             command_prefix=kwargs.pop("prefix"),
+            case_insensitive=True,
             help_command=commands.DefaultHelpCommand(dm_help=True)
         )
         self.db = db
@@ -213,7 +214,7 @@ else:
 # API team id to use as 'main' team
 main_team = 42 # arsenal
 main_team_name = "Arsenal"
-main_league = 2790
+main_league = 2790 # ID of team's main domestic league
 
 token = os.environ.get("TOKEN", None)
 if not token:
@@ -227,7 +228,6 @@ credentials = {"user": aws_dbuser, "password": aws_dbpass, "database": aws_dbnam
 options = {
     "description": "**Arsenal Discord Prediction League Bot**",
     "testing_mode": testing_mode,
-    # "admin_ids": [],
     "admin_ids": [260908554758782977, 249231078303203329],
     "main_team": main_team,
     "main_team_name": main_team_name,

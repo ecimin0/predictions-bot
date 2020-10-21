@@ -17,7 +17,10 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         else:
             raise IsNotAdmin(f"User {ctx.message.author.name} is not an admin and cannot use this function.")
 
-       
+    @commands.command()
+    async def show_guild_id(self, ctx: commands.Context):
+        await ctx.send(f"{ctx.guild.id}") 
+
     @commands.command(name='list_cogs')
     async def list_cogs(self, ctx: commands.Context):
         output = ""
@@ -25,7 +28,6 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
             output += f"{cog}\n"
         await ctx.send(output) 
         
-
     @commands.command(name='load')
     async def load(self, ctx: commands.Context, *, cog: str):
         """Command which Loads a Module.
