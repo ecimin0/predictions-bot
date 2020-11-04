@@ -76,7 +76,7 @@ class Bot(commands.Bot):
             return
         if type(message.channel) == discord.DMChannel:
             if "+help" in message.content:
-                t0= time.perf_counter()
+                t0 = time.perf_counter()
                 await self.process_commands(message)
                 if self.tracing:
                     duration = time.perf_counter() - t0

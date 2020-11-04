@@ -454,3 +454,8 @@ async def makePaged(bot: commands.Bot, ctx: commands.Context, paginated_data: Li
             bot.logger.exception("Error creating or reacting to paged function")
             break
 
+async def sendScoreNotification(bot: commands.Bot):
+    await bot.wait_until_ready()
+    channel = bot.get_channel(652580035483402250)
+    bot.logger.info(channel)
+    await channel.send('hello')

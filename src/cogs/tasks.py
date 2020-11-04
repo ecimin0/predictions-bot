@@ -296,92 +296,99 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     raise PleaseTellMeAboutIt(f"error retrieving scorable fixture: {fix}")
 
             log.debug("Predictions to score", predictions=unscored_predictions, scorable_fixtures=scorable_fixtures)
-            for prediction in unscored_predictions:
-                if prediction.get("fixture_id") in scorable_fixtures:
-                    match_results = scorable_fixtures[prediction.get("fixture_id")]
-                    prediction_score = 0
-                    winner = "home"
-                    if prediction.get("away_goals") > prediction.get("home_goals"):
-                        winner = "away"
-                    elif prediction.get("away_goals") == prediction.get("home_goals"):
-                        winner = "draw"
-                    
-                    # 2 points – correct result (W/D/L)
-                    if winner == match_results["winner"]:
-                        prediction_score += 2
-                    
-                    # 2 points – correct number of Arsenal goals
-                    # 1 point – correct number of goals conceded
-                    if match_results["home_or_away"] == "home":
-                        opponent_predicted_goals = prediction.get("away_goals")
-                        arsenal_predicted_goals = prediction.get("home_goals")
-                        opponent_actual_goals = match_results.get("goals_away")
-                        arsenal_actual_goals = match_results.get("goals_home")
-                    elif match_results["home_or_away"] == "away":
-                        opponent_predicted_goals = prediction.get("home_goals")
-                        arsenal_predicted_goals = prediction.get("away_goals")
-                        opponent_actual_goals = match_results.get("goals_home")
-                        arsenal_actual_goals = match_results.get("goals_away")
+            
+            if unscored_predictions:
+                for prediction in unscored_predictions:
+                    if prediction.get("fixture_id") in scorable_fixtures:
+                        match_results = scorable_fixtures[prediction.get("fixture_id")]
+                        prediction_score = 0
+                        winner = "home"
+                        if prediction.get("away_goals") > prediction.get("home_goals"):
+                            winner = "away"
+                        elif prediction.get("away_goals") == prediction.get("home_goals"):
+                            winner = "draw"
+                        
+                        # 2 points – correct result (W/D/L)
+                        if winner == match_results["winner"]:
+                            prediction_score += 2
+                        
+                        # 2 points – correct number of Arsenal goals
+                        # 1 point – correct number of goals conceded
+                        if match_results["home_or_away"] == "home":
+                            opponent_predicted_goals = prediction.get("away_goals")
+                            arsenal_predicted_goals = prediction.get("home_goals")
+                            opponent_actual_goals = match_results.get("goals_away")
+                            arsenal_actual_goals = match_results.get("goals_home")
+                        elif match_results["home_or_away"] == "away":
+                            opponent_predicted_goals = prediction.get("home_goals")
+                            arsenal_predicted_goals = prediction.get("away_goals")
+                            opponent_actual_goals = match_results.get("goals_home")
+                            arsenal_actual_goals = match_results.get("goals_away")
 
-                    if arsenal_predicted_goals == arsenal_actual_goals:
-                        prediction_score += 2
-                    if opponent_predicted_goals == opponent_actual_goals:
-                        prediction_score += 1
-
-                    for idx,player in enumerate(prediction.get("scorers")):
-                        prediction.get("scorers")[idx]["player_id"] = await getPlayerId(self.bot, player.get("name"))
-
-                    # 1 point – each correct scorer
-                    actual_goal_scorers = {}
-                    for goal in match_results.get("goals"):
-                        if goal.get("player_id") not in actual_goal_scorers:
-                            actual_goal_scorers[goal.get("player_id")] = 1
-                        else:
-                            actual_goal_scorers[goal.get("player_id")] += 1
-                
-                    predicted_scorers = {v.get("player_id"):v.get("num_goals") for v in prediction.get("scorers")}
-                    all_scorers_correct = True
-                    
-                    # No points for scorers if your prediction's goals exceed the actual goals by 4+
-                    # No points for any part of the prediction related to scorers or fgs if predicted goals > actual goals + 4
-                    if arsenal_predicted_goals < arsenal_actual_goals + 4:
-                        for actual_scorer, count in actual_goal_scorers.items():
-                            if actual_scorer in predicted_scorers:
-                                if count == predicted_scorers.get(actual_scorer):
-                                    prediction_score += count
-                                elif count < predicted_scorers.get(actual_scorer):
-                                    prediction_score += count
-                                    all_scorers_correct = False
-                                else:
-                                    prediction_score += predicted_scorers.get(actual_scorer)
-                                    all_scorers_correct = False
-
-                        actual_scorers_set = set(actual_goal_scorers.keys())
-                        predicted_scorers_set = set(predicted_scorers.keys())
-                        if predicted_scorers_set.symmetric_difference(actual_scorers_set):
-                            all_scorers_correct = False
-
-                        # 1 point – correct FGS (first goal scorer, only Arsenal)
-                        predicted_fgs = None
-                        for player in prediction.get("scorers"):
-                            if player.get("fgs"):
-                                predicted_fgs = player.get("player_id")
-                        if predicted_fgs == match_results.get("fgs") and match_results.get("fgs"):
+                        if arsenal_predicted_goals == arsenal_actual_goals:
+                            prediction_score += 2
+                        if opponent_predicted_goals == opponent_actual_goals:
                             prediction_score += 1
 
-                        # 2 points bonus – all scorers correct
-                        if all_scorers_correct:
-                            prediction_score += 2
+                        for idx,player in enumerate(prediction.get("scorers")):
+                            prediction.get("scorers")[idx]["player_id"] = await getPlayerId(self.bot, player.get("name"))
 
-                    log.info("calculated prediction", prediction_id=prediction.get("prediction_id"), user_id=prediction.get("user_id"), prediction_string=prediction.get("prediction_string"), prediction_score=prediction_score)
-                    try:
-                        async with self.bot.db.acquire() as connection:
-                            async with connection.transaction():
-                                await connection.execute("UPDATE predictionsbot.predictions SET prediction_score = $1 WHERE prediction_id = $2", prediction_score, prediction.get("prediction_id"))
-                    except Exception:
-                        log.exception()
-                        raise PleaseTellMeAboutIt(f"Could not insert an prediction")
+                        # 1 point – each correct scorer
+                        actual_goal_scorers = {}
+                        for goal in match_results.get("goals"):
+                            if goal.get("player_id") not in actual_goal_scorers:
+                                actual_goal_scorers[goal.get("player_id")] = 1
+                            else:
+                                actual_goal_scorers[goal.get("player_id")] += 1
+                    
+                        predicted_scorers = {v.get("player_id"):v.get("num_goals") for v in prediction.get("scorers")}
+                        all_scorers_correct = True
+                        
+                        # No points for scorers if your prediction's goals exceed the actual goals by 4+
+                        # No points for any part of the prediction related to scorers or fgs if predicted goals > actual goals + 4
+                        if arsenal_predicted_goals < arsenal_actual_goals + 4:
+                            for actual_scorer, count in actual_goal_scorers.items():
+                                if actual_scorer in predicted_scorers:
+                                    if count == predicted_scorers.get(actual_scorer):
+                                        prediction_score += count
+                                    elif count < predicted_scorers.get(actual_scorer):
+                                        prediction_score += count
+                                        all_scorers_correct = False
+                                    else:
+                                        prediction_score += predicted_scorers.get(actual_scorer)
+                                        all_scorers_correct = False
+
+                            actual_scorers_set = set(actual_goal_scorers.keys())
+                            predicted_scorers_set = set(predicted_scorers.keys())
+                            if predicted_scorers_set.symmetric_difference(actual_scorers_set):
+                                all_scorers_correct = False
+
+                            # 1 point – correct FGS (first goal scorer, only Arsenal)
+                            predicted_fgs = None
+                            for player in prediction.get("scorers"):
+                                if player.get("fgs"):
+                                    predicted_fgs = player.get("player_id")
+                            if predicted_fgs == match_results.get("fgs") and match_results.get("fgs"):
+                                prediction_score += 1
+
+                            # 2 points bonus – all scorers correct
+                            if all_scorers_correct:
+                                prediction_score += 2
+
+                        log.info("calculated prediction", prediction_id=prediction.get("prediction_id"), user_id=prediction.get("user_id"), prediction_string=prediction.get("prediction_string"), prediction_score=prediction_score)
+                        try:
+                            async with self.bot.db.acquire() as connection:
+                                async with connection.transaction():
+                                    await connection.execute("UPDATE predictionsbot.predictions SET prediction_score = $1 WHERE prediction_id = $2", prediction_score, prediction.get("prediction_id"))
+                                    channel = self.bot.get_channel(652580035483402250)
+                                    await channel.send(':white_check_mark: **Prediction scores updated**')
+                        except Exception:
+                            log.exception()
+                            raise PleaseTellMeAboutIt(f"Could not update prediction score(s)")
+            else:
+                log.info("No predictions to score")    
             log.info("Completed calculatePredictionScores")
+            # await sendScoreNotification(self.bot)
         except Exception:
             log.exception()
 
