@@ -55,7 +55,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             if not fixture.get("fixture_id") == prediction.get("fixture_id"):
                 offset += 1
                 fields.append({
-                    "name": f'{match.get("event_date").strftime("%m/%d/%Y")} {home_emoji} {match.get("home_name")} vs {away_emoji} {match.get("away_name")}', 
+                    "name": f'{match.get("event_date").strftime("%m/%d/%y")} | {home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}', 
                     "value": "Score: **0** | `no prediction made`"
                 })
             else:
@@ -65,7 +65,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                 if prediction.get("prediction_score") is not None:
                     prediction_value = prediction.get("prediction_score")
                 fields.append({
-                    "name": f'{match.get("event_date").strftime("%m/%d/%Y")} {home_emoji} {match.get("home_name")} vs {away_emoji} {match.get("away_name")}', 
+                    "name": f'{match.get("event_date").strftime("%m/%d/%y")} | {home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}', 
                     "value": f'Score: **{prediction_value}** | `{prediction.get("prediction_string")}`\n\n'
                 })
                 # output += f'`{match.get("event_date").strftime("%m/%d/%Y")} {match.get("home_name")} vs {match.get("away_name")}` | `{prediction.get("prediction_string")}` | Score: `{prediction.get("prediction_score")}`\n'

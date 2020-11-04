@@ -297,7 +297,11 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
             log.debug("Predictions to score", predictions=unscored_predictions, scorable_fixtures=scorable_fixtures)
             
+            max_score = 8
+            arsenal_actual_goals = 0
+
             if unscored_predictions:
+                num_predictions = len(unscored_predictions)
                 for prediction in unscored_predictions:
                     if prediction.get("fixture_id") in scorable_fixtures:
                         match_results = scorable_fixtures[prediction.get("fixture_id")]
@@ -380,11 +384,15 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             async with self.bot.db.acquire() as connection:
                                 async with connection.transaction():
                                     await connection.execute("UPDATE predictionsbot.predictions SET prediction_score = $1 WHERE prediction_id = $2", prediction_score, prediction.get("prediction_id"))
-                                    channel = self.bot.get_channel(652580035483402250)
-                                    await channel.send(':white_check_mark: **Prediction scores updated**')
                         except Exception:
                             log.exception()
                             raise PleaseTellMeAboutIt(f"Could not update prediction score(s)")
+                if arsenal_actual_goals:
+                    max_score += arsenal_actual_goals
+                else:
+                    max_score -= 3
+                channel = self.bot.get_channel(652580035483402250)
+                await channel.send(f':trophy: **Prediction scores have been updated**\n:fire: Max score this fixture: {max_score}\n:soccer: Total predictions: {num_predictions}')
             else:
                 log.info("No predictions to score")    
             log.info("Completed calculatePredictionScores")
