@@ -27,9 +27,9 @@ async def getUserRank(bot: commands.Bot, ctx: commands.Context) -> int:
 
 async def getUserPredictions(bot: commands.Bot, ctx: commands.Context) -> List[asyncpg.Record]:
     '''
-    Return the last 10 predictions by user
+    Return the last predictions by user
     '''
-    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND guild_id = $2 ORDER BY timestamp DESC LIMIT 10;", ctx.message.author.id, ctx.guild.id)
+    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND guild_id = $2 ORDER BY timestamp DESC;", ctx.message.author.id, ctx.guild.id)
     return predictions
 
 async def getMatch(bot: commands.Bot, fixture_id: int) -> asyncpg.Record:
