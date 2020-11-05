@@ -34,7 +34,8 @@ class Bot(commands.Bot):
             description=kwargs.pop("description"),
             command_prefix=kwargs.pop("prefix"),
             case_insensitive=True,
-            help_command=commands.DefaultHelpCommand(dm_help=True)
+            help_command=commands.DefaultHelpCommand(dm_help=True),
+            intents=discord.Intents().all()
         )
         self.db = db
         self.testing_mode = kwargs.pop("testing_mode")
