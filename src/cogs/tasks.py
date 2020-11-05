@@ -299,11 +299,13 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             
             max_score = 8
             arsenal_actual_goals = 0
+            send_notifications = False
 
             if unscored_predictions:
                 num_predictions = len(unscored_predictions)
                 for prediction in unscored_predictions:
                     if prediction.get("fixture_id") in scorable_fixtures:
+                        send_notifications = True
                         match_results = scorable_fixtures[prediction.get("fixture_id")]
                         prediction_score = 0
                         winner = "home"
@@ -391,8 +393,11 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     max_score += arsenal_actual_goals
                 else:
                     max_score -= 3
-                channel = self.bot.get_channel(652580035483402250)
-                await channel.send(f':trophy: **Prediction scores have been updated**\n:fire: Max score this fixture: {max_score}\n:soccer: Total predictions: {num_predictions}')
+
+                if send_notifications:
+                    # channel = self.bot.get_channel(652580035483402250) # test bot channel 1
+                    channel = self.bot.get_channel(523472428517556244) # prod channel gunners
+                    await channel.send(f':trophy: **Prediction scores have been updated**\n:fire: Max score this fixture: {max_score}\n:soccer: Total predictions: {num_predictions}')
             else:
                 log.info("No predictions to score")    
             log.info("Completed calculatePredictionScores")
