@@ -14,7 +14,8 @@ import random
 from typing import Mapping
 
 async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
-    fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id AND guild_id = $1 GROUP BY f.fixture_id ORDER BY f.event_date DESC", ctx.guild.id)
+    fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date < now() + interval '12 hour' AND (f.home = {bot.main_team} or f.away = {bot.main_team}) ORDER BY f.event_date DESC")
+    # fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id AND guild_id = $1 GROUP BY f.fixture_id ORDER BY f.event_date DESC", ctx.guild.id)
     return fixtures
 
 async def getUserRank(bot: commands.Bot, ctx: commands.Context) -> int:
@@ -48,12 +49,12 @@ async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context
             async with connection.transaction():
                 try:
                     await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
+                    await ctx.send(f"{ctx.message.author.mention}\n**Welcome to the :arsenal: Arsenal Discord Predictions League**\nType `+rules` to see the rules for the league\nEnter `+help` for a help message\nTo be reminded about upcoming matches type `+remindme`")                                    
                 except Exception as e:
                     await bot.notifyAdmin(f"Error inserting user {user_id} into database:\n{e}")
-                    bot.logger.error(f"Error inserting user {user_id} into database: {e}")
+                    bot.logger.error(f"Error inserting user {user_id} into database: {e}")                
                 return True
         # return False
-        # await ctx.send(f"{ctx.message.author.mention}\nHello, this is the Arsenal Discord Predictions League\n\nType `+rules` to see the rules for the league\n\nEnter `+help` for a help message")
     else:
         return True
 

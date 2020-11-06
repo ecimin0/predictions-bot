@@ -208,9 +208,10 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
                 log.debug(next_match=next_match.get("fixture_id"), time_limit=time_limit)
                 if next_match.get("notifications_sent") == False and now > time_limit:
-                    old_users = await getUserPredictedLastMatches(self.bot)
+                    # old_users = await getUserPredictedLastMatches(self.bot)
+                    opted_in_users = await self.bot.db.fetch("SELECT user_id FROM predictionsbot.users WHERE allow_notifications")
                     new_users = await getUsersPredictionCurrentMatch(self.bot)
-                    users_missing_predictions = set(old_users) - set(new_users)
+                    users_missing_predictions = set(opted_in_users) - set(new_users)
 
                     for channel in self.bot.get_all_channels():
                         if channel.name == self.bot.channel:
@@ -284,6 +285,14 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             fixture_response = await resp.json()
                     fixture_info = fixture_response['api']['fixtures'][0]
                     goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
+                    new_goals = []
+                    for goal in goals:
+                        if goal.get("detail") == "Own Goal":
+                            goal["player_id"] = 0
+                            new_goals.append(goal)
+                        else:
+                            new_goals.append(goal)
+                    goals = new_goals
                     scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
                     if scorable_fixtures[fix]["goals"]:
                         scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
@@ -296,7 +305,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     raise PleaseTellMeAboutIt(f"error retrieving scorable fixture: {fix}")
 
             log.debug("Predictions to score", predictions=unscored_predictions, scorable_fixtures=scorable_fixtures)
-            
+
             max_score = 8
             arsenal_actual_goals = 0
             send_notifications = False
@@ -374,7 +383,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             for player in prediction.get("scorers"):
                                 if player.get("fgs"):
                                     predicted_fgs = player.get("player_id")
-                            if predicted_fgs == match_results.get("fgs") and match_results.get("fgs"):
+                            if predicted_fgs == match_results.get("fgs") and match_results.get("fgs") is not None: # using 'is not None' because player id of OG is 0, thus Falsey
                                 prediction_score += 1
 
                             # 2 points bonus – all scorers correct
@@ -394,7 +403,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 else:
                     max_score -= 3
 
-                if send_notifications:
+                if send_notifications and not self.bot.testing_mode:
                     # channel = self.bot.get_channel(652580035483402250) # test bot channel 1
                     channel = self.bot.get_channel(523472428517556244) # prod channel gunners
                     await channel.send(f':trophy: **Prediction scores have been updated**\n:fire: Max score this fixture: {max_score}\n:soccer: Total predictions: {num_predictions}')
@@ -459,7 +468,9 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             players = response.get("api").get("players")
             teams[self.bot.main_team] = players
 
+            # log.debug(teams)
             for team, player_array in teams.items():
+                # log.debug(team=team, player_array=player_array)
                 for player in player_array:
                     delete_keys = [key for key in player if key not in ["player_name", "firstname", "lastname", "player_id"]]
                     for key in delete_keys: 

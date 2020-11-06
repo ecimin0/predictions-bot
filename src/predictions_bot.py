@@ -28,13 +28,29 @@ from utils.exceptions import IsNotAdmin, PleaseTellMeAboutIt
 # bot token, API key, other stuff 
 load_dotenv()
 
+class CustomHelpCommand(commands.DefaultHelpCommand):
+    def __init__(self, **kwargs):
+        super().__init__(
+            dm_help=kwargs.pop("dm_help")
+        )
+
+    async def send_pages(self):
+        """A helper utility to send the page output from :attr:`paginator` to the destination."""
+        destination = self.get_destination()
+        try:
+            for page in self.paginator.pages:
+                await destination.send(page)
+        except discord.Forbidden:
+            for page in self.paginator.pages:
+                await self.context.channel.send(page)
+
 class Bot(commands.Bot):
     def __init__(self, db, **kwargs):
         super().__init__(
             description=kwargs.pop("description"),
             command_prefix=kwargs.pop("prefix"),
             case_insensitive=True,
-            help_command=commands.DefaultHelpCommand(dm_help=True),
+            help_command=CustomHelpCommand(dm_help=True),
             intents=discord.Intents().all()
         )
         self.db = db

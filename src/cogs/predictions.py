@@ -240,9 +240,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                     player = re.sub("[fF][gG][sS]", "", player)
                     fgs_str = "fgs"
 
-                goals_scored = re.search(r'[xX]?(\d)[xX]?', player)
+                goals_scored = re.search(r'[xX]?(\d{1,2})[xX]?', player)
                 if goals_scored:
-                    player = re.sub(r'[xX]?(\d)[xX]?', "", player)
+                    player = re.sub(r'[xX]?(\d{1,2})[xX]?', "", player)
                     num_goals = int(goals_scored.group(1))
 
                 try:
@@ -336,7 +336,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             goal_scorers = "\n".join(goal_scorers_array)
             home_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('home_name').lower().replace(' ', ''))
             away_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('away_name').lower().replace(' ', ''))
-            output = f"""{ctx.message.author.mention}\n**Prediction against {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n`{ctx.message.content}`"""
+            output = f"""{ctx.message.author.mention}\n**Prediction against {discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', ''))} {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n`{ctx.message.content}`"""
             output += f"""\n\n**Score**\n{home_emoji} {current_match.get('home_name')} {home_goals} - {away_goals} {away_emoji} {current_match.get('away_name')}\n\n"""
             if goal_scorers:
                 output += f"""**Goal Scorers**\n{goal_scorers}"""

@@ -43,6 +43,7 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
         '''
         Upcoming matches or next match against another side | [+next 3 | +next wolves]
         '''
+        await checkUserExists(self.bot, ctx.message.author.id, ctx)
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         # msg: str = ctx.message.content
 

@@ -12,10 +12,9 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot
         self.rules_set: str = \
-"""**Predict our next match against {0}**
+"""**Predict our next match against {0} {1}**
 
 **Prediction League Rules:**
-
 2 points – correct result (W/D/L)
 2 points – correct number of Arsenal goals
 1 point – correct number of goals conceded
@@ -23,8 +22,7 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
 1 point – correct FGS (first goal scorer, only Arsenal)
 2 points bonus – all scorers correct
 
-- Players you predict to score multiple goals should be entered as "player x2" or "player 2x"
-
+- Players you predict to score multiple goals should be entered as `player x2` or `player 2x`
 - No points for scorers if your prediction's goals exceed the actual goals by 4+
 
 **Remember, we are only counting Arsenal goal scorers**
@@ -32,7 +30,7 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
     - Do not predict opposition FGS
 
 **Example:**
-`{1}`
+`{2}`
 """
     @commands.command()
     async def rules(self, ctx: commands.Context):
@@ -44,7 +42,7 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
         next_match = await nextMatch(self.bot)
         opponent = next_match.get('opponent_name')
 
-        rules_set_filled = self.rules_set.format(opponent, predict_example)
+        rules_set_filled = self.rules_set.format(discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', '')), opponent, predict_example)
         await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
 
     @commands.command()
