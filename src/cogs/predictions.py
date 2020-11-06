@@ -46,7 +46,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             if i - offset > len(predictions) - 1:
                 offset += 1
             prediction = predictions[i - offset]
-            self.bot.logger.debug(count=i,fixture_id=fixture.get("fixture_id"), prediction_fixture_id=prediction.get("fixture_id"))
+            self.bot.logger.debug(count=i,offset=offset,fixture_id=fixture.get("fixture_id"), prediction_fixture_id=prediction.get("fixture_id"))
             match = await getMatch(self.bot, fixture.get("fixture_id"))
 
             home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))

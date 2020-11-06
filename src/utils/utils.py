@@ -14,7 +14,8 @@ import random
 from typing import Mapping
 
 async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
-    fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date < now() + interval '12 hour' AND (f.home = {bot.main_team} or f.away = {bot.main_team}) ORDER BY f.event_date DESC")
+    fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date <= (SELECT f.event_date FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1) AND (f.home = {bot.main_team} or f.away = {bot.main_team}) ORDER BY f.event_date DESC;")
+    # fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON p.fixture_id = f.fixture_id WHERE f.event_date < now() + interval '12 hour' AND (f.home = {bot.main_team} or f.away = {bot.main_team}) ORDER BY f.event_date DESC")
     # fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id AND guild_id = $1 GROUP BY f.fixture_id ORDER BY f.event_date DESC", ctx.guild.id)
     return fixtures
 
