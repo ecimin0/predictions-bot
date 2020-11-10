@@ -50,7 +50,7 @@ async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context
             async with connection.transaction():
                 try:
                     await connection.execute("INSERT INTO predictionsbot.users (user_id, tz) VALUES ($1, $2);", user_id, "UTC")
-                    await ctx.send(f"{ctx.message.author.mention}\n**Welcome to the :arsenal: Arsenal Discord Predictions League**\nType `+rules` to see the rules for the league\nEnter `+help` for a help message\nTo be reminded about upcoming matches type `+remindme`")                                    
+                    await ctx.send(f"{ctx.message.author.mention}\n**Welcome to the {discord.utils.get(bot.emojis, name=bot.main_team_name.lower())} Arsenal Discord Predictions League**\nType `+rules` to see the rules for the league\nEnter `+help` for a help message\nTo be reminded about upcoming matches type `+remindme`")                                    
                 except Exception as e:
                     await bot.notifyAdmin(f"Error inserting user {user_id} into database:\n{e}")
                     bot.logger.error(f"Error inserting user {user_id} into database: {e}")                
