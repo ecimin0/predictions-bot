@@ -211,7 +211,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     # old_users = await getUserPredictedLastMatches(self.bot)
                     opted_in_users = await self.bot.db.fetch("SELECT user_id FROM predictionsbot.users WHERE allow_notifications")
                     new_users = await getUsersPredictionCurrentMatch(self.bot)
-                    users_missing_predictions = set(opted_in_users) - set(new_users)
+                    # users_missing_predictions = set(opted_in_users) - set(new_users)
+                    users_missing_predictions = set(opted_in_users)
 
                     for channel in self.bot.get_all_channels():
                         if channel.name == self.bot.channel:
