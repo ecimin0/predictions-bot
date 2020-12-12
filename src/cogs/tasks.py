@@ -233,7 +233,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             # user_tz = await getUserTimezone(self.bot, ctx.message.author.id)
                             # match_str = await formatMatch()
                             try:
-                                await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon and you haven't submitted a prediction.\n\n{match_str}Make a prediction in the {channel_str} channel.")
+                                await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon! If you haven't submitted a prediction, make one now in the {channel_str} channel.\n\n{match_str}")
                             except:
                                 log.exception()
                     log.debug("Sent notifications for upcoming match", number=len(users_missing_predictions), next_match=next_match.get("fixture_id"))
