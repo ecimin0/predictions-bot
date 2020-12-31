@@ -71,11 +71,12 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                         async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                             fixture_info = await resp.json()
                     fixture_info = fixture_info['api']['fixtures'][0]
-
                     match_completed = self.status_lookup[fixture_info.get("statusShort")]
+                
                 except asyncio.TimeoutError:
                     log.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
                     return
+
                 except Exception:
                     log.exception("Failed to get fixture from api", fixture=fixture.get('fixture_id'))
                     raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
@@ -83,14 +84,15 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 try:
                     async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
-
                             await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4 WHERE fixture_id = $5", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture_info.get('statusShort'), fixture.get('fixture_id'))
+                
                 except Exception:
                     log.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
                     raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
 
             # log.info(f"Updated fixtures table, {len(fixtures)} were changed.")
             log.info(f"Completed updateFixtures", fixtures_updated=len(fixtures))
+            
         except Exception as e:
             log.exception()
         # await bot.notifyAdmin(f"Updated fixtures table, {len(fixtures)} were changed.")

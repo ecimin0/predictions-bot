@@ -94,7 +94,7 @@ async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
             if userInput.lower() in player.get("nicknames"):
                 return player.get("player_id")
         player_str = "\n".join([f"  - {player.get('player_name')}" for player in player_obj])
-        raise Exception(f"`{userInput}` matches more than 1 player, you need to be more specific.\n**Matched Players:**\n{player_str}")
+        raise Exception(f"`{userInput}` matches more than 1 player, please be more specific.\n**Matched Players:**\n{player_str}")
     return player_obj[0].get("player_id")
 
 async def playerNames(bot: commands.Bot, userInput: str) -> List[str]:
@@ -114,9 +114,9 @@ async def getTeamId(bot: commands.Bot, userInput: str) -> int:
                 return team.get("team_id")
         if len(team_obj) < 10:
             team_str = "\n".join([f"  - {team.get('name')}" for team in team_obj])
-            raise TooManyResults(f"`{userInput}` matches more than 1 team, you need to be more specific.\n**Matched Teams:**\n{team_str}")
+            raise TooManyResults(f"`{userInput}` matches more than 1 team, please be more specific.\n**Matched Teams:**\n{team_str}")
         elif len(team_obj) >= 10:
-            raise TooManyResults(f"`{userInput}` matches more than 10 teams, you need to be more specific.")
+            raise TooManyResults(f"`{userInput}` matches more than 10 teams, please be more specific.")
     return team_obj[0].get("team_id")
 
 async def getUserTimezone(bot: commands.Bot, user: int) -> dt.tzinfo:
