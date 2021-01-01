@@ -44,7 +44,7 @@ class UserFunctions(commands.Cog, name="User Functions"): # type: ignore
     @commands.command()
     async def remindme(self, ctx):
         '''
-        Toggle reminders; sent 2h before kickoff if predicted 1 out of 2 past matches
+        Toggle reminders; sent 2h before kickoff
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
