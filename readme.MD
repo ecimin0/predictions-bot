@@ -165,6 +165,8 @@ Usually the cutoff is 1 hour before domestic matches and 1.5 hours before Europe
 
 - Containers run in AWS ECS
 
+- Logging, alarms, and metrics via AWS Cloudwatch
+
 - Database used is Postgres via AWS RDS
 
 - API: https://dashboard.api-football.com
