@@ -1,9 +1,9 @@
 # Football :soccer: Predictions :thinking: Bot :robot:
-## Run a prediction league in your team's Discord server
+## Run a football match prediction league in your club's Discord server
 <br>
 
 ## League Rules
-These rules are considered from the point of view of the Discord server's team
+These rules are considered from the point of view of the Discord server's club
 ```
 2 points – correct result (W/D/L)
 2 points – correct number of goals scored
@@ -25,7 +25,7 @@ Usually the cutoff is 1 hour before domestic matches and 1.5 hours before Europe
 <br>
 <br>
 
----
+
 ## Currently Supported Sides
 - Planned support for European clubs across most leagues
 - Other leagues worldwide curently not in scope
@@ -33,12 +33,12 @@ Usually the cutoff is 1 hour before domestic matches and 1.5 hours before Europe
 ### **Arsenal**
 <br>
 
----
+
 ## Chat Commands
 **More specific help messages for each command can be accessed with `+help <command>`**
 <br>
 <br>
-### Fixures  
+### Fixtures  
   `next` | Upcoming matches or next match against another side  
   ```
   +next
@@ -92,7 +92,7 @@ Usually the cutoff is 1 hour before domestic matches and 1.5 hours before Europe
 <br>
 
 ### User Functions
-  `remindme` | Toggle reminders; sent 2h before kickoff
+  `remindme` | Toggle reminders; sent 2 hours before kickoff
   ```
   +remindme
 
@@ -149,12 +149,12 @@ Usually the cutoff is 1 hour before domestic matches and 1.5 hours before Europe
 ### Admin Functions
 **TBD**
 
----
+
 <br>
 
 ## Infrastructure
 ### Details
-- Code written in Python and Dockerized. The container entrypoint is simply the command to run the script:
+- Code written in Python and built into a Docker image. The container entrypoint is simply the command to run the script:
     ```Dockerfile
     ENTRYPOINT [ "python3", "/usr/local/bin/predictions_bot.py" ]
     ```
