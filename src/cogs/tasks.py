@@ -192,16 +192,12 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         try:
             now = datetime.utcnow()
             if now.minute % 5 == 0:
-                # if checkTimeToMatch < threshold and notification not sent: 
-                #  send notifications
-                #  mark as sent
-                # fixutres table will need a new field - notifications_sent
-
                 next_match = await nextMatch(self.bot)
 
                 time_limit_offset: Dict[str, float] = {
                     self.bot.league_dict["europa_league"]: 1.5
                 }
+
                 time_offset = 1.0
                 if next_match.get("league_id") in time_limit_offset:
                     time_offset = time_limit_offset[next_match.get("league_id")]
@@ -212,20 +208,22 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 if next_match.get("notifications_sent") == False and now > time_limit:
                     # old_users = await getUserPredictedLastMatches(self.bot)
                     opted_in_users = await self.bot.db.fetch("SELECT user_id FROM predictionsbot.users WHERE allow_notifications")
-                    new_users = await getUsersPredictionCurrentMatch(self.bot)
-                    # users_missing_predictions = set(opted_in_users) - set(new_users)
-                    users_missing_predictions = set(opted_in_users)
+                    users_wpredictions = await getUsersPredictionCurrentMatch(self.bot)
+                    dedupe_users_wpredictions = set(users_wpredictions)
+                    # users_to_notify = set(opted_in_users) - set(users_wpredictions)
+
+                    users_to_notify = set(opted_in_users)
 
                     for channel in self.bot.get_all_channels():
                         if channel.name == self.bot.channel:
                             channel_str = channel.mention
                     if self.bot.testing_mode:
-                        users_missing_predictions = [user.get("user_id") for user in users_missing_predictions if user.get("user_id") in self.bot.admin_ids]
+                        users_to_notify = [user.get("user_id") for user in users_to_notify if user.get("user_id") in self.bot.admin_ids]
                     else:
-                        users_missing_predictions = [user.get("user_id") for user in users_missing_predictions]
-                    log.debug(users_missing_predictions=users_missing_predictions)
+                        users_to_notify = [user.get("user_id") for user in users_to_notify]
+                    log.debug(users_to_notify=users_to_notify)
                     
-                    for user in users_missing_predictions:
+                    for user in users_to_notify:
                         allow_notifications = await checkOptOut(self.bot, user)
                         log.debug(user=user, allow_notifications=allow_notifications)
                         if allow_notifications:
@@ -235,10 +233,13 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             # user_tz = await getUserTimezone(self.bot, ctx.message.author.id)
                             # match_str = await formatMatch()
                             try:
-                                await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon! If you haven't submitted a prediction, make one now in the {channel_str} channel.\n\n{match_str}")
+                                if user in dedupe_users_wpredictions:
+                                    await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon! Join the others in the {channel_str} channel.\n\n{match_str}")
+                                else:
+                                    await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon! Make a prediction in the {channel_str} channel.\n\n{match_str}")
                             except:
                                 log.exception()
-                    log.debug("Sent notifications for upcoming match", number=len(users_missing_predictions), next_match=next_match.get("fixture_id"))
+                    log.debug("Sent notifications for upcoming match", number=len(users_to_notify), next_match=next_match.get("fixture_id"))
                     async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
                             await connection.execute("UPDATE predictionsbot.fixtures SET notifications_sent = $1 WHERE fixture_id = $2", True, next_match.get("fixture_id"))
