@@ -348,5 +348,58 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             return
 
 
+    @commands.command(brief="Show unavailable players", aliases=["available"])
+    async def sidelined(self, ctx: commands.Context):
+        '''
+        Show players currently unavailable for team selection
+        '''
+        log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name, command="sidelined")
+
+        try:
+            players_that_suck = await self.bot.db.fetch(f"SELECT player_name, sidelined_reason, sidelined_end FROM predictionsbot.players WHERE sidelined;")
+        except Exception:
+            log.exception("Failed to retrieve players_that_suck from database")
+        
+        if not players_that_suck:
+            if random.randrange(1,255) % 7: 
+                await ctx.send("Believe it or not Granit Xhaka is not currently suspended")
+            else:
+                await ctx.send("There are no players currently sidelined")
+        else:
+            paginated_data = []
+            color = getArsenalColor()
+            output_paged_array = []
+            for player in players_that_suck:
+                end_time = "TBD"
+                if end_time_obj := player.get('sidelined_end'):
+                    end_time = end_time_obj.strftime('%d/%m/%Y')
+
+                output_paged_array.append({"name": f"{player.get('player_name')}", "value": f"{player.get('sidelined_reason')} - {end_time}"})
+            
+                if len(output_paged_array) == self.bot.step:        
+                    paginated_data.append({
+                        "title": "**Sidelined Arsenal Players**", 
+                        "description": "", 
+                        # "description": f"{rank_num}/{len(prediction_dictionary)}", 
+                        "color": color, 
+                        "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
+                        "fields": output_paged_array
+                        })
+                    output_paged_array = []
+
+                # paginated_data.append({"rank": f"{rank_num}", "rank_score": f"{user_prediction.get('score')}", "leaders": f"{output_str}"})
+            if output_paged_array:
+                paginated_data.append({
+                        "title": "**Sidelined Arsenal Players**", 
+                        "description": "", 
+                        # "description": f"{rank_num}/{len(prediction_dictionary)}", 
+                        "color": color, 
+                        "thumbnail": "https://media.api-sports.io/football/teams/42.png", 
+                        "fields": output_paged_array
+                        })
+
+            await makePagedEmbed(self.bot, ctx, paginated_data)
+
+
 def setup(bot):
     bot.add_cog(Predictions(bot))

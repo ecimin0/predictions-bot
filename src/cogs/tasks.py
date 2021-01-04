@@ -45,6 +45,9 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         # self.updateTeams.add_exception_type(Exception)
         # self.updateTeams.start()
         
+        self.sidelinedPlayers.add_exception_type(Exception)
+        self.sidelinedPlayers.start()
+
         self.updatePlayers.add_exception_type(Exception)
         self.updatePlayers.start()
         self.updateLeagues.add_exception_type(Exception)
@@ -545,6 +548,56 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             log.info("Completed updateLeagues", added_leagues=added_leagues, updated_leagues=updated_leagues)
         except Exception:
             log.exception()
+
+
+    @tasks.loop(hours=12)
+    async def sidelinedPlayers(self):
+        await checkBotReady()
+        log = self.bot.logger.bind(task="sidelinedPlayers")
+        try:
+            async with self.bot.db.acquire() as connection:
+                async with connection.transaction():
+                    players_list = await connection.fetch(f"SELECT player_id, sidelined_reason, sidelined_end, sidelined FROM predictionsbot.players WHERE team_id = {self.bot.main_team}")
+                    for player in players_list:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(f"https://v2.api-football.com/sidelined/player/{player.get('player_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                                response = await resp.json()
+                            
+                        player_info = response.get("api").get("sidelined")
+
+                        if player_info:
+                            latest_status = player_info[0]
+
+                            sidelined = True
+                            endtime_dtobj = None
+                            if latest_status.get("end"):
+                                format_str = '%d/%m/%y'
+                                endtime_dtobj = datetime.strptime(latest_status.get("end"), format_str)
+
+                                if datetime.utcnow() > endtime_dtobj:
+                                    sidelined = False
+                                else:
+                                    sidelined = True
+
+                            # print(f'{player_info[0].get("type")} | {player_info[0].get("start")} | {player_info[0].get("end") or "TBD"}\n')
+                            format_str = '%d/%m/%y'
+                            starttime_dtobj = datetime.strptime(player_info[0].get("start"), format_str)
+                            # print(endtime_dtobj)
+
+                            update_counter = 0 
+                            if player.get("sidelined_reason") != player_info[0].get("type") or player.get("sidelined_end") != endtime_dtobj or player.get("sidelined") != sidelined:
+                                update_counter += 1
+                                try:
+                                    async with self.bot.db.acquire() as connection:
+                                        async with connection.transaction():
+                                            await connection.execute("UPDATE predictionsbot.players SET sidelined_reason = $1, sidelined_end = $2, sidelined_start = $3, sidelined = $4 WHERE player_id = $5;", player_info[0].get("type"), endtime_dtobj, starttime_dtobj, sidelined, player.get("player_id"))
+                                            # await connection.execute("INSERT INTO predictionsbot.players (league_id, name, season, logo, country) VALUES ($1, $2, $3, $4, $5);", league.get("league_id"), league.get("name"), str(league.get("season")),  league.get("logo"), league.get("country"))        
+                                except Exception:
+                                    log.exception("Sidelined players update failed")
+            log.info("Updated sidelined player information", players_updated=update_counter)
+        except Exception:
+            log.exception("Failed to get player IDs", team_id=self.bot.main_team)
+
 
 def setup(bot):
     bot.add_cog(TasksCog(bot))
