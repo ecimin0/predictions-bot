@@ -348,6 +348,66 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             return
 
 
+    @commands.command(brief="Show your league rank")
+    async def rank(self, ctx: commands.Context, aliases=['position']):
+        '''
+        Show your league rank
+        '''
+        log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
+
+        try:
+            leaderboard = await self.bot.db.fetch(f"SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL AND guild_id = $1 GROUP BY user_id ORDER BY SUM(prediction_score) DESC", ctx.guild.id)
+        except Exception as e:
+            log.exception(f"Failed to retrieve predictions leaderboard from database for rank command, {e}")
+        
+        prediction_dictionary: Dict[int, List] = {}
+
+        for prediction in leaderboard:
+            if prediction.get("rank") not in prediction_dictionary:
+                self.bot.logger.debug("Creating new rank in dictionary for rank command", user_id=prediction.get("user_id"), rank=prediction.get("rank"))
+                prediction_dictionary[prediction.get("rank")] = [prediction]
+            else:
+                prediction_dictionary[prediction.get("rank")].append(prediction)
+
+        try:
+            for k,v in prediction_dictionary.items():
+                for prediction in v:
+                    # user = ctx.guild.get_member(prediction.get("user_id"))
+                    if prediction.get("user_id") == ctx.message.author.id:
+                    # if user == ctx.message.author.id:
+                        rank = prediction.get("rank")
+                        score = prediction.get("score")
+
+                        first_score = prediction_dictionary.get(1)[0].get("score")
+
+                        # print(f'{rank} {score}')
+                        ahead_rank = prediction_dictionary.get(rank - 1)
+                        behind_rank = prediction_dictionary.get(rank + 1)
+                        off_first = first_score - score
+                        output_str = ""
+
+                        if not ahead_rank:
+                            # print(f'{rank}: {score}, {behind_rank[0].get("rank")}: {behind_rank[0].get("score")}')
+                            # print("First place")
+                            output_str = f"**{makeOrdinal(rank)}** :trophy: out of {len(prediction_dictionary)}\nScore: **{score}**\n**{score - behind_rank[0].get('rank')}** ahead of {makeOrdinal(behind_rank[0].get('rank'))}"
+                        elif not behind_rank:
+                            # print("Last place")
+                            # print(f'{rank}: {score}, {ahead_rank[0].get("rank")}: {ahead_rank[0].get("score")}')
+                            # print(f'pts behind first place: {off_first}')
+                            output_str = f"**{makeOrdinal(rank)}** out of {len(prediction_dictionary)}\nScore: **{score}**\n**{ahead_rank[0].get('score') - score}** behind {makeOrdinal(ahead_rank[0].get('rank'))}\n**{off_first}** points off top"
+                        else:
+                            # print(f'{rank}: {score}, {ahead_rank[0].get("rank")}: {ahead_rank[0].get("score")}, {behind_rank[0].get("rank")}: {behind_rank[0].get("score")}')
+                            # print("Neither first nor last")
+                            # print(f'pts behind first place: {off_first}')
+                            output_str = f"**{makeOrdinal(rank)}** out of {len(prediction_dictionary)}\nScore: **{score}**\n**{ahead_rank[0].get('score') - score}** behind {makeOrdinal(ahead_rank[0].get('rank'))}\n**{score - behind_rank[0].get('score')}** ahead of {makeOrdinal(behind_rank[0].get('rank'))}\n**{off_first}** points off top"
+        
+            await ctx.send(f"{ctx.message.author.mention}\n{output_str}")
+
+        except Exception as e:
+            # print(e)
+            log.exception(f"Failed to return rank to user: {e}")
+
+            
     @commands.command(brief="Show unavailable players", aliases=["available"])
     async def sidelined(self, ctx: commands.Context):
         '''

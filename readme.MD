@@ -161,8 +161,6 @@ Usually the cutoff is 1 hour before domestic matches and 1.5 hours before Europe
 
 - Images stored in GitLab registry
 
-- Registry and ECS linked using AWS Secrets Manager
-
 - Containers run in AWS ECS
 
 - Logging, alarms, and metrics via AWS Cloudwatch
