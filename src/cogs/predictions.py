@@ -408,7 +408,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             log.exception(f"Failed to return rank to user: {e}")
 
             
-    @commands.command(brief="Show unavailable players", aliases=["available"])
+    @commands.command(brief="Show unavailable players", aliases=["available", "out", "injured", "injury"])
     async def sidelined(self, ctx: commands.Context):
         '''
         Show players currently unavailable for team selection
