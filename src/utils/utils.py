@@ -85,7 +85,7 @@ async def getUserPredictedLastMatches(bot: commands.Bot) -> List[asyncpg.Record]
 
 async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
     # player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
-    player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} AND (exists (SELECT 1 FROM unnest(nicknames) AS name WHERE unaccent(name) ILIKE $1) OR unaccent(lastname) ILIKE $1 OR unaccent(firstname) ILIKE $1);", f"%{userInput}%")
+    player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} AND (exists (SELECT 1 FROM unnest(nicknames) AS name WHERE unaccent(name) ILIKE unaccent($1)) OR unaccent(lastname) ILIKE unaccent($1) OR unaccent(firstname) ILIKE unaccent($1));", f"%{userInput}%")
     if not player_obj:
         raise Exception(f"no player named {userInput}")
     elif len(player_obj) > 1:
@@ -104,7 +104,7 @@ async def playerNames(bot: commands.Bot, userInput: str) -> List[str]:
     return([])
 
 async def getTeamId(bot: commands.Bot, userInput: str) -> int:
-    team_obj = await bot.db.fetch("SELECT team_id, name, nicknames FROM predictionsbot.teams WHERE (EXISTS (select 1 from unnest(nicknames) as nickname where unaccent(nickname) like $1) OR unaccent(name) ILIKE $1);", f"%{userInput}%")
+    team_obj = await bot.db.fetch("SELECT team_id, name, nicknames FROM predictionsbot.teams WHERE (EXISTS (select 1 from unnest(nicknames) as nickname where unaccent(nickname) like unaccent($1)) OR unaccent(name) ILIKE unaccent($1));", f"%{userInput}%")
     if not team_obj:
         raise Exception(f"no team named {userInput}")
     elif len(team_obj) > 1:
