@@ -33,17 +33,16 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             "WO": True
         }
 
+
+        self.calculatePredictionScores.add_exception_type(Exception)
+        self.calculatePredictionScores.start()
+
         self.sendNotifications.start()
 
         self.updateFixtures.add_exception_type(Exception)
         self.updateFixtures.start()
         self.updateFixturesbyLeague.add_exception_type(Exception)
         self.updateFixturesbyLeague.start()
-        self.calculatePredictionScores.add_exception_type(Exception)
-        self.calculatePredictionScores.start()
-        
-        # self.updateTeams.add_exception_type(Exception)
-        # self.updateTeams.start()
         
         self.sidelinedPlayers.add_exception_type(Exception)
         self.sidelinedPlayers.start()
@@ -52,6 +51,9 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         self.updatePlayers.start()
         self.updateLeagues.add_exception_type(Exception)
         self.updateLeagues.start()
+
+        # self.updateTeams.add_exception_type(Exception)
+        # self.updateTeams.start()
 
     # @bot.command(hidden=True)
     # runs every 15 min to check if fixtures within 5 hours before and after now are complete/scorable for predictions
@@ -410,14 +412,52 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 else:
                     max_score -= 3
 
-                if send_notifications and not self.bot.testing_mode:
+                if send_notifications:# and not self.bot.testing_mode:
                     # channel = self.bot.get_channel(652580035483402250) # test bot channel 1
                     channel = self.bot.get_channel(523472428517556244) # prod channel gunners
-                    await channel.send(f':trophy: **Prediction scores have been updated**\n:fire: Max score this fixture: {max_score}\n:soccer: Total predictions: {num_predictions}')
+
+                    for fix in scorable_fixtures: # re-use the scorable fixture(s) from this run
+                        top_predictions = await getTopPredictions(self.bot, fix)
+                    # print(f'TOP PREDICTIONS:{top_predictions}')
+
+                    user_array = []
+
+                    max_score_achieved = ""
+
+                    if top_predictions[0].get("score") == max_score:
+                        max_score_achieved = ":medal:"
+                    
+                    top_rank_dict = {
+                        1: [],
+                        2: [],
+                        3: []
+                    }
+
+                    for user in top_predictions:
+                        if user.get('rank') in top_rank_dict:
+                            for guild in self.bot.guilds:
+                                if guild.id == user.get("guild_id"):
+                                    disc_user = guild.get_member(user.get("user_id"))
+                                    uname = disc_user.display_name
+                            top_rank_dict[user.get('rank')].append(uname)
+
+                    for rank, users in top_rank_dict.items():
+                        top_rank_dict[rank] = "\n".join(users)
+                
+                await channel.send(f':trophy: **Prediction scores have been updated**' +
+                    f'\n:fire: Maximum possible score this fixture: {max_score}' +
+                    f'\n:soccer: Total predictions: {num_predictions}\n')
+                    
+                await channel.send(f'\n:first_place: {max_score_achieved}\n**{top_rank_dict[1]}**')
+                await asyncio.sleep(1)
+                await channel.send(f'\n:second_place: \n**{top_rank_dict[2]}**')
+                await asyncio.sleep(1)
+                await channel.send(f'\n:third_place: \n**{top_rank_dict[3]}**')
+
             else:
                 log.info("No predictions to score")    
             log.info("Completed calculatePredictionScores")
-            # await sendScoreNotification(self.bot)
+
         except Exception:
             log.exception()
 
