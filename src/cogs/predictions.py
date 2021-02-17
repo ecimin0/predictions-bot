@@ -389,7 +389,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                         if not ahead_rank:
                             # print(f'{rank}: {score}, {behind_rank[0].get("rank")}: {behind_rank[0].get("score")}')
                             # print("First place")
-                            output_str = f"**{makeOrdinal(rank)}** :trophy: out of {len(prediction_dictionary)}\nScore: **{score}**\n**{score - behind_rank[0].get('rank')}** ahead of {makeOrdinal(behind_rank[0].get('rank'))}"
+                            output_str = f"**{makeOrdinal(rank)}** :crown: out of {len(prediction_dictionary)}\nScore: **{score}**\n**{score - behind_rank[0].get('rank')}** ahead of {makeOrdinal(behind_rank[0].get('rank'))}"
                         elif not behind_rank:
                             # print("Last place")
                             # print(f'{rank}: {score}, {ahead_rank[0].get("rank")}: {ahead_rank[0].get("score")}')
@@ -432,7 +432,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             for player in players_that_suck:
                 end_time = "TBD"
                 if end_time_obj := player.get('sidelined_end'):
-                    end_time = end_time_obj.strftime('%d/%m/%Y')
+                    end_time = end_time_obj.strftime('%d %b %Y')
 
                 output_paged_array.append({"name": f"{player.get('player_name')}", "value": f"{player.get('sidelined_reason')} - {end_time}"})
             

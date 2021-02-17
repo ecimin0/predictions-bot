@@ -11,6 +11,7 @@ from tabulate import tabulate
 from typing import List, Mapping, Any, NoReturn, Optional, Union
 import string
 import random
+import phrasier
 from typing import Mapping
 
 async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
@@ -455,9 +456,15 @@ async def makePaged(bot: commands.Bot, ctx: commands.Context, paginated_data: Li
         except Exception:
             bot.logger.exception("Error creating or reacting to paged function")
             break
+        
 
-async def sendScoreNotification(bot: commands.Bot):
-    await bot.wait_until_ready()
-    channel = bot.get_channel(652580035483402250)
-    bot.logger.info(channel)
-    await channel.send('hello')
+async def getTopPredictions(bot, fixture):
+    async with bot.db.acquire() as connection:
+        async with connection.transaction():
+            predictions = await connection.fetch("SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id, guild_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL AND fixture_id = $1 GROUP BY user_id, guild_id ORDER BY SUM(prediction_score) DESC", fixture)
+    return predictions
+
+
+async def makePhrase():
+    return phrasier.newphrase()
+    
