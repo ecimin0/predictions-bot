@@ -11,7 +11,7 @@ from tabulate import tabulate
 from typing import List, Mapping, Any, NoReturn, Optional, Union
 import string
 import random
-import phrasier
+# import phrasier
 from typing import Mapping
 
 async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
@@ -465,6 +465,6 @@ async def getTopPredictions(bot, fixture):
     return predictions
 
 
-async def makePhrase():
-    return phrasier.newphrase()
+# async def makePhrase():
+#     return phrasier.newphrase()
     
