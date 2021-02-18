@@ -3,7 +3,7 @@ import discord
 from discord.ext import tasks, commands
 import urllib
 from utils.exceptions import *
-from utils.utils import checkBotReady, nextMatch
+from utils.utils import checkBotReady, nextMatch, getPlayerId
 from tabulate import tabulate
 from typing import Optional
 import os
@@ -116,6 +116,19 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
             await ctx.send(output)
         except Exception:
             log.debug("Error getting issues", all_issues)
+
+    @commands.command()
+    async def player(self, ctx: commands.Context, name: str):
+        try:
+            player_id = await getPlayerId(self.bot, name)
+        except Exception as e:
+            await ctx.send(f"{e}")
+        
+        async with self.bot.db.acquire() as connection:
+            async with connection.transaction():
+                player_name = await connection.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1", player_id)
+        
+        await ctx.send(f"{player_name.get('player_name')}")
 
 def setup(bot):
     bot.add_cog(Utilities(bot))
