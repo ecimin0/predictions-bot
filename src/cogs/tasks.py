@@ -444,15 +444,24 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     for rank, users in top_rank_dict.items():
                         top_rank_dict[rank] = "\n".join(users)
                 
-                await channel.send(f':trophy: **Prediction scores have been updated**' +
+                match = await getMatch(self.bot, prediction.get("fixture_id"))
+                home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
+                away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
+                # print(match)
+
+                # await channel.send(f':trophy: **Prediction scores have been updated**' +
+                await channel.send(f'**{home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}**\n' +
                     f'\n:fire: Maximum possible score this fixture: {max_score}' +
-                    f'\n:soccer: Total predictions: {num_predictions}\n')
+                    f'\n:soccer: Total predictions this fixture: {num_predictions}\n\n' +
                     
-                await channel.send(f'\n:first_place: {max_score_achieved}\n**{top_rank_dict[1]}**')
-                await asyncio.sleep(1)
-                await channel.send(f'\n:second_place: \n**{top_rank_dict[2]}**')
-                await asyncio.sleep(1)
-                await channel.send(f'\n:third_place: \n**{top_rank_dict[3]}**')
+                # await channel.send(
+                    f':first_place: {max_score_achieved} **{top_predictions[0].get("score")} pts\n**{top_rank_dict[1]}\n' +
+                # await asyncio.sleep(0.1)
+                # await channel.send(
+                    f':second_place: **{top_predictions[1].get("score")} pts\n**{top_rank_dict[2]}\n' +
+                # await asyncio.sleep(0.1)
+                # await channel.send(
+                    f':third_place: **{top_predictions[2].get("score")} pts\n**{top_rank_dict[3]}')
 
             else:
                 log.info("No predictions to score")    
