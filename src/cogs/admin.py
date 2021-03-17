@@ -4,7 +4,7 @@ from discord.ext import commands
 from tabulate import tabulate
 from typing import Union
 from utils.exceptions import *
-from utils.utils import isAdmin
+from utils.utils import isAdmin, getPlayerId
 
 class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
 
@@ -182,6 +182,26 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
             command.update(enabled=True)
             await ctx.send(f"Enabled your shit. {command_name}")
             return
+
+    @commands.command()
+    async def togglePlayer(self, ctx: commands.Context, player_name: str):
+        '''
+        Toggle ability to select player using +predict or +player | +togglePlayer <henry>
+        '''
+        try:
+            player_id = await getPlayerId(self.bot, player_name, active_only=False)
+            player = await self.bot.db.fetchrow("SELECT player_name, active FROM predictionsbot.players WHERE player_id = $1;", player_id)
+            real_name = player.get("player_name")
+            active = player.get("active")
+
+            async with self.bot.db.acquire() as connection:
+                async with connection.transaction():
+                    updated_player = await connection.execute("UPDATE predictionsbot.players SET active = $1 WHERE player_id = $2", not active, player_id)
+                    await ctx.send(f"Toggled {real_name} to active: {not active}")
+        except Exception as e:
+            await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
+
+
 
 def setup(bot):
     bot.add_cog(AdminCog(bot))

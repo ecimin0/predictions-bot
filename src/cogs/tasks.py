@@ -355,7 +355,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             prediction_score += 1
 
                         for idx,player in enumerate(prediction.get("scorers")):
-                            prediction.get("scorers")[idx]["player_id"] = await getPlayerId(self.bot, player.get("name"))
+                            prediction.get("scorers")[idx]["player_id"] = await getPlayerId(self.bot, player.get("name"), active_only=False)
 
                         # 1 point – each correct scorer
                         actual_goal_scorers = {}
@@ -415,6 +415,9 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 if send_notifications:# and not self.bot.testing_mode:
                     # channel = self.bot.get_channel(652580035483402250) # test bot channel 1
                     channel = self.bot.get_channel(523472428517556244) # prod channel gunners
+                    # channel = self.bot.get_channel(self.bot.channel_id)
+
+                    # print(channel)
 
                     for fix in scorable_fixtures: # re-use the scorable fixture(s) from this run
                         top_predictions = await getTopPredictions(self.bot, fix)

@@ -148,23 +148,3 @@ Usually the cutoff is 1 hour before domestic matches and 1.5 hours before Europe
 
 ### Admin Functions
 **TBD**
-
-
-<br>
-
-## Infrastructure
-### Details
-- Code written in Python and built into a Docker image. The container entrypoint is simply the command to run the script:
-    ```Dockerfile
-    ENTRYPOINT [ "python3", "/usr/local/bin/predictions_bot.py" ]
-    ```
-
-- Images stored in GitLab registry
-
-- Containers run in AWS ECS
-
-- Logging, alarms, and metrics via AWS Cloudwatch
-
-- Database used is Postgres via AWS RDS
-
-- API: https://dashboard.api-football.com

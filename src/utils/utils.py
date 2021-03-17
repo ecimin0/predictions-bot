@@ -84,9 +84,13 @@ async def getUserPredictedLastMatches(bot: commands.Bot) -> List[asyncpg.Record]
     users = await bot.db.fetch(f"SELECT DISTINCT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT 2)")
     return users
 
-async def getPlayerId(bot: commands.Bot, userInput: str) -> int:
+async def getPlayerId(bot: commands.Bot, userInput: str, active_only=True) -> int:
     # player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
-    player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} AND (exists (SELECT 1 FROM unnest(nicknames) AS name WHERE unaccent(name) ILIKE unaccent($1)) OR unaccent(lastname) ILIKE unaccent($1) OR unaccent(firstname) ILIKE unaccent($1));", f"%{userInput}%")
+    
+    sql_active_flag = "AND active = true" if active_only else ""
+    
+    player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} {sql_active_flag} AND (exists (SELECT 1 FROM unnest(nicknames) AS name WHERE unaccent(name) ILIKE unaccent($1)) OR unaccent(lastname) ILIKE unaccent($1) OR unaccent(firstname) ILIKE unaccent($1));", f"%{userInput}%")
+    
     if not player_obj:
         raise Exception(f"no player named {userInput}")
     elif len(player_obj) > 1:

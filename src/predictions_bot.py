@@ -65,6 +65,7 @@ class Bot(commands.Bot):
         self.season_full = kwargs.pop("season_full")
         self.season = kwargs.pop("season")
         self.channel = kwargs.pop("channel")
+        # self.channel_id = discord.utils.get(self.get_all_channels(), name=self.channel) 
         self.gitlab_api = kwargs.pop("gitlab_api")
         self.step = kwargs.pop("step", 5)
         self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = {self.main_team} THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = {self.main_team} THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short, notifications_sent"
@@ -319,6 +320,20 @@ if __name__ == "__main__":
     #         log.exception("user either blocked bot or disabled DMs")
     #     except Exception:
     #         log.exception("error sending help command to user")
+
+
+
+    # r = appmap.Recording()
+    # with r:
+    #     bot.run(token)
+
+    #     with os.fdopen(sys.stdout.fileno(), "wb", closefd=False) as stdout:
+    #         stdout.write(appmap.generation.dump(r).encode("utf-8"))
+    #         stdout.flush()
+
+    #     # with open("fdsafdsafdsfd.appmap.json", "wb") as f:
+    #     #     f.write(appmap.generation.dump(r).encode("utf-8"))
+    #     #     f.flush()
 
     bot.run(token)
 # except KeyboardInterrupt:
