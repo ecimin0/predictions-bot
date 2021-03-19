@@ -65,10 +65,16 @@ class Bot(commands.Bot):
         self.season_full = kwargs.pop("season_full")
         self.season = kwargs.pop("season")
         self.channel = kwargs.pop("channel")
-        # self.channel_id = discord.utils.get(self.get_all_channels(), name=self.channel) 
         self.gitlab_api = kwargs.pop("gitlab_api")
         self.step = kwargs.pop("step", 5)
         self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = {self.main_team} THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = {self.main_team} THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short, notifications_sent"
+
+    def channelNameToChannelID(self) -> None:
+        for guild in self.guilds:
+            if channel := discord.utils.get(guild.channels, name=self.channel):
+                self.logger.info("Found channel id for channel", channel=self.channel, channel_id=channel.id)
+                self.channel_id = channel.id
+        self.channel_id = 652580035483402250 # return the kubernauts bot 1 channel in case of failure
 
     async def close(self):
         await self.notifyAdmin("Closing bot connection to discord and postgres")
@@ -87,6 +93,7 @@ class Bot(commands.Bot):
         # .format() is for the lazy people who aren't on 3.6+
         # print(f"Username: {self.user}\nID: {self.user.id}")
         await self.notifyAdmin(f'connected to {channel} within {[guild.name for guild in self.guilds ]} as {self.user}')
+        self.channelNameToChannelID()
 
     async def on_message(self, message):
         # if the bot sends messages to itself don't return anything
@@ -113,7 +120,7 @@ class Bot(commands.Bot):
             if re.match(r"\+\s+\w+.*", message.content):
                 await message.channel.send(f"{message.author.mention}```{message.content}```Do not include any spaces after '+'\nExamples: `+help | +rules | +predict ...`")
             else:    
-                t0= time.perf_counter()
+                t0 = time.perf_counter()
                 await self.process_commands(message)
                 if self.tracing:
                     duration = time.perf_counter() - t0

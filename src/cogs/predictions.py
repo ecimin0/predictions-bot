@@ -416,7 +416,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name, command="sidelined")
 
         try:
-            players_that_suck = await self.bot.db.fetch(f"SELECT player_name, sidelined_reason, sidelined_end FROM predictionsbot.players WHERE sidelined;")
+            players_that_suck = await self.bot.db.fetch(f"SELECT player_name, sidelined_reason, sidelined_end FROM predictionsbot.players WHERE sidelined AND active;")
         except Exception:
             log.exception("Failed to retrieve players_that_suck from database")
         

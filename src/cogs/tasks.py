@@ -414,10 +414,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
                 if send_notifications:# and not self.bot.testing_mode:
                     # channel = self.bot.get_channel(652580035483402250) # test bot channel 1
-                    channel = self.bot.get_channel(523472428517556244) # prod channel gunners
-                    # channel = self.bot.get_channel(self.bot.channel_id)
-
-                    # print(channel)
+                    # channel = self.bot.get_channel(523472428517556244) # prod channel gunners
+                    channel = self.bot.get_channel(self.bot.channel_id)
 
                     for fix in scorable_fixtures: # re-use the scorable fixture(s) from this run
                         top_predictions = await getTopPredictions(self.bot, fix)
@@ -447,24 +445,29 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     for rank, users in top_rank_dict.items():
                         top_rank_dict[rank] = "\n".join(users)
                 
-                match = await getMatch(self.bot, prediction.get("fixture_id"))
-                home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
-                away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
-                # print(match)
 
-                # await channel.send(f':trophy: **Prediction scores have been updated**' +
-                await channel.send(f'**{home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}**\n' +
-                    f'\n:fire: Maximum possible score this fixture: {max_score}' +
-                    f'\n:soccer: Total predictions this fixture: {num_predictions}\n\n' +
+                    scores = sorted([i[1] for i in set([(score.get("rank"), score.get("score")) for score in top_predictions])], reverse=True)
+                
+                
+                    match = await getMatch(self.bot, prediction.get("fixture_id"))
+                    home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
+                    away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
+                    # print(match)
+
+                    # await channel.send(f':trophy: **Prediction scores have been updated**' +
                     
-                # await channel.send(
-                    f':first_place: {max_score_achieved} **{top_predictions[0].get("score")} pts\n**{top_rank_dict[1]}\n' +
-                # await asyncio.sleep(0.1)
-                # await channel.send(
-                    f':second_place: **{top_predictions[1].get("score")} pts\n**{top_rank_dict[2]}\n' +
-                # await asyncio.sleep(0.1)
-                # await channel.send(
-                    f':third_place: **{top_predictions[2].get("score")} pts\n**{top_rank_dict[3]}')
+                    output_str = f'**{home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}**\n' + \
+                        f'\n:fire: Maximum possible score this fixture: {max_score}' + \
+                        f'\n:soccer: Total predictions this fixture: {num_predictions}\n\n' + \
+                        f':first_place: {max_score_achieved} **{scores[0]} pts\n**{top_rank_dict[1]}\n'
+
+                    if len(scores) >= 2:
+                        output_str += f':second_place: **{scores[1]} pts\n**{top_rank_dict[2]}\n'
+                    
+                    if len(scores) >= 3:
+                        output_str += f':third_place: **{scores[2]} pts\n**{top_rank_dict[3]}'
+
+                    await channel.send(output_str)
 
             else:
                 log.info("No predictions to score")    
