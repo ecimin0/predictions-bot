@@ -70,11 +70,11 @@ class Bot(commands.Bot):
         self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = {self.main_team} THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = {self.main_team} THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short, notifications_sent"
 
     def channelNameToChannelID(self) -> None:
+        self.channel_id = 652580035483402250 # initialize as the test bot channel in kubernauts
         for guild in self.guilds:
             if channel := discord.utils.get(guild.channels, name=self.channel):
                 self.logger.info("Found channel id for channel", channel=self.channel, channel_id=channel.id)
                 self.channel_id = channel.id
-        self.channel_id = 652580035483402250 # return the kubernauts bot 1 channel in case of failure
 
     async def close(self):
         await self.notifyAdmin("Closing bot connection to discord and postgres")
