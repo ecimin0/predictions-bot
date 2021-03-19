@@ -320,7 +320,6 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             send_notifications = False
 
             if unscored_predictions:
-                num_predictions = len(unscored_predictions)
                 for prediction in unscored_predictions:
                     if prediction.get("fixture_id") in scorable_fixtures:
                         send_notifications = True
@@ -447,7 +446,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 
 
                     scores = sorted([i[1] for i in set([(score.get("rank"), score.get("score")) for score in top_predictions])], reverse=True)
-                
+                    num_predictions = len(top_predictions)
+
                 
                     match = await getMatch(self.bot, prediction.get("fixture_id"))
                     home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
