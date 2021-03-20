@@ -396,7 +396,7 @@ async def makePagedEmbed(bot, ctx, paginated_data):
                 await msg.clear_reactions()
                 await msg.edit(embed=embed)
         except Exception:
-            bot.logger.exception("Error creating or reacting to paged function")
+            bot.logger.exception("Error creating or reacting to paged function", num=num, paginated_data=paginated_data)
             break
 
 

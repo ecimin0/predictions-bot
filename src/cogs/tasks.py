@@ -444,11 +444,9 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     for rank, users in top_rank_dict.items():
                         top_rank_dict[rank] = "\n".join(users)
                 
-
                     scores = sorted([i[1] for i in set([(score.get("rank"), score.get("score")) for score in top_predictions])], reverse=True)
                     num_predictions = len(top_predictions)
 
-                
                     match = await getMatch(self.bot, prediction.get("fixture_id"))
                     home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
                     away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
