@@ -1,7 +1,6 @@
 include:
   - template: AWS/Deploy-ECS.gitlab-ci.yml
 
-
 variables:
   CI_AWS_ECS_CLUSTER: default
   CI_AWS_ECS_SERVICE: predictions-bot-service
@@ -11,15 +10,6 @@ variables:
 # workflow:
 #   rules:
 #     - if: '$CI_COMMIT_BRANCH =~ /^master/'
-
-stages:
-  - testing
-  - build
-  - review
-  - deploy
-  - production
-  - cleanup
-
 
 testing:
   image: python:3.9-buster
@@ -40,3 +30,11 @@ testing:
     - source ./venv/bin/activate
     - python -m pip install -r requirements.txt
     - pytest -srpfE --cov-report term-missing --cov='./src'
+
+stages:
+  - testing
+  - build
+  - review
+  - deploy
+  - production
+  - cleanup
