@@ -23,6 +23,7 @@ stages:
 
 testing:
   image: python:3.9-buster
+  stage: testing
   variables:
     API_KEY: NOTAREALTOKEN
     TESTING: "TRUE"
