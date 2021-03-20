@@ -1,27 +1,47 @@
-workflow:
-  rules:
-    - if: '$CI_COMMIT_BRANCH =~ /^master/'
+include:
+  - template: AWS/Deploy-ECS.gitlab-ci.yml
+
+
+variables:
+  CI_AWS_ECS_CLUSTER: default
+  CI_AWS_ECS_SERVICE: predictions-bot-service
+  CI_AWS_ECS_TASK_DEFINITION: predictions-bot
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# workflow:
+#   rules:
+#     - if: '$CI_COMMIT_BRANCH =~ /^master/'
+
+stages:
+  - testing
+  - build
+  - production_ecs
 
 testing:
   image: python:3.9-buster
   variables:
-    TOKEN: NOTAREALTOKEN
     API_KEY: NOTAREALTOKEN
-    CHANNEL_ID: 652580035483402250
     TESTING: "TRUE"
     PYTHONUNBUFFERED: 1
     LOGLEVEL: DEBUG
     GITLAB_API: NOTAREALTOKEN
+  cache:
+    paths:
+      - .cache/pip
+      - venv/
+    key: one-key-to-rule-them-all
   script:
     - python3 -m venv venv
     - source ./venv/bin/activate
     - python -m pip install -r requirements.txt
     - pytest -srpfE --cov-report term-missing --cov='./src'
 
-include:
-  - template: AWS/Deploy-ECS.gitlab-ci.yml
+build:
+  only:
+    refs:
+      - master
 
-variables:
-  CI_AWS_ECS_CLUSTER: default
-  CI_AWS_ECS_SERVICE: predictions-bot-service
-  CI_AWS_ECS_TASK_DEFINITION: predictions-bot
+production_ecs:
+  only:
+    refs:
+      - master
