@@ -119,6 +119,9 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
 
     @commands.command()
     async def player(self, ctx: commands.Context, name: str):
+        '''
+        Search for player by name/letter | +player saka
+        '''
         try:
             player_id = await getPlayerId(self.bot, name)
         except Exception as e:

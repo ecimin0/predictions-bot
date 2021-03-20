@@ -2,6 +2,14 @@ workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH =~ /^master/'
 
+job:
+  image: python:3.9-buster
+  script:
+    - python3 -m venv venv
+    - ./venv/bin/activate
+    - python -m pip install -r requirements.txt
+    - pytest -srpfE --cov-report term-missing --cov='.'
+
 include:
   - template: AWS/Deploy-ECS.gitlab-ci.yml
 
