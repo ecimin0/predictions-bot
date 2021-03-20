@@ -15,7 +15,11 @@ variables:
 stages:
   - testing
   - build
-  - production_ecs
+  - review
+  - deploy
+  - production
+  - cleanup
+
 
 testing:
   image: python:3.9-buster
@@ -35,13 +39,3 @@ testing:
     - source ./venv/bin/activate
     - python -m pip install -r requirements.txt
     - pytest -srpfE --cov-report term-missing --cov='./src'
-
-build:
-  only:
-    refs:
-      - master
-
-production_ecs:
-  only:
-    refs:
-      - master
