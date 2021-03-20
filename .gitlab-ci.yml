@@ -2,13 +2,21 @@ workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH =~ /^master/'
 
-job:
+testing:
   image: python:3.9-buster
+  variables:
+    TOKEN: NOTAREALTOKEN
+    API_KEY: NOTAREALTOKEN
+    CHANNEL_ID: 652580035483402250
+    TESTING: "TRUE"
+    PYTHONUNBUFFERED: 1
+    LOGLEVEL: DEBUG
+    GITLAB_API: NOTAREALTOKEN
   script:
     - python3 -m venv venv
     - source ./venv/bin/activate
     - python -m pip install -r requirements.txt
-    - pytest -srpfE --cov-report term-missing --cov='.'
+    - pytest -srpfE --cov-report term-missing --cov='./src'
 
 include:
   - template: AWS/Deploy-ECS.gitlab-ci.yml
