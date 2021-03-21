@@ -23,6 +23,7 @@ class MockResponse:
     async def __aenter__(self):
         return self
 
+# init tests
 @pytest.fixture(scope='module')
 def event_loop():
     return asyncio.get_event_loop()
@@ -100,11 +101,15 @@ async def test_next_negative(bot):
     bot.verify_message("Number of next matches cannot be a negative number", contains=True)
  
 @pytest.mark.asyncio
+async def test_next_too_many(bot):
+    msg = await bot.message("+next 20")
+    bot.verify_message("Number of next matches cannot be greater than 20", contains=True)
+
+@pytest.mark.asyncio
 async def test_no_sidelined(bot):
     msg = await bot.message("+sidelined")
     response = bot.get_message().content
     assert("Believe it or not Granit Xhaka is not currently suspended" == response or "There are no players currently sidelined" == response)
-
 
 @pytest.mark.asyncio
 async def test_remindme(bot):
@@ -116,14 +121,11 @@ async def test_botissues(bot):
     msg = await bot.message("+botissues")
     bot.verify_message("Open Issues:", contains=True)
 
-
-# how to do this without opening an actual issue?
 @pytest.mark.asyncio
 async def test_feedback(bot, mocker):
     data = {}
     resp = MockResponse(json.dumps(data), 200)
-    mocker.patch('aiohttp.ClientSession.post', return_value=resp)
-    
+    mocker.patch('aiohttp.ClientSession.post', return_value=resp)    
     msg = await bot.message("+feedback pytest_test_feedback")
     bot.verify_message("Thank you for your feedback", contains=True)
 
@@ -160,7 +162,6 @@ async def test_player(bot):
 #     msg = await bot.message("+next 11")
 #     message = bot.get_message().content
 #     assert re.match(".*?\n\*\*Next 11 matches:\*\*\n\n(.*?\n.*?vs.*?\n\w*, \d+? \w+ \d\d:\d\d \w{2} \w{3}\n?\n?){11}", message)  
-
 
 
 
@@ -292,6 +293,7 @@ async def test_past_fixtures(bot):
 # async def test_(bot):
 #     msg = await bot.message("+")
 #     bot.verify_message("", contains=True)
+
 # @pytest.mark.asyncio
 # async def test_(bot):
 #     msg = await bot.message("+")
