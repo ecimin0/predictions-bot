@@ -208,6 +208,65 @@ async def test_player(bot):
 
 
 
+# admin stuff
+# @pytest.mark.asyncio
+# async def test_list_cogs(bot):
+#     # bot.verify_message("", contains=True)
+#     with pytest.raises(IsNotAdmin) as e:
+#         msg = await bot.message("+list_cogs")
+#     assert re.search('User .* is not an admin and cannot use this function.', e)
+
+# @pytest.mark.asyncio
+# async def test_test_embed(bot):
+#     msg = await bot.message("+testEmbed")
+#     bot.verify_embed("Test 0", contains=True)
+
+
+
+
+
+# fails due to nothing in db in gitlab run
+# @pytest.mark.asyncio
+# async def test_table(bot):
+#     msg = await bot.message("+table")
+#     bot.verify_message("```|   Rank | Team              |   P | W-D-L   |   GD |   Pts |", contains=True)
+
+
+
+# has to wait for page turn reaction to time out, raises NotImplementedError
+@pytest.mark.asyncio
+async def test_past_fixtures(bot):
+    msg = await bot.message("+results")
+    bot.verify_message("Past Match Results", contains=True)
+
+# @pytest.mark.asyncio
+# async def test_(bot):
+#     msg = await bot.message("+")
+#     bot.verify_message("", contains=True)
+# @pytest.mark.asyncio
+# async def test_(bot):
+#     msg = await bot.message("+")
+#     bot.verify_message("", contains=True)
+
+# @pytest.mark.asyncio
+# async def test_(bot):
+#     msg = await bot.message("+")
+#     bot.verify_message("", contains=True)
+
+# @pytest.mark.asyncio
+# async def test_(bot):
+#     msg = await bot.message("+")
+#     bot.verify_message("", contains=True)
+
+# @pytest.mark.asyncio
+# async def test_(bot):
+#     msg = await bot.message("+")
+#     bot.verify_message("", contains=True)
+
+# @pytest.mark.asyncio
+# async def test_(bot):
+#     msg = await bot.message("+")
+#     bot.verify_message("", contains=True)
 
 # @pytest.mark.asyncio
 # async def test_(bot):
