@@ -389,7 +389,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                         if not ahead_rank:
                             # print(f'{rank}: {score}, {behind_rank[0].get("rank")}: {behind_rank[0].get("score")}')
                             # print("First place")
-                            output_str = f"**{makeOrdinal(rank)}** :crown: out of {len(prediction_dictionary)}\nScore: **{score}**\n**{score - behind_rank[0].get('rank')}** ahead of {makeOrdinal(behind_rank[0].get('rank'))}"
+                            output_str = f"**{makeOrdinal(rank)}** :crown: out of {len(prediction_dictionary)}\nScore: **{score}**\n**{score - behind_rank[0].get('score')}** ahead of {makeOrdinal(behind_rank[0].get('rank'))}"
                         elif not behind_rank:
                             # print("Last place")
                             # print(f'{rank}: {score}, {ahead_rank[0].get("rank")}: {ahead_rank[0].get("score")}')
