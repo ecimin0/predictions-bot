@@ -7,24 +7,24 @@ variables:
   CI_AWS_ECS_TASK_DEFINITION: predictions-bot
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
-testing:
-  image: python:3.9-buster
-  stage: test
-  variables:
-    API_KEY: NOTAREALTOKEN
-    TESTING: "TRUE"
-    PYTHONUNBUFFERED: 1
-    LOGLEVEL: DEBUG
-    GITLAB_API: $GITLAB_API
-    TOKEN: $TOKEN
-    AWS_DBPASS: $AWS_DBPASS
-  cache:
-    paths:
-      - .cache/pip
-      - venv/
-    key: one-key-to-rule-them-all
-  script:
-    - python3 -m venv venv
-    - source ./venv/bin/activate
-    - python -m pip install -r requirements.txt
-    - pytest -srpfE --cov-report term-missing --cov='./src'
+# testing:
+#   image: python:3.9-buster
+#   stage: test
+#   variables:
+#     API_KEY: NOTAREALTOKEN
+#     TESTING: "TRUE"
+#     PYTHONUNBUFFERED: 1
+#     LOGLEVEL: DEBUG
+#     GITLAB_API: $GITLAB_API
+#     TOKEN: $TOKEN
+#     AWS_DBPASS: $AWS_DBPASS
+#   cache:
+#     paths:
+#       - .cache/pip
+#       - venv/
+#     key: one-key-to-rule-them-all
+#   script:
+#     - python3 -m venv venv
+#     - source ./venv/bin/activate
+#     - python -m pip install -r requirements.txt
+#     - pytest -srpfE --cov-report term-missing --cov='./src'
