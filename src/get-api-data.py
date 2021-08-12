@@ -225,8 +225,8 @@ option = parser.parse_args()
 ### aws postgres stuff
 aws_dbuser = "postgres"
 aws_dbpass = os.environ.get("AWS_DBPASS", None)
-aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
-aws_db_ip = "3.15.92.33"
+aws_dbhost = "predictions-bot.cdv2z684ki93.us-east-2.rds.amazonaws.com"
+aws_db_ip = "52.14.49.11"
 # aws_dbname = "predictions-bot-data-test"
 aws_dbname = "predictions-bot-data"
 

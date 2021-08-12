@@ -185,13 +185,13 @@ logger = createLogger(os.environ.get("LOGLEVEL", "INFO"))
 
 utc = pytz.timezone("UTC")
 
-# 2020-2021 season league IDs
+# 2021-2022 season league IDs
 league_dict = {
-    "premier_league": 2790,
+    "premier_league": 3456,
     "champions_league": 2771,
     "europa_league": 2777,
-    "fa_cup": 2791,
-    "league_cup": 2781
+    "fa_cup": 3574,
+    "league_cup": 3498
 }
 
 # TBD : Time To Be Defined
@@ -226,8 +226,9 @@ else:
 
 aws_dbuser = "postgres"
 aws_dbpass = os.environ.get("AWS_DBPASS", None)
-aws_dbhost = "predictions-bot-database.cdv2z684ki93.us-east-2.rds.amazonaws.com"
-aws_db_ip = "3.15.92.33"
+aws_dbhost = "predictions-bot.cdv2z684ki93.us-east-2.rds.amazonaws.com"
+# aws_db_ip = "3.15.92.33"
+aws_db_ip = "52.14.49.11"
 
 api_key = os.environ.get("API_KEY", None)
 
@@ -239,7 +240,7 @@ else:
 # API team id to use as 'main' team
 main_team = 42 # arsenal
 main_team_name = "Arsenal"
-main_league = 2790 # ID of team's main domestic league
+main_league = 3456 # ID of team's main domestic league
 
 token = os.environ.get("TOKEN", None)
 if not token:
@@ -259,8 +260,8 @@ options = {
     "logger": logger,
     "api_key": api_key,
     "league_dict": league_dict,
-    "season_full": "2020-2021",
-    "season": "2020",
+    "season_full": "2021-2022",
+    "season": "2021",
     "gitlab_api": os.environ.get("GITLAB_API", None),
     "tracing": os.environ.get("TRACING", False),
     "prefix": "+",
