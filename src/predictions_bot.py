@@ -188,8 +188,8 @@ utc = pytz.timezone("UTC")
 # 2021-2022 season league IDs
 league_dict = {
     "premier_league": 3456,
-    "champions_league": 2771,
-    "europa_league": 2777,
+    "champions_league": 3431,
+    "europa_league": 3632,
     "fa_cup": 3574,
     "league_cup": 3498
 }
@@ -227,7 +227,6 @@ else:
 aws_dbuser = "postgres"
 aws_dbpass = os.environ.get("AWS_DBPASS", None)
 aws_dbhost = "predictions-bot.cdv2z684ki93.us-east-2.rds.amazonaws.com"
-# aws_db_ip = "3.15.92.33"
 aws_db_ip = "52.14.49.11"
 
 api_key = os.environ.get("API_KEY", None)

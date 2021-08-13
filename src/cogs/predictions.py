@@ -15,7 +15,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(aliases=["prediction"])
+    @commands.command(aliases=["prediction", "mine"])
     async def predictions(self, ctx: commands.Context):
         '''
         Show your past predictions
