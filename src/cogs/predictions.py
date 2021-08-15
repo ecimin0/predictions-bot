@@ -171,7 +171,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
     @commands.command(brief="Make a prediction.")
     async def predict(self, ctx: commands.Context, *, prediction: str):
         '''
-        Make a new prediction | +predict 1-1 auba fgs, laca | Type scores as home - away.'
+        Make a new prediction | +predict 1-1 auba fgs, laca | Type scores as home - away
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
@@ -211,12 +211,12 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             await ctx.send(f"{ctx.message.author.mention}\nIt looks like you didn't actually predict anything!\nTry something like `+predict 3-2 auba fgs, laca`")
             return 
 
-        goals_regex = r"((\d{1,2}) ?[:-] ?(\d{1,2}))"
+        goals_regex = r"((\d+) ?[:-] ?(\d+))"
         # player_regex = r"[A-Za-z]{1,18}[,]? ?(\d[xX]|[xX]\d)?"
         prediction_string = ctx.message.content
         try:
             goals_match = re.search(goals_regex, prediction)
-        
+
             prediction = re.sub(goals_regex, "", prediction)
 
             scorers = prediction.strip().split(",")
@@ -240,9 +240,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                     player = re.sub("[fF][gG][sS]", "", player)
                     fgs_str = "fgs"
 
-                goals_scored = re.search(r'[xX]?(\d{1,2})[xX]?', player)
+                goals_scored = re.search(r'[xX]?(\d+)[xX]?', player)
                 if goals_scored:
-                    player = re.sub(r'[xX]?(\d{1,2})[xX]?', "", player)
+                    player = re.sub(r'[xX]?(\d+)[xX]?', "", player)
                     num_goals = int(goals_scored.group(1))
 
                 try:
@@ -277,7 +277,6 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                 await ctx.send(f"{ctx.message.author.mention}\nTwo players cannot be first goal scorer, predict again.")
                 return
 
-
         except Exception as e:
             log.exception(f"{e}")
             await ctx.send(f"There was an error parsing this prediction:\n{e}")
@@ -291,6 +290,10 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             home_goals = int(goals_match.group(2))
             # football away teams listed second
             away_goals = int(goals_match.group(3))
+
+        if home_goals > 99 or away_goals > 99:
+            await ctx.send(f"{ctx.message.author.mention}\nPrediction scores cannot be 3 digit numbers, try again")
+            return
 
         if current_match.get("home_or_away") == "home":
             arsenal_goals = home_goals
