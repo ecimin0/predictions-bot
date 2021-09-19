@@ -479,7 +479,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         except Exception:
             log.exception()
 
-    @tasks.loop(hours=6)
+    @tasks.loop(hours=24)
     async def updateTeams(self):
         await checkBotReady()
         try:
