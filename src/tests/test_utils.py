@@ -109,7 +109,7 @@ async def test_next_too_many(bot):
 async def test_no_sidelined(bot):
     msg = await bot.message("+sidelined")
     response = bot.get_message().content
-    assert("Believe it or not Granit Xhaka is not currently suspended" == response or "There are no players currently sidelined" == response)
+    assert("Believe it or not Granit Xhaka is not currently suspended" == response or "There are no players currently sidelined" == response or "Sidelined Arsenal Players")
 
 @pytest.mark.asyncio
 async def test_remindme(bot):
