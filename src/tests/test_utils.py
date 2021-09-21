@@ -32,8 +32,23 @@ def event_loop():
 async def bot(event_loop):    
     bot = await predictions_bot.init(predictions_bot.credentials, predictions_bot.options, predictions_bot.token, predictions_bot.cogs, loop=event_loop)
     dpytest.configure(bot)
+
+    async with bot.db.acquire() as connection:
+        async with connection.transaction():
+            for guild in bot.guilds:
+                await connection.execute("INSERT INTO predictionsbot.guilds (guild_id, main_team) VALUES ($1, 42);", guild.id)
+
+    # with open('./testguild.txt', 'w') as f:
+    #     # f.write(dpytest.get_state().chunk_guild())
+    #     # f.write(str(bot.guilds))
+    #     f.write(str([guild.id for guild in bot.guilds]))
     return dpytest
-    
+
+# @pytest.fixture(scope='module')
+# async def chunk_guild(bot):
+#     myvar = bot.chunk_guild()
+#     return myvar
+
 @pytest.mark.asyncio
 async def test_welcome_message(bot):
     msg = await bot.message("+prediction")
@@ -139,9 +154,6 @@ async def test_player(bot):
     msg = await bot.message("+player auba")
     bot.verify_message("P. Aubameyang", contains=True)
 
-
-
-
 # # this works but is slow as hell
 # @pytest.mark.asyncio
 # async def test_next(bot):
@@ -163,28 +175,12 @@ async def test_player(bot):
 #     message = bot.get_message().content
 #     assert re.match(".*?\n\*\*Next 11 matches:\*\*\n\n(.*?\n.*?vs.*?\n\w*, \d+? \w+ \d\d:\d\d \w{2} \w{3}\n?\n?){11}", message)  
 
-
-
-
-
-# need to solve the 'new guild has no predictions and thus no leaderboard' problem
-# @pytest.mark.asyncio
-# async def test_leaderboard(bot):
-#     msg = await bot.message("+leaderboard")
-#     print(bot.get_message())
-
-# # won't work until testing db works
-# @pytest.mark.asyncio
-# async def test_rank(bot):
-#     msg = await bot.message("+rank")
-#     bot.verify_message("Score", contains=True)
-
 # fails due to no guild ID in insert
-# @pytest.mark.asyncio
-# async def test_predict_fgs(bot):
-#     msg = await bot.message("+predict 1-1 auba fgs")
-#     message = bot.get_message().content
-#     assert re.search(".*P. Aubameyang: 1 fgs.*", message, re.DOTALL)
+@pytest.mark.asyncio
+async def test_predict_fgs(bot):
+    msg = await bot.message("+predict 1-1 auba fgs")
+    message = bot.get_message().content
+    assert re.search(".*P. Aubameyang: 1 fgs.*", message, re.DOTALL)
 
 # @pytest.mark.asyncio
 # async def test_predict_fgs_without_fgs(bot):
@@ -192,20 +188,30 @@ async def test_player(bot):
 #     message = bot.get_message().content
 #     assert re.match(".*`\+predict 1-1 auba`\n\n\*\*Score\*\*\nNone [a-zA-Z]+ 1 - 1 None [a-zA-Z]+\n\n\*\*Goal Scorers\*\*\nP. Aubameyang: 1 fgs.*", message, re.DOTALL)
 
+# need to solve the 'new guild has no predictions and thus no leaderboard' problem
 # @pytest.mark.asyncio
-# async def test_predict_too_many_goal_scorers(bot):
-#     msg = await bot.message("+predict 1-1 auba 2x")
+# async def test_leaderboard(bot):
+#     msg = await bot.message("+leaderboard")
 #     message = bot.get_message().content
-#     assert not re.match("It looks like you have predicted Arsenal to score 1, but have included too many goal scorers:\nPrediction: `+predict 1-1 auba 2x`\nNumber of scorers predicted: 2 | Predicted goals scored: 1", message, re.DOTALL)
+#     assert re.search(".*1st:.*points.*", message, re.DOTALL)
+    # print(bot.get_message())
 
+# # won't work until testing db works
 # @pytest.mark.asyncio
-# async def test_predict_not_a_player(bot):
-#     msg = await bot.message("+predict 1-1 notaplayer fgs")
-#     bot.verify_message("Please try again, no player named notaplayer", contains=True) 
+# async def test_rank(bot):
+#     msg = await bot.message("+rank")
+#     bot.verify_message("Score", contains=True)
 
+@pytest.mark.asyncio
+async def test_predict_too_many_goal_scorers(bot):
+    msg = await bot.message("+predict 1-1 auba 2x")
+    message = bot.get_message().content
+    assert not re.match("It looks like you have predicted Arsenal to score 1, but have included too many goal scorers:\nPrediction: `+predict 1-1 auba 2x`\nNumber of scorers predicted: 2 | Predicted goals scored: 1", message, re.DOTALL)
 
-
-
+@pytest.mark.asyncio
+async def test_predict_not_a_player(bot):
+    msg = await bot.message("+predict 1-1 notaplayer fgs")
+    bot.verify_message("Please try again, no player named notaplayer", contains=True)
 
 
 
@@ -223,16 +229,11 @@ async def test_player(bot):
 #     bot.verify_embed("Test 0", contains=True)
 
 
-
-
-
 # fails due to nothing in db in gitlab run
 # @pytest.mark.asyncio
 # async def test_table(bot):
 #     msg = await bot.message("+table")
 #     bot.verify_message("```|   Rank | Team              |   P | W-D-L   |   GD |   Pts |", contains=True)
-
-
 
 # has to wait for page turn reaction to time out, raises NotImplementedError
 @pytest.mark.asyncio
@@ -244,6 +245,7 @@ async def test_past_fixtures(bot):
 # async def test_(bot):
 #     msg = await bot.message("+")
 #     bot.verify_message("", contains=True)
+
 # @pytest.mark.asyncio
 # async def test_(bot):
 #     msg = await bot.message("+")
