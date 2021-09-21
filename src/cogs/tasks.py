@@ -259,7 +259,6 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
     # @bot.command(hidden=True)
     # @commands.check(isAdmin())
-    # async def calculatePredictionScores(ctx):
     @tasks.loop(minutes=5)
     async def calculatePredictionScores(self):
         await checkBotReady()
@@ -276,8 +275,10 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             decoder=json.loads,
                             schema='pg_catalog'
                         )
-                        unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions WHERE prediction_score is null")
+                        # unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions WHERE prediction_score is null ORDER BY timestamp ASC")
+                        unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions p join predictionsbot.fixtures f on f.fixture_id = p.fixture_id WHERE f.scorable and prediction_score is null")
                         unscored_fixtures = await connection.fetch("SELECT DISTINCT fixture_id FROM predictionsbot.predictions WHERE prediction_score is null")
+                        
             except Exception:
                 log.exception("encountered error while selecting predictions from database")
                 raise PleaseTellMeAboutIt("encountered error while selecting predictions from database")
@@ -444,6 +445,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                 if guild.id == user.get("guild_id"):
                                     disc_user = guild.get_member(user.get("user_id"))
                                     uname = disc_user.display_name
+                                else:
+                                    uname = "placeholder"
                             top_rank_dict[user.get('rank')].append(uname)
 
                     for rank, users in top_rank_dict.items():
