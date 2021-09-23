@@ -6,6 +6,8 @@ import pytest
 import re 
 import json
 
+from utils.utils import *
+
 class MockResponse:
     def __init__(self, text, status):
         self._text = text
@@ -214,6 +216,14 @@ async def test_predict_not_a_player(bot):
     bot.verify_message("Please try again, no player named notaplayer", contains=True)
 
 
+@pytest.mark.asyncio
+async def test_getMatch(bot):
+    # async with bot.db.acquire() as connection:
+        # async with connection.transaction():
+        #     for guild in bot.guilds:
+        #         await connection.execute("INSERT INTO predictionsbot.guilds (guild_id, main_team) VALUES ($1, 42);", guild.id)
+    assert getMatch(bot, 710598)
+    # assert match
 
 # admin stuff
 # @pytest.mark.asyncio
