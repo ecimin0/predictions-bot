@@ -468,6 +468,13 @@ async def getTopPredictions(bot, fixture):
             predictions = await connection.fetch("SELECT DENSE_RANK() OVER(ORDER BY SUM(prediction_score) DESC) as rank, SUM(prediction_score) as score, user_id, guild_id FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL AND fixture_id = $1 GROUP BY user_id, guild_id ORDER BY SUM(prediction_score) DESC", fixture)
     return predictions
 
+async def getAveragePredictionScore(bot, fixture):
+    async with bot.db.acquire() as connection:
+        async with connection.transaction():
+            avgscore = await connection.fetchrow("SELECT ROUND(AVG(prediction_score), 2) FROM predictionsbot.predictions WHERE prediction_score IS NOT NULL AND fixture_id = $1", fixture)
+            final_avg = avgscore[0]
+    return final_avg
+
 
 # async def makePhrase():
 #     return phrasier.newphrase()
