@@ -463,8 +463,9 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     # await channel.send(f':trophy: **Prediction scores have been updated**' +
                     
                     output_str = f'**{home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}**\n' + \
-                        f'\n:fire: Maximum possible score this fixture: {max_score}' + \
-                        f'\n:soccer: Total predictions this fixture: {num_predictions}\n\n' + \
+                        f'\n:fire: Maximum possible score this fixture: **{max_score}**' + \
+                        f'\n:soccer: Total predictions this fixture: **{num_predictions}**' + \
+                        f'\n:loudspeaker: Average prediction score: **{await getAveragePredictionScore(self.bot, match.get("fixture_id"))}**\n\n' +\
                         f':first_place: {max_score_achieved} **{scores[0]} pts\n**{top_rank_dict[1]}\n'
 
                     if len(scores) >= 2:
