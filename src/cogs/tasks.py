@@ -447,6 +447,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                     uname = disc_user.display_name
                                 # else:
                                 #     uname = "placeholder"
+                        if disc_user:
                             top_rank_dict[user.get('rank')].append(uname)
 
                     for rank, users in top_rank_dict.items():
