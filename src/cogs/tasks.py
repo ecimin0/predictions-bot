@@ -445,8 +445,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                 if guild.id == user.get("guild_id"):
                                     disc_user = guild.get_member(user.get("user_id"))
                                     if disc_user:
-                                        top_rank_dict[user.get('rank')].append(uname)
                                         uname = disc_user.display_name
+                                        top_rank_dict[user.get('rank')].append(uname)
 
                     for rank, users in top_rank_dict.items():
                         top_rank_dict[rank] = "\n".join(users)
