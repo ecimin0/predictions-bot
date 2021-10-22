@@ -62,7 +62,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
     # @bot.command(hidden=True)
     # runs every 15 min to check if fixtures within 5 hours before and after now are complete/scorable for predictions
-    @tasks.loop(minutes=15)
+    @tasks.loop(minutes=5)
     async def updateFixtures(self):
         await checkBotReady()
         log = self.bot.logger.bind(task="updateFixtures")
