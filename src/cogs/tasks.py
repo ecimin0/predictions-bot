@@ -189,8 +189,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                         log.exception("Failed to verify/update fixture", fixture_id=fixture.get("fixture_id"))
                         # raise PleaseTellMeAboutIt(f'Failed to verify/update fixture: {fixture.get("league_id")}')
 
-            if updated_fixtures:
-                await self.bot.notifyAdmin(f"Updated/Inserted {updated_fixtures} fixtures!")
+            # if updated_fixtures:
+            #     await self.bot.notifyAdmin(f"Updated/Inserted {updated_fixtures} fixtures!")
             log.info("Completed updateFixturesbyLeague", updated_fixtures=updated_fixtures)
         except Exception:
             log.exception()
