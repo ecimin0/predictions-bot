@@ -1,10 +1,12 @@
 import asyncpg
+import aiohttp
 import discord
 from discord.ext import commands
 from tabulate import tabulate
 from typing import Union
 from utils.exceptions import *
-from utils.utils import isAdmin, getPlayerId
+from utils.utils import isAdmin, getPlayerId, nextMatch, checkUserExists
+from typing import Mapping, List, Union, Optional
 
 class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
 
@@ -201,6 +203,34 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         except Exception as e:
             await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
 
+    @commands.command(brief="match prediction from v3 API", aliases=["v3prediction"])
+    async def v3p(self, ctx: commands.Context, *, msg: Optional[Union[int, str]]):
+        '''
+        Show API v3 prediction for next fixture
+        '''
+        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+        log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name, command="v3p")
+        next_match = await nextMatch(self.bot)
+        next_match_id = next_match.get("fixture_id")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"https://v3.football.api-sports.io/predictions?fixture={next_match_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                    response = await resp.json()
+        except Exception as e:
+            log.info("e")
+            await ctx.send(f"{ctx.message.author.mention}\nFailed to get v3 API prediction\n{e}")
+
+        v3predictions = response.get("response")[0]
+        v3pwinner = v3predictions.get('predictions').get('winner').get('name')
+        v3pcomment = v3predictions.get('predictions').get('winner').get('comment')
+        v3ppercents = v3predictions.get('predictions').get('percent').items()
+        v3pperc_str = ""
+        for k,v in v3ppercents:
+            v3pperc_str += f"{k}: {v}\n"
+
+        output = f"{v3pwinner} {v3pcomment.lower()}\n{v3pperc_str}"
+        # print(f"v3PERCENT::::::{v3ppercents}")
+        await ctx.send(f"{ctx.message.author.mention}\n{output}")
 
 
 def setup(bot):

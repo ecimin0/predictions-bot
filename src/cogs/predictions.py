@@ -463,6 +463,5 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
 
             await makePagedEmbed(self.bot, ctx, paginated_data)
 
-
 def setup(bot):
     bot.add_cog(Predictions(bot))
