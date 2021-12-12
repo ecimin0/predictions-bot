@@ -7,6 +7,7 @@ from typing import Union
 from utils.exceptions import *
 from utils.utils import isAdmin, getPlayerId, nextMatch, checkUserExists
 from typing import Mapping, List, Union, Optional
+import utils.models as models
 
 class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
 
@@ -168,9 +169,8 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         '''
         if command_name in self.bot.all_commands:
             command = self.bot.all_commands.get(command_name)
-            print(f"{command} {command.name}")
-            command.update(enabled=False)
-            await ctx.send(f"Disabled your shit. {command_name}")
+            command.enabled = False
+            await ctx.send(f"disabled function {command_name}")
             return
 
     @commands.command()
@@ -180,9 +180,8 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         '''
         if command_name in self.bot.all_commands:
             command = self.bot.all_commands.get(command_name)
-            print(f"{command} {command.name}")
-            command.update(enabled=True)
-            await ctx.send(f"Enabled your shit. {command_name}")
+            command.enabled = True
+            await ctx.send(f"enabled function {command_name}")
             return
 
     @commands.command()
@@ -192,16 +191,16 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         '''
         try:
             player_id = await getPlayerId(self.bot, player_name, active_only=False)
-            player = await self.bot.db.fetchrow("SELECT player_name, active FROM predictionsbot.players WHERE player_id = $1;", player_id)
-            real_name = player.get("player_name")
-            active = player.get("active")
+            rawplayer = await self.bot.db.fetchrow("SELECT player_id, player_name, active FROM predictionsbot.players WHERE player_id = $1;", player_id)
+            player = models.Player(**rawplayer)
 
             async with self.bot.db.acquire() as connection:
                 async with connection.transaction():
-                    updated_player = await connection.execute("UPDATE predictionsbot.players SET active = $1 WHERE player_id = $2", not active, player_id)
-                    await ctx.send(f"Toggled {real_name} to active: {not active}")
+                    await connection.execute("UPDATE predictionsbot.players SET active = $1 WHERE player_id = $2", not player.active, player.player_id)
+                    await ctx.send(f"Toggled {player.player_name} to active: {not player.active}")
         except Exception as e:
             await ctx.send(f"{ctx.message.author.mention}\nPlease try again, {e}")
+
 
     @commands.command(brief="match prediction from v3 API", aliases=["v3prediction"])
     async def v3p(self, ctx: commands.Context, *, msg: Optional[Union[int, str]]):
@@ -220,18 +219,14 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
             log.info("e")
             await ctx.send(f"{ctx.message.author.mention}\nFailed to get v3 API prediction\n{e}")
 
-        v3predictions = response.get("response")[0]
-        v3pwinner = v3predictions.get('predictions').get('winner').get('name')
-        v3pcomment = v3predictions.get('predictions').get('winner').get('comment')
-        v3ppercents = v3predictions.get('predictions').get('percent').items()
-        v3pperc_str = ""
-        for k,v in v3ppercents:
-            v3pperc_str += f"{k}: {v}\n"
+        outputarr = []
 
-        output = f"{v3pwinner} {v3pcomment.lower()}\n{v3pperc_str}"
-        # print(f"v3PERCENT::::::{v3ppercents}")
-        await ctx.send(f"{ctx.message.author.mention}\n{output}")
+        for resp in response.get("response"):
+            m = models.V3Predictions(**resp)
+            outputarr.append(m)
 
+        newline = "\n"
+        await ctx.send(f"{ctx.message.author.mention}\n{newline.join([p.output() for p in outputarr])}")
 
 def setup(bot):
     bot.add_cog(AdminCog(bot))
