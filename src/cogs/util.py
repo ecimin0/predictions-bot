@@ -15,12 +15,12 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
 """**Predict our next match against {0} {1}**
 
 **Prediction League Rules:**
-2 points – correct result (W/D/L)
-2 points – correct number of Arsenal goals
-1 point – correct number of goals conceded
-1 point – each correct scorer
-1 point – correct FGS (first goal scorer, only Arsenal)
-2 points bonus – all scorers correct
+2 points - correct result (W/D/L)
+2 points - correct number of Arsenal goals
+1 point - correct number of goals conceded
+1 point - each correct scorer
+1 point - correct FGS (first goal scorer, only Arsenal)
+2 points bonus - all scorers correct
 
 - Players you predict to score multiple goals should be entered as `player x2` or `player 2x`
 - No points for scorers if your prediction's goals exceed the actual goals by 4+

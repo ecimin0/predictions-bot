@@ -6,7 +6,8 @@ import re
 import sys
 import os
 import json
-import logging 
+# import log4j
+import logging
 import asyncio
 import asyncpg
 import pytz
@@ -19,7 +20,7 @@ import time
 from tabulate import tabulate
 from pythonjsonlogger import jsonlogger
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandNotFound, CommandInvokeError, CommandOnCooldown, MissingRequiredArgument, BadArgument
+from discord.ext.commands import CommandNotFound, CommandInvokeError, CommandOnCooldown, MissingRequiredArgument, BadArgument, DisabledCommand
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 
@@ -146,6 +147,8 @@ class Bot(commands.Bot):
                     await self.notifyAdmin(f"Admin error tagged for notification: {error.original}")
                 else:
                     await self.notifyAdmin(f"Unhandled Error: {error.original}")
+        if isinstance(error, DisabledCommand):
+            await ctx.send(f"`+{ctx.message.content.split(' ', 1)[0]}` command is temporarily disabled")
 
 def createLogger(level):
     handler = logging.StreamHandler(sys.stdout)
