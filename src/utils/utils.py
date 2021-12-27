@@ -15,7 +15,7 @@ import random
 from typing import Mapping
 
 async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
-    fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date <= (SELECT f.event_date FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1) AND (f.home = {bot.main_team} or f.away = {bot.main_team}) ORDER BY f.event_date DESC;")
+    fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date <= (SELECT f.event_date FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1) AND (f.home = {bot.main_team} or f.away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY f.event_date DESC;")
     # fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON p.fixture_id = f.fixture_id WHERE f.event_date < now() + interval '12 hour' AND (f.home = {bot.main_team} or f.away = {bot.main_team}) ORDER BY f.event_date DESC")
     # fixtures = await bot.db.fetch("SELECT f.fixture_id FROM predictionsbot.predictions p JOIN predictionsbot.fixtures f ON f.fixture_id = p.fixture_id AND guild_id = $1 GROUP BY f.fixture_id ORDER BY f.event_date DESC", ctx.guild.id)
     return fixtures
@@ -62,26 +62,26 @@ async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context
 
 # nextMatches returns array of fixtures (even for one)
 async def nextMatches(bot: commands.Bot, count: int = 1) -> List[asyncpg.Record]:
-    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT $1;", count)
+    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY event_date LIMIT $1;", count)
     return matches
 
 # nextMatch returns record (no array)
 async def nextMatch(bot: commands.Bot) -> asyncpg.Record:
-    match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1;")
+    match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC')  ORDER BY event_date LIMIT 1;")
     return match
 
 # array of completed fixtures records
 async def completedMatches(bot: commands.Bot, count: int=1, offset: int=0) -> List[asyncpg.Record]:
-    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
+    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
     return matches
 
 # todo will need context eventually
 async def getUsersPredictionCurrentMatch(bot: commands.Bot) -> List[asyncpg.Record]:
-    users = await bot.db.fetch(f"SELECT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1)")
+    users = await bot.db.fetch(f"SELECT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY event_date LIMIT 1)")
     return users
 
 async def getUserPredictedLastMatches(bot: commands.Bot) -> List[asyncpg.Record]:
-    users = await bot.db.fetch(f"SELECT DISTINCT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT 2)")
+    users = await bot.db.fetch(f"SELECT DISTINCT user_id FROM predictionsbot.predictions p WHERE p.fixture_id IN (SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY event_date DESC LIMIT 2)")
     return users
 
 async def getPlayerId(bot: commands.Bot, userInput: str, active_only=True) -> int:
