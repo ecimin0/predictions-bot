@@ -32,7 +32,7 @@ async def getUserPredictions(bot: commands.Bot, ctx: commands.Context) -> List[a
     '''
     Return the last predictions by user
     '''
-    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND guild_id = $2 ORDER BY timestamp DESC;", ctx.message.author.id, ctx.guild.id)
+    predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND guild_id = $2 AND fixture_id NOT IN (SELECT fixture_id from predictionsbot.fixtures WHERE status_short IN ('PST', 'CANC')) ORDER BY timestamp DESC;", ctx.message.author.id, ctx.guild.id)
     return predictions
 
 async def getMatch(bot: commands.Bot, fixture_id: int) -> asyncpg.Record:
