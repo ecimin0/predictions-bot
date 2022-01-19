@@ -1,3 +1,5 @@
+from nis import match
+import sys
 from datetime import datetime, timedelta
 import discord
 from discord.ext import tasks, commands
@@ -78,10 +80,20 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             for fixture in fixtures:
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(f"http://v2.api-football.com/fixtures/id/{fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
-                            fixture_info = await resp.json()
-                    fixture_info = fixture_info['api']['fixtures'][0]
-                    match_completed = self.status_lookup[fixture_info.get("statusShort")]
+                        async with session.get(f"https://v3.football.api-sports.io/fixtures?id={fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                            match = await resp.json()
+                    match = match['response'][0]
+                    tempmatch = {}
+                    event_date = match.get("fixture").get("date")
+                    tempmatch["event_date"] = datetime.strptime(event_date, "%Y-%m-%dT%H:%M:%S+00:00") 
+                    tempmatch["home"] = match.get("teams").get("home").get("id")
+                    tempmatch["away"] = match.get("teams").get("away").get("id")
+                    tempmatch["fixture_id"] = match.get("fixture").get("id")
+                    tempmatch["league_id"] = match.get("league").get("id")
+                    tempmatch["goalsHomeTeam"] = match.get("goals").get("home")
+                    tempmatch["goalsAwayTeam"] = match.get("goals").get("away")
+                    tempmatch["statusShort"] = match.get("fixture").get("status").get("short")
+                    match_completed = self.status_lookup[match.get("statusShort")]
                 
                 except asyncio.TimeoutError:
                     log.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
@@ -94,7 +106,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 try:
                     async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
-                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4 WHERE fixture_id = $5", fixture_info.get("goalsHomeTeam"), fixture_info.get("goalsAwayTeam"), match_completed, fixture_info.get('statusShort'), fixture.get('fixture_id'))
+                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4 WHERE fixture_id = $5", tempmatch.get("goalsHomeTeam"), tempmatch.get("goalsAwayTeam"), match_completed, tempmatch.get('statusShort'), fixture.get('fixture_id'))
                 
                 except Exception:
                     log.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
@@ -120,41 +132,41 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             log.info("Starting updateFixturesbyLeague")
             updated_fixtures = 0
 
-            # if not league:
-            #     print("No team IDs generated. Pass in a --league <league_id>")
-            #     sys.exit(1)
-            for league_name, league_id in self.bot.league_dict.items():
+            for league_name, league_id in self.bot.v3league_dict.items():
+            # for league_name, league_id in self.bot.league_dict.items():
                 log.info("generating fixtures", league_id=league_id, league_name=league_name)
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
-                            response = await resp.json()
-                    fixtures = response.get("api").get("fixtures")
+                        async with session.get(f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={self.bot.season}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                        # async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                            # response = await resp.json()
+                            r = await resp.json()
+                    # fixtures = response.get("api").get("fixtures")
+                    fixtures = r.get("response")
+                    # print(fixtures)
                 except asyncio.TimeoutError:
                     log.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
                     return
                 except Exception:
                     log.exception("Unable to fetch league information in updateFixturesbyLeague", league_name=league_name)
                     raise PleaseTellMeAboutIt(f"Unable to fetch league information in updateFixturesbyLeague for {league_name}")
-
+                # sys.exit(0)
                 # reset parsed fixtures to empty for each league
                 parsed_fixtures = []
                 for match in fixtures:
-                    home = match.get("homeTeam").get("team_id")
-                    away = match.get("awayTeam").get("team_id")
-                    event_date = match.get("event_date")
+                    tempmatch = {}
+                    event_date = match.get("fixture").get("date")
+                    tempmatch["event_date"] = datetime.strptime(event_date, "%Y-%m-%dT%H:%M:%S+00:00") 
+                    tempmatch["home"] = match.get("teams").get("home").get("id")
+                    tempmatch["away"] = match.get("teams").get("away").get("id")
+                    tempmatch["fixture_id"] = match.get("fixture").get("id")
+                    tempmatch["league_id"] = self.bot.mapped_leagues[int(match.get("league").get("id"))]
+                    tempmatch["goalsHomeTeam"] = match.get("goals").get("home")
+                    tempmatch["goalsAwayTeam"] = match.get("goals").get("away")
+                    tempmatch["statusShort"] = match.get("fixture").get("status").get("short")
 
-                    delete_keys = [key for key in match if key not in ["fixture_id", "league_id", "goalsHomeTeam", "goalsAwayTeam", "statusShort"]]
-                
-                    for key in delete_keys:
-                        del match[key]
+                    parsed_fixtures.append(tempmatch)
 
-                    match["event_date"] = datetime.strptime(event_date, "%Y-%m-%dT%H:%M:%S+00:00") 
-                    match["home"] = home
-                    match["away"] = away
-
-                    parsed_fixtures.append(match)
-                
                 for fixture in parsed_fixtures:
                     try:
                         home_team_exists = await self.bot.db.fetchrow("SELECT * FROM predictionsbot.teams WHERE team_id = $1", fixture.get("home"))
@@ -167,18 +179,18 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             log.info("Added team (away)", fixture=fixture.get("fixture_id"), team=fixture.get("away"))
 
                         fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, status_short FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
-                        
+
                         if fixture_exists:
                             if changesExist(fixture, fixture_exists):
                                 updated_fixtures += 1
-                                log.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=league_id)
+                                log.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=fixture.get("league_id"))
                                 async with self.bot.db.acquire() as connection:
                                     async with connection.transaction():
                                         await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7, status_short = $8 WHERE fixture_id = $9", 
                                                                     fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
                                                                     fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get("statusShort"), fixture.get('fixture_id'))
                         else:
-                            log.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=league_id)
+                            log.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=fixture.get("league_id"))
                             updated_fixtures += 1
                             async with self.bot.db.acquire() as connection:
                                 async with connection.transaction():
@@ -296,10 +308,10 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             for fix in scorable_fixtures:
                 try:       
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(f"http://v2.api-football.com/fixtures/id/{fix}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                        async with session.get(f"https://v3.football.api-sports.io/fixtures?id={fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                             fixture_response = await resp.json()
-                    fixture_info = fixture_response['api']['fixtures'][0]
-                    goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("teamName") == "Arsenal"]
+                    fixture_info = fixture_response['response'][0]
+                    goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("team").get("id") == self.bot.main_team]
                     new_goals = []
                     for goal in goals:
                         if goal.get("detail") == "Own Goal":
@@ -308,7 +320,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                         else:
                             new_goals.append(goal)
                     goals = new_goals
-                    scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['elapsed'])
+                    scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['time']['elapsed'])
                     if scorable_fixtures[fix]["goals"]:
                         scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
                     else:

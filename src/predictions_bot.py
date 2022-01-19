@@ -63,6 +63,8 @@ class Bot(commands.Bot):
         self.api_key = kwargs.pop("api_key")
         self.tracing = kwargs.pop("tracing", False)
         self.league_dict = kwargs.pop("league_dict")
+        self.v3league_dict = kwargs.pop("v3league_dict")
+        self.mapped_leagues = kwargs.pop("mapped_leagues")
         self.season_full = kwargs.pop("season_full")
         self.season = kwargs.pop("season")
         self.channel = kwargs.pop("channel")
@@ -194,8 +196,25 @@ league_dict = {
     "champions_league": 3431,
     "europa_league": 3632,
     "fa_cup": 3574,
-    "league_cup": 3498
+    "league_cup": 3498,
 }
+
+v3league_dict = {
+    "v3premier_league": 39,
+    "v3champions_league": 2,
+    "v3europa_league": 3,
+    "v3fa_cup": 45,
+    "v3league_cup": 48,
+}
+
+# good at coding
+mapped_leagues = {
+    39: 3456,
+    2: 3431,
+    3:3632,
+    45: 3574,
+    48: 3498,
+} 
 
 # TBD : Time To Be Defined
 # NS : Not Started
@@ -262,6 +281,8 @@ options = {
     "logger": logger,
     "api_key": api_key,
     "league_dict": league_dict,
+    "v3league_dict": v3league_dict,
+    "mapped_leagues": mapped_leagues,
     "season_full": "2021-2022",
     "season": "2021",
     "gitlab_api": os.environ.get("GITLAB_API", None),
