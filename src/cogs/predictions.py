@@ -33,32 +33,28 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             return
 
         paginated_data = []
+        user_predictions = {p.get("fixture_id"): p for p in predictions}
 
         color = getArsenalColor()
 
         total = 0
-        offset = 0
-        
-        self.bot.logger.debug(fixtures=fixtures, len_fixture=len(fixtures), predictions=predictions, len_predictions=len(predictions))
+
+        self.bot.logger.debug(fixtures=fixtures, len_fixture=len(fixtures), predictions=predictions, len_predictions=len(predictions), user_predictions=user_predictions)
         fields = []
-        for i in range(0,len(fixtures)):
-            fixture = fixtures[i]
-            if i - offset > len(predictions) - 1:
-                offset += 1
-            prediction = predictions[i - offset]
-            self.bot.logger.debug(count=i,offset=offset,fixture_id=fixture.get("fixture_id"), prediction_fixture_id=prediction.get("fixture_id"))
+
+        for fixture in fixtures:
             match = await getMatch(self.bot, fixture.get("fixture_id"))
 
             home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
             away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
 
-            if not fixture.get("fixture_id") == prediction.get("fixture_id"):
-                offset += 1
+            if not fixture.get("fixture_id") in user_predictions:
                 fields.append({
                     "name": f'{match.get("event_date").strftime("%m/%d/%y")} | {home_emoji} {match.get("home_name")} {match.get("goals_home") or 0} - {match.get("goals_away") or 0} {away_emoji} {match.get("away_name")}', 
                     "value": "Score: **0** | `no prediction made`"
                 })
             else:
+                prediction = user_predictions.get(fixture.get("fixture_id"))
                 if prediction.get("prediction_score"):
                     total += prediction.get("prediction_score")
                 prediction_value = "TBD"
