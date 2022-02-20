@@ -322,7 +322,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     goals = new_goals
                     scorable_fixtures[fix]["goals"] = sorted(goals, key=lambda k: k['time']['elapsed'])
                     if scorable_fixtures[fix]["goals"]:
-                        scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player_id")
+                        scorable_fixtures[fix]["fgs"] = scorable_fixtures[fix]["goals"][0].get("player").get("id")
                     else:
                         scorable_fixtures[fix]["fgs"] = None
                 except asyncio.TimeoutError:
@@ -377,10 +377,10 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                         # 1 point – each correct scorer
                         actual_goal_scorers = {}
                         for goal in match_results.get("goals"):
-                            if goal.get("player_id") not in actual_goal_scorers:
-                                actual_goal_scorers[goal.get("player_id")] = 1
+                            if goal.get("player").get("id") not in actual_goal_scorers:
+                                actual_goal_scorers[goal.get("player").get("id")] = 1
                             else:
-                                actual_goal_scorers[goal.get("player_id")] += 1
+                                actual_goal_scorers[goal.get("player").get("id")] += 1
                     
                         predicted_scorers = {v.get("player_id"):v.get("num_goals") for v in prediction.get("scorers")}
                         all_scorers_correct = True
