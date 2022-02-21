@@ -308,7 +308,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             for fix in scorable_fixtures:
                 try:       
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(f"https://v3.football.api-sports.io/fixtures?id={fixture.get('fixture_id')}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                        async with session.get(f"https://v3.football.api-sports.io/fixtures?id={fix}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                             fixture_response = await resp.json()
                     fixture_info = fixture_response['response'][0]
                     goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("team").get("id") == self.bot.main_team]
@@ -326,19 +326,19 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     else:
                         scorable_fixtures[fix]["fgs"] = None
                 except asyncio.TimeoutError:
-                    log.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
+                    log.exception("API call to update fixture timed out", fixture=fix)
                 except Exception:
                     log.exception("error retrieving scorable fixture", fixture=fix)
                     raise PleaseTellMeAboutIt(f"error retrieving scorable fixture: {fix}")
 
             log.debug("Predictions to score", predictions=unscored_predictions, scorable_fixtures=scorable_fixtures)
 
-            max_score = 8
             arsenal_actual_goals = 0
             send_notifications = False
 
             if unscored_predictions:
                 for prediction in unscored_predictions:
+                    max_score = 8
                     if prediction.get("fixture_id") in scorable_fixtures:
                         send_notifications = True
                         match_results = scorable_fixtures[prediction.get("fixture_id")]
@@ -371,7 +371,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                         if opponent_predicted_goals == opponent_actual_goals:
                             prediction_score += 1
 
-                        for idx,player in enumerate(prediction.get("scorers")):
+                        for idx,player in enumerate(prediction.get("scorers")): # TODO look at this maybe, possibly doesnt reset
                             prediction.get("scorers")[idx]["player_id"] = await getPlayerId(self.bot, player.get("name"), active_only=False)
 
                         # 1 point – each correct scorer
@@ -427,7 +427,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 if arsenal_actual_goals:
                     max_score += arsenal_actual_goals
                 else:
-                    max_score -= 3
+                    max_score -= 1 # only subtract 1 here since a prediction of no scorers and 0 goals scored is 'all scorers correct'
 
                 if send_notifications:# and not self.bot.testing_mode:
                     # channel = self.bot.get_channel(652580035483402250) # test bot channel 1
@@ -444,7 +444,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
                     if top_predictions[0].get("score") == max_score:
                         max_score_achieved = ":medal:"
-                    
+
                     top_rank_dict = {
                         1: [],
                         2: [],
