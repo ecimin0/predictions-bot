@@ -334,6 +334,9 @@ def getArsenalColor():
 
 async def makePagedEmbed(bot, ctx, paginated_data):
     max_page = len(paginated_data) - 1
+    if max_page < 0:
+        bot.logger.debug("max_page < 0, may be early beginning or end of current season")
+        pass
     user_max_pages = len(paginated_data)
     num = 0
     rank_num = 1
@@ -402,6 +405,9 @@ async def makePagedEmbed(bot, ctx, paginated_data):
 
 async def makePaged(bot: commands.Bot, ctx: commands.Context, paginated_data: List[str]):
     max_page = len(paginated_data) - 1
+    if max_page < 0:
+        bot.logger.debug("max_page < 0, may be early beginning or end of current season")
+        pass
     user_max_pages = len(paginated_data)
     num = 0
     rank_num = 1
