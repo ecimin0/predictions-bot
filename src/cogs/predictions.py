@@ -180,6 +180,10 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             log.exception("Error initializing user, match, or user tz")
             raise PleaseTellMeAboutIt("Error initializing user, match, or user tz")
 
+        if not current_match:
+            await ctx.send(f"{ctx.message.author.mention}\nNo upcoming matches found.")
+            return
+
         time_limit_offset: Dict[str, float] = {
             self.bot.league_dict["europa_league"]: 1.5
         }

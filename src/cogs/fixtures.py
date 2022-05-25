@@ -83,7 +83,10 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
             for i in range(0, len(output_array), self.bot.step):
                 paged_results.append(output + ''.join(output_array[i:i+self.bot.step]))
 
-            await makePaged(self.bot, ctx, paged_results)
+            if not paged_results:
+                await ctx.send(f"{ctx.message.author.mention}\nNo upcoming matches found.")
+            else:
+                await makePaged(self.bot, ctx, paged_results)
         elif type(msg) == str:
             # try:
             #     team = msg.split(" ", 1)[1]

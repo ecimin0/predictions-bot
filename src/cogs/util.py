@@ -38,9 +38,12 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
         '''
         Display Prediction League Rules
         '''
-        predict_example = "+predict 3-0 auba 2x fgs, laca"
-        next_match = await nextMatch(self.bot)
-        opponent = next_match.get('opponent_name')
+        predict_example = "+predict 3-0 saka 2x fgs, odegaard"
+        try:
+            next_match = await nextMatch(self.bot)
+            opponent = next_match.get('opponent_name')
+        except AttributeError:
+            opponent = "Shrewsbury Town"
 
         rules_set_filled = self.rules_set.format(discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', '')), opponent, predict_example)
         await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
