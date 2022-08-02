@@ -190,13 +190,13 @@ logger = createLogger(os.environ.get("LOGLEVEL", "INFO"))
 
 utc = pytz.timezone("UTC")
 
-# 2021-2022 season league IDs
+# 2022-2023 season league IDs
 league_dict = {
-    "premier_league": 3456,
-    "champions_league": 3431,
-    "europa_league": 3632,
-    "fa_cup": 3574,
-    "league_cup": 3498,
+    "premier_league": 4335,
+    "champions_league": 4314,
+    "europa_league": 4584,
+    "fa_cup": 4530,
+    "league_cup": 4377,
 }
 
 v3league_dict = {
@@ -209,11 +209,11 @@ v3league_dict = {
 
 # good at coding
 mapped_leagues = {
-    39: 3456,
-    2: 3431,
-    3:3632,
-    45: 3574,
-    48: 3498,
+    39: 4335,
+    2: 4314,
+    3: 4584,
+    45: 4530,
+    48: 4377,
 } 
 
 # TBD : Time To Be Defined
