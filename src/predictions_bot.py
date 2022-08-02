@@ -261,7 +261,7 @@ else:
 # API team id to use as 'main' team
 main_team = 42 # arsenal
 main_team_name = "Arsenal"
-main_league = 3456 # ID of team's main domestic league
+main_league = 4335 # ID of team's main domestic league
 
 token = os.environ.get("TOKEN", None)
 if not token:
@@ -283,8 +283,8 @@ options = {
     "league_dict": league_dict,
     "v3league_dict": v3league_dict,
     "mapped_leagues": mapped_leagues,
-    "season_full": "2021-2022",
-    "season": "2021",
+    "season_full": "2022-2023",
+    "season": "2022",
     "gitlab_api": os.environ.get("GITLAB_API", None),
     "tracing": os.environ.get("TRACING", False),
     "prefix": "+",
