@@ -45,8 +45,8 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         for fixture in fixtures:
             match = await getMatch(self.bot, fixture.get("fixture_id"))
 
-            home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
-            away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
+            home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', '').replace('/', ''))
+            away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', '').replace('/', ''))
 
             if not fixture.get("fixture_id") in user_predictions:
                 fields.append({
