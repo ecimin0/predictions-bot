@@ -159,9 +159,15 @@ async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) ->
     tz: dt.tzinfo = await getUserTimezone(bot, user)
 
     time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
-    home_emoji = discord.utils.get(bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
-    away_emoji = discord.utils.get(bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
-    league_emoji = discord.utils.get(bot.emojis, name=match.get('league_name').lower().replace(' ', ''))
+    # home_emoji = discord.utils.get(bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
+    # away_emoji = discord.utils.get(bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
+    # league_emoji = discord.utils.get(bot.emojis, name=match.get('league_name').lower().replace(' ', ''))
+
+    home_emoji = discord.utils.get(bot.emojis, name=match.get('home_name').lower().replace(' ', '').replace('/', '')) # because bodo glimt; also see models.py
+    away_emoji = discord.utils.get(bot.emojis, name=match.get('away_name').lower().replace(' ', '').replace('/', ''))
+
+    league_emoji = discord.utils.get(bot.emojis, name=match.get('league_name').lower().replace(' ', '').replace('/', ''))
+
     if not home_emoji:
         home_emoji = ""
     if not away_emoji:
