@@ -337,9 +337,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
 
             goal_scorers_array = [f'{scorer.get("real_name")}: {scorer.get("num_goals")} {scorer.get("fgs_string")}' for scorer in scorer_properties]
             goal_scorers = "\n".join(goal_scorers_array)
-            home_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('home_name').lower().replace(' ', ''))
-            away_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('away_name').lower().replace(' ', ''))
-            output = f"""{ctx.message.author.mention}\n**Prediction against {discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', ''))} {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n`{ctx.message.content}`"""
+            home_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('home_name').lower().replace(' ', '').replace('/', ''))
+            away_emoji = discord.utils.get(self.bot.emojis, name=current_match.get('away_name').lower().replace(' ', '').replace('/', ''))
+            output = f"""{ctx.message.author.mention}\n**Prediction against {discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', '').replace('/', ''))} {opponent} {successful_or_updated}.**\nYou have until {time_limit_str} to edit your prediction.\n`{ctx.message.content}`"""
             output += f"""\n\n**Score**\n{home_emoji} {current_match.get('home_name')} {home_goals} - {away_goals} {away_emoji} {current_match.get('away_name')}\n\n"""
             if goal_scorers:
                 output += f"""**Goal Scorers**\n{goal_scorers}"""

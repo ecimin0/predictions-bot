@@ -467,8 +467,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     num_predictions = len(top_predictions)
 
                     match = await getMatch(self.bot, prediction.get("fixture_id"))
-                    home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
-                    away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
+                    home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', '').replace('/', ''))
+                    away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', '').replace('/', ''))
                     # print(match)
 
                     # await channel.send(f':trophy: **Prediction scores have been updated**' +

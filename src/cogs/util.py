@@ -45,7 +45,7 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
         except AttributeError:
             opponent = "Shrewsbury Town"
 
-        rules_set_filled = self.rules_set.format(discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', '')), opponent, predict_example)
+        rules_set_filled = self.rules_set.format(discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', '').replace('/', '')), opponent, predict_example)
         await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
 
     @commands.command()
