@@ -93,7 +93,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     tempmatch["goalsHomeTeam"] = match.get("goals").get("home")
                     tempmatch["goalsAwayTeam"] = match.get("goals").get("away")
                     tempmatch["statusShort"] = match.get("fixture").get("status").get("short")
-                    match_completed = self.status_lookup[match.get("statusShort")]
+                    match_completed = self.status_lookup[tempmatch.get("statusShort")]
                 
                 except asyncio.TimeoutError:
                     log.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
