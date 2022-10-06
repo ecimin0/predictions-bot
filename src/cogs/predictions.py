@@ -78,7 +78,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         # await ctx.send(f"{ctx.message.author.mention}\n",embed=embed)
 
 
-    @commands.command()
+    @commands.command(aliases=["points", "lb"])
     @commands.cooldown(1, 30, commands.BucketType.default)
     async def leaderboard(self, ctx: commands.Context):
         '''
