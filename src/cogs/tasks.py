@@ -1,3 +1,4 @@
+from ast import parse
 from nis import match
 import sys
 from datetime import datetime, timedelta
@@ -9,6 +10,7 @@ import aiohttp
 from utils.exceptions import *
 from utils.utils import *
 from typing import Dict
+from utils.models import Emoji
 
 class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
@@ -62,6 +64,12 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         self.sidelinedPlayers.add_exception_type(Exception)
         self.sidelinedPlayers.start()
 
+        self.updateTeamLineups.add_exception_type(Exception)
+        self.updateTeamLineups.start()
+
+        self.updateFixtureLineups.add_exception_type(Exception)
+        self.updateFixtureLineups.start()
+
     # @bot.command(hidden=True)
     # runs every 15 min to check if fixtures within 5 hours before and after now are complete/scorable for predictions
     @tasks.loop(minutes=5)
@@ -93,6 +101,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     tempmatch["goalsHomeTeam"] = match.get("goals").get("home")
                     tempmatch["goalsAwayTeam"] = match.get("goals").get("away")
                     tempmatch["statusShort"] = match.get("fixture").get("status").get("short")
+                    tempmatch["season"] = match.get("league").get("season")
                     match_completed = self.status_lookup[tempmatch.get("statusShort")]
                 
                 except asyncio.TimeoutError:
@@ -112,12 +121,11 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     log.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
                     raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
 
-            # log.info(f"Updated fixtures table, {len(fixtures)} were changed.")
             log.info(f"Completed updateFixtures", fixtures_updated=len(fixtures))
             
         except Exception as e:
             log.exception()
-        # await bot.notifyAdmin(f"Updated fixtures table, {len(fixtures)} were changed.")
+
 
     # runs every hour updating all fixtures in the db that are not identical to the current entry (by fixture id)
     # this ensures that we get any new fixtures outside the updateFixtures() 15 min window (ex. date of the CL final gets changed, or for some reason fixtures in the past change)
@@ -126,31 +134,23 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         await checkBotReady()
         try:
             log = self.bot.logger.bind(task="updateFixturesbyLeague")
-            # if datetime.utcnow.hour % 8 == 0:
-                # logger.info("Not running fixture update script")
-            # log.info("Running fixture update script")
             log.info("Starting updateFixturesbyLeague")
             updated_fixtures = 0
 
             for league_name, league_id in self.bot.v3league_dict.items():
-            # for league_name, league_id in self.bot.league_dict.items():
                 log.info("generating fixtures", league_id=league_id, league_name=league_name)
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={self.bot.season}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
-                        # async with session.get(f"http://v2.api-football.com/fixtures/league/{league_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
-                            # response = await resp.json()
                             r = await resp.json()
-                    # fixtures = response.get("api").get("fixtures")
                     fixtures = r.get("response")
-                    # print(fixtures)
                 except asyncio.TimeoutError:
                     log.exception("API call to update fixture timed out", fixture=fixture.get('fixture_id'))
                     return
                 except Exception:
                     log.exception("Unable to fetch league information in updateFixturesbyLeague", league_name=league_name)
                     raise PleaseTellMeAboutIt(f"Unable to fetch league information in updateFixturesbyLeague for {league_name}")
-                # sys.exit(0)
+
                 # reset parsed fixtures to empty for each league
                 parsed_fixtures = []
                 for match in fixtures:
@@ -160,10 +160,11 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     tempmatch["home"] = match.get("teams").get("home").get("id")
                     tempmatch["away"] = match.get("teams").get("away").get("id")
                     tempmatch["fixture_id"] = match.get("fixture").get("id")
-                    tempmatch["league_id"] = self.bot.mapped_leagues[int(match.get("league").get("id"))]
+                    tempmatch["league_id"] = int(match.get("league").get("id"))
                     tempmatch["goalsHomeTeam"] = match.get("goals").get("home")
                     tempmatch["goalsAwayTeam"] = match.get("goals").get("away")
                     tempmatch["statusShort"] = match.get("fixture").get("status").get("short")
+                    tempmatch["season"] = str(match.get("league").get("season"))
 
                     parsed_fixtures.append(tempmatch)
 
@@ -178,7 +179,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             await addTeam(self.bot, fixture.get("away"))
                             log.info("Added team (away)", fixture=fixture.get("fixture_id"), team=fixture.get("away"))
 
-                        fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, status_short FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+                        fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, status_short, season FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
 
                         if fixture_exists:
                             if changesExist(fixture, fixture_exists):
@@ -186,20 +187,20 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                 log.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=fixture.get("league_id"))
                                 async with self.bot.db.acquire() as connection:
                                     async with connection.transaction():
-                                        await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7, status_short = $8 WHERE fixture_id = $9", 
+                                        await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7, status_short = $8, season = $9 WHERE fixture_id = $10", 
                                                                     fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
-                                                                    fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get("statusShort"), fixture.get('fixture_id'))
+                                                                    fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get("statusShort"), fixture.get("season") ,fixture.get('fixture_id'))
                         else:
                             log.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=fixture.get("league_id"))
                             updated_fixtures += 1
                             async with self.bot.db.acquire() as connection:
                                 async with connection.transaction():
-                                    await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id, status_short) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
+                                    await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id, status_short, season) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)", 
                                                                 fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
-                                                                fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'), fixture.get("statusShort"))
+                                                                fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'), fixture.get("statusShort"), fixture.get("season"))
                     except Exception:
                         log.exception("Failed to verify/update fixture", fixture_id=fixture.get("fixture_id"))
-                        # raise PleaseTellMeAboutIt(f'Failed to verify/update fixture: {fixture.get("league_id")}')
+
 
             # if updated_fixtures:
             #     await self.bot.notifyAdmin(f"Updated/Inserted {updated_fixtures} fixtures!")
@@ -221,18 +222,17 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 }
 
                 time_offset = 1.0
-                if next_match.get("league_id") in time_limit_offset:
-                    time_offset = time_limit_offset[next_match.get("league_id")]
+                if next_match.league_id in time_limit_offset:
+                    time_offset = time_limit_offset[next_match.league_id]
 
-                time_limit = next_match.get("event_date") - timedelta(hours=time_offset + 1)
+                time_limit = next_match.event_date - timedelta(hours=time_offset + 1)
 
-                log.debug(next_match=next_match.get("fixture_id"), time_limit=time_limit)
-                if next_match.get("notifications_sent") == False and now > time_limit:
-                    # old_users = await getUserPredictedLastMatches(self.bot)
+                log.debug(next_match=next_match.fixture_id, time_limit=time_limit)
+                if next_match.notifications_sent == False and now > time_limit:
+
                     opted_in_users = await self.bot.db.fetch("SELECT user_id FROM predictionsbot.users WHERE allow_notifications")
                     users_wpredictions = await getUsersPredictionCurrentMatch(self.bot)
                     dedupe_users_wpredictions = set(users_wpredictions)
-                    # users_to_notify = set(opted_in_users) - set(users_wpredictions)
 
                     users_to_notify = set(opted_in_users)
 
@@ -252,8 +252,6 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             user_obj = await self.bot.fetch_user(user)
                             match_str = await formatMatch(self.bot, next_match, user)
 
-                            # user_tz = await getUserTimezone(self.bot, ctx.message.author.id)
-                            # match_str = await formatMatch()
                             try:
                                 if user in dedupe_users_wpredictions:
                                     await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon! Join the others in the {channel_str} channel.\n\n{match_str}")
@@ -261,10 +259,10 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                     await user_obj.send(f"Hey {user_obj.display_name}, the next Arsenal match starts soon! Make a prediction in the {channel_str} channel.\n\n{match_str}")
                             except:
                                 log.exception()
-                    log.debug("Sent notifications for upcoming match", number=len(users_to_notify), next_match=next_match.get("fixture_id"))
+                    log.debug("Sent notifications for upcoming match", number=len(users_to_notify), next_match=next_match.fixture_id)
                     async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
-                            await connection.execute("UPDATE predictionsbot.fixtures SET notifications_sent = $1 WHERE fixture_id = $2", True, next_match.get("fixture_id"))
+                            await connection.execute("UPDATE predictionsbot.fixtures SET notifications_sent = $1 WHERE fixture_id = $2", True, next_match.fixture_id)
         except:
             log.exception()
 
@@ -287,7 +285,6 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             decoder=json.loads,
                             schema='pg_catalog'
                         )
-                        # unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions WHERE prediction_score is null ORDER BY timestamp ASC")
                         unscored_predictions = await connection.fetch("SELECT * FROM predictionsbot.predictions p join predictionsbot.fixtures f on f.fixture_id = p.fixture_id WHERE f.scorable and prediction_score is null")
                         unscored_fixtures = await connection.fetch("SELECT DISTINCT fixture_id FROM predictionsbot.predictions WHERE prediction_score is null")
                         
@@ -436,7 +433,6 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
                     for fix in scorable_fixtures: # re-use the scorable fixture(s) from this run
                         top_predictions = await getTopPredictions(self.bot, fix)
-                    # print(f'TOP PREDICTIONS:{top_predictions}')
 
                     user_array = []
 
@@ -462,17 +458,15 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
                     for rank, users in top_rank_dict.items():
                         top_rank_dict[rank] = "\n".join(users)
-                
+
                     scores = sorted([i[1] for i in set([(score.get("rank"), score.get("score")) for score in top_predictions])], reverse=True)
                     num_predictions = len(top_predictions)
 
-                    match = await getMatch(self.bot, prediction.get("fixture_id"))
-                    home_emoji = discord.utils.get(self.bot.emojis, name=match.get('home_name').lower().replace(' ', '').replace('/', ''))
-                    away_emoji = discord.utils.get(self.bot.emojis, name=match.get('away_name').lower().replace(' ', '').replace('/', ''))
-                    # print(match)
+                    match = await getFixtureByID(self.bot, prediction.get("fixture_id"))
+                    home_emoji = Emoji(self.bot, match.home_name).emoji
+                    away_emoji = Emoji(self.bot, match.away_name).emoji
 
-                    # await channel.send(f':trophy: **Prediction scores have been updated**' +
-                    
+
                     output_str = f'**{home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}**\n' + \
                         f'\n:fire: Maximum possible score this fixture: **{max_score}**' + \
                         f'\n:soccer: Total predictions this fixture: **{num_predictions}**' + \
@@ -546,21 +540,28 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 async with session.get(f"http://v2.api-football.com/players/squad/{self.bot.main_team}/{self.bot.season_full}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                     response = await resp.json()
             players = response.get("api").get("players")
+
+            async with aiohttp.ClientSession() as session2:
+                async with session2.get(f"https://v3.football.api-sports.io/players/squads?team={self.bot.main_team}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp2:
+                    response2 = await resp2.json()
+            squad = response2.get("response")[0].get("players")
+
             teams[self.bot.main_team] = players
 
-            # log.debug(teams)
             for team, player_array in teams.items():
-                # log.debug(team=team, player_array=player_array)
                 for player in player_array:
                     delete_keys = [key for key in player if key not in ["player_name", "firstname", "lastname", "player_id"]]
                     for key in delete_keys: 
                         del player[key]
+                    for p in squad:
+                        if p.get("id") == player.get("player_id"):
+                            player["number"] = p.get("number")
+                    # print(player)
                     try:
                         async with self.bot.db.acquire() as connection:
                             async with connection.transaction():
                                 existing_player = await connection.fetchrow("SELECT * FROM predictionsbot.players WHERE player_id = $1", player.get("player_id"))
                                 if existing_player:
-                                    # log.debug("Diffs", existing=existing_player, player=player)
                                     if changesExistPlayer(player, existing_player):
                                         await connection.execute("UPDATE predictionsbot.players SET season = $1, team_id = $2, player_name = $3, firstname = $4, lastname = $5 WHERE player_id = $6", self.bot.season, team, player.get("player_name"), player.get("firstname"), player.get("lastname"), player.get("player_id"))
                                         updated_players += 1
@@ -573,6 +574,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         except Exception:
             log.exception()
 
+
     @tasks.loop(hours=72)
     async def updateLeagues(self):
         await checkBotReady()
@@ -582,25 +584,35 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             updated_leagues = 0
             added_leagues = 0
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://v2.api-football.com/leagues", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                async with session.get(f"https://v3.football.api-sports.io/leagues?season={self.bot.season}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                     response = await resp.json()
-            leagues = response.get("api").get("leagues")
+            leagues = response.get("response")
     
             parsed_leagues = []
             for league in leagues:
-                delete_keys = [key for key in league if key not in ["league_id", "name", "season", "logo", "country", "is_current"]]
-                for key in delete_keys: 
-                    del league[key]
-                parsed_leagues.append(league)
+                temp_league = {}
+                temp_league["league_id"] = league.get("league").get("id")
+                temp_league["name"] = league.get("league").get("name")
+                temp_league["logo"] = league.get("league").get("logo")
 
-            # only get leagues for the current season
-            # season '2019' is for calendar years 2019-2020
-            log.debug("Seasons", season_count=len(parsed_leagues))
-            delete_seasons = [row for row in parsed_leagues if row.get("is_current") != 1]
-            # delete_seasons = [row for row in parsed_leagues if row.get("season") != prev_year]
-            for season in delete_seasons:
-                parsed_leagues.remove(season)
-            log.debug("Seasons (after removal)", season_count=len(parsed_leagues))
+                temp_league["season"] = str(self.bot.season)
+                temp_league["country"] = league.get("country").get("name")
+
+                parsed_leagues.append(temp_league)
+            
+            # for league in leagues:
+            #     delete_keys = [key for key in league if key not in ["id", "name", "logo"]]
+            #     for key in delete_keys: 
+            #         del league[key]
+            #     parsed_leagues.append(league)
+
+            # # only get leagues for the current season
+            # # season '2019' is for calendar years 2019-2020
+            # log.debug("Seasons", season_count=len(parsed_leagues))
+            # delete_seasons = [row for row in parsed_leagues if row.get("is_current") != 1]
+            # for season in delete_seasons:
+            #     parsed_leagues.remove(season)
+            # log.debug("Seasons (after removal)", season_count=len(parsed_leagues))
                 
             for league in parsed_leagues:
                 try:
@@ -608,8 +620,6 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                         async with connection.transaction():
                             existing_league = await connection.fetchrow("SELECT * FROM predictionsbot.leagues WHERE league_id = $1", league.get("league_id"))
                             if existing_league:
-                                # log.debug("Diffs", existing=existing_league, new=league)
-                                league["season"] = str(league.get("season"))
                                 if changesExistLeague(league, existing_league):
                                     await connection.execute("UPDATE predictionsbot.leagues SET name = $1, season = $2, logo = $3, country = $4 WHERE league_id = $5", league.get("name"), str(league.get("season")), league.get("logo"), league.get("country"), league.get("league_id"))
                                     updated_leagues += 1
@@ -652,10 +662,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                 else:
                                     sidelined = True
 
-                            # print(f'{player_info[0].get("type")} | {player_info[0].get("start")} | {player_info[0].get("end") or "TBD"}\n')
                             format_str = '%d/%m/%y'
                             starttime_dtobj = datetime.strptime(player_info[0].get("start"), format_str)
-                            # print(endtime_dtobj)
 
                             update_counter = 0 
                             if player.get("sidelined_reason") != player_info[0].get("type") or player.get("sidelined_end") != endtime_dtobj or player.get("sidelined") != sidelined:
@@ -664,12 +672,69 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                     async with self.bot.db.acquire() as connection:
                                         async with connection.transaction():
                                             await connection.execute("UPDATE predictionsbot.players SET sidelined_reason = $1, sidelined_end = $2, sidelined_start = $3, sidelined = $4 WHERE player_id = $5;", player_info[0].get("type"), endtime_dtobj, starttime_dtobj, sidelined, player.get("player_id"))
-                                            # await connection.execute("INSERT INTO predictionsbot.players (league_id, name, season, logo, country) VALUES ($1, $2, $3, $4, $5);", league.get("league_id"), league.get("name"), str(league.get("season")),  league.get("logo"), league.get("country"))        
                                 except Exception:
                                     log.exception("Sidelined players update failed")
             log.info("Updated sidelined player information", players_updated=update_counter)
         except Exception:
             log.exception("Failed to get player IDs", team_id=self.bot.main_team)
+
+    @tasks.loop(hours=168)
+    async def updateTeamLineups(self):
+        await checkBotReady()
+        try:
+            log = self.bot.logger.bind(task="updateTeamLineups")
+            log.info("Starting updateTeamLineups")
+            # for name, league_id in self.bot.league_dict.items(): # should be v3league_dict or something better
+            # team_ids_list = await getTeamsInLeague(self.bot, 4335) # needs to NOT be the v2/old league IDs, see that really good league mapping thing we did
+            # for team_id in team_ids_list:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://v3.football.api-sports.io/players/squads?team=42", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                    response = await resp.json()
+            team_squad = response.get("response")[0].get("players")
+                # log.info(team_squad)
+                # sys.exit(0)
+
+            for player in team_squad:
+                # get current season
+                async with self.bot.db.acquire() as connection:
+                    async with connection.transaction():
+                        await connection.execute("INSERT INTO predictionsbot.team_lineups (season, team_id, player_id, start, kit_number) VALUES ($1, $2, $3, $4, $5);", "2022", 42, player.get("id"), datetime.utcnow(), player.get("number"))
+        except Exception as e:
+            log.error(e)
+        log.info("completed updateTeamLineups")
+
+    @tasks.loop(hours=24)
+    async def updateFixtureLineups(self):
+        await checkBotReady()
+        try:
+            log = self.bot.logger.bind(task="updateFixtureLineups")
+            log.info("Starting updateFixtureLineups")
+            fixtures = await completedMatches(self.bot, count=10)
+            log.info(fixtures)
+            for fixture in fixtures:
+                # clear the tables for these one last time before fixing this for good
+                # write select statement to check for existing fixtures in fixture lineup and skip hitting the API if exists
+                if fixture.home == 42 or fixture.away == 42:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(f"https://v3.football.api-sports.io/fixtures/players?fixture={fixture.fixture_id}&team=42", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
+                            response = await resp.json()
+                    players = response.get("response")[0].get("players")
+                # log.info(team_squad)
+                # sys.exit(0)
+
+                for player in players:
+                    # get current season
+                    async with self.bot.db.acquire() as connection:
+                        async with connection.transaction():
+                            team_lineup_id = await connection.fetchrow("SELECT id FROM predictionsbot.team_lineups i WHERE i.player_id = $1", player.get('player').get('id'))
+                            tlid = int(team_lineup_id[0])
+                            await connection.execute("INSERT INTO predictionsbot.fixture_lineups (fixture_id, team_lineup_id, minutes_played) VALUES ($1, $2, $3);", fixture.fixture_id, tlid, player.get("statistics")[0].get("games").get("minutes"))
+        except Exception as e:
+            log.exception(e)
+        log.info("completed updateFixtureLineups")
+
+
+
 
 
 def setup(bot):

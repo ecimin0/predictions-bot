@@ -34,13 +34,13 @@ leaderboard:
 predict:
   +predict: error no prediction made
   +predict 1-0: success
-  +predict 1-1 auba fgs: success
-  +predict 2-2 auba fgs, auba: 2 goals auba
-  +predict 2-2 auba fgs, auba 2x: 3 goals auba
-  +predict 0-0 auba fgs: failed, too many goals predicted
+  +predict 1-1 saka fgs: success
+  +predict 2-2 saka fgs, saka: 2 goals saka
+  +predict 2-2 saka fgs, saka 2x: 3 goals saka
+  +predict 0-0 saka fgs: failed, too many goals predicted
   +predict 1-1 notaplayer fgs: Please try again, no player named notaplayer
-  +predict auba fgs, laca 0-2: success
-  +predict 0:1 laca fgs: success
+  +predict saka fgs, martinelli 0-2: success
+  +predict 0:1 odegaard fgs: success
 
 timezone:
   +timezone: show current timezone

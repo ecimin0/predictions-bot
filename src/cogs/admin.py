@@ -5,7 +5,7 @@ from discord.ext import commands
 from tabulate import tabulate
 from typing import Union
 from utils.exceptions import *
-from utils.utils import isAdmin, getPlayerId, nextMatch, checkUserExists
+from utils.utils import formatMatch, isAdmin, getPlayerId, nextMatch, checkUserExists, nextMatches, getApiPrediction, makePaged, makePagedEmbed
 from typing import Mapping, List, Union, Optional
 import utils.models as models
 
@@ -33,7 +33,7 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         
     @commands.command(name='load')
     async def load(self, ctx: commands.Context, *, cog: str):
-        """Command which Loads a Module.
+        """Command which loads a Module.
         Remember to use dot path. e.g: cogs.owner"""
 
         try:
@@ -58,7 +58,7 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
     @commands.command()
     async def userLookup(self, ctx: commands.Context, *input_str:str):
         '''
-        Return possible user matches and user ID
+        Return possible user matches and user ID | +userLookup <partial name>
         '''
         for input in input_str:
             if len(input) < 5:
@@ -80,7 +80,7 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
     @commands.command()
     async def messageLookup(self, ctx: commands.Context, input_id: int):
         '''
-        Return message ID and ID of message author
+        Return message ID and ID of message author | +messageLookup <message ID>
         '''
         id_to_lookup = input_id
         output: Union[discord.Message, None] = None
@@ -141,26 +141,21 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         except asyncpg.DataError as e:
             await ctx.send(f"Unable to add nickname: `{nickname}` for id {id} status: `{e}`")
 
-    @commands.command()
+    @commands.command(aliases=["players"])
+    @commands.cooldown(1, 60, commands.BucketType.default)
     async def listPlayers(self, ctx: commands.Context):
         '''
-        list nicknames in database
+        ID, name, nicknames for players | Once per 60s
         '''
-        # if nicknameType == "team":
-            # pass
-            # async with bot.db.acquire() as connection:
-            #     async with connection.transaction():
-            #         await connection.execute("UPDATE predictionsbot.teams SET nicknames = array_remove(nicknames, $1) WHERE team_id = $2", nickname, id)
-        # elif nicknameType == "player":
-        if True:
-            ids = await self.bot.db.fetch("SELECT player_id, player_name, nicknames FROM predictionsbot.players WHERE team_id = $1", self.bot.main_team)
-            output = []
-            for player in ids:
-                output.append([player.get("player_id"), player.get("player_name")])
-            # print(output)
-            await ctx.send(f"{ctx.message.author.mention}\n{tabulate(output)}")
-        else:
-            await ctx.send(f"{ctx.message.author.mention}\nCan only view nicknames/id for `player` and `team`.")
+        ids = await self.bot.db.fetch("SELECT player_id, player_name, nicknames FROM predictionsbot.players WHERE team_id = $1 and active = true", self.bot.main_team)
+        playerspaged = []
+        player_list = [models.Player(**p) for p in ids]
+        players = [f"{p.player_id}, {p.player_name}, {p.nicknames}" for p in player_list]
+        players.sort()
+        for i in range(0, len(players) + 1, self.bot.step):
+            playerspaged.append('\n'.join(players[i:i+self.bot.step]))
+        await ctx.send(f"{ctx.message.author.mention}")
+        await makePaged(self.bot, ctx, playerspaged)
 
     @commands.command()
     async def disable(self, ctx: commands.Context, command_name: str):
@@ -184,7 +179,7 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
             await ctx.send(f"enabled function {command_name}")
             return
 
-    @commands.command()
+    @commands.command(aliases=["toggle"])
     async def togglePlayer(self, ctx: commands.Context, player_name: str):
         '''
         Toggle ability to select player using +predict or +player | +togglePlayer <henry>
@@ -210,23 +205,9 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         await checkUserExists(self.bot, ctx.message.author.id, ctx)
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name, command="v3p")
         next_match = await nextMatch(self.bot)
-        next_match_id = next_match.get("fixture_id")
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"https://v3.football.api-sports.io/predictions?fixture={next_match_id}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
-                    response = await resp.json()
-        except Exception as e:
-            log.info("e")
-            await ctx.send(f"{ctx.message.author.mention}\nFailed to get v3 API prediction\n{e}")
-
-        outputarr = []
-
-        for resp in response.get("response"):
-            m = models.V3Predictions(**resp)
-            outputarr.append(m)
-
-        newline = "\n"
-        await ctx.send(f"{ctx.message.author.mention}\n{newline.join([p.output() for p in outputarr])}")
+        fmt_match = await formatMatch(self.bot, next_match, ctx.message.author.id)
+        prediction = await getApiPrediction(self.bot, next_match)
+        await ctx.send(f"{ctx.message.author.mention}\n{fmt_match}\n*API Prediction:*\n{prediction}")
 
 def setup(bot):
     bot.add_cog(AdminCog(bot))

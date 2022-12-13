@@ -19,11 +19,8 @@ class DevelopCog(commands.Cog): # type: ignore
     @commands.command(hidden=True)
     async def getEmoji(self, ctx: commands.Context):
         emojis: List[str] = []
-            # .emojis.forEach(emoji => console.log(emoji.animated ? '<a:' + emoji.name + ':' + emoji.id + '>' : '<:' + emoji.name + ':' + emoji.id + '>'));
         for emoji in ctx.guild.emojis:
             emojis.append(f"{str(emoji)}  {emoji.name}  {str(emoji.id)}")
-        # emoji_list = tabulate(emojis, tablefmt="plain")
-        # emoji_list = sorted(emojis)
         emoji_list = "\n".join(emojis)
         output = f'{emoji_list}'
         await ctx.send(output)
@@ -34,7 +31,6 @@ class DevelopCog(commands.Cog): # type: ignore
         '''
         Generate a test embed object
         '''
-        # log = logger.bind(content=ctx.message.content, author=ctx.message.author)
         paginated_data: List[Mapping] = [
             {"title": "Test 0", "msg": "TestMessage 0"}, 
             {"title": "Test 1", "msg": "TestMessage 1"},
@@ -44,7 +40,6 @@ class DevelopCog(commands.Cog): # type: ignore
         num = 0
         first_run = True
         while True:
-            # log.info(num=num, max_page=max_page)
             if first_run:
                 embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x9c824a)
                 embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
@@ -104,7 +99,6 @@ class DevelopCog(commands.Cog): # type: ignore
         '''
         Generate a test embed object
         '''
-        # log = logger.bind(content=ctx.message.content, author=ctx.message.author)
         paginated_data = [
             {"title": "Test 0", "msg": "TestMessage 0"}, 
             {"title": "Test 1", "msg": "TestMessage 1"},
@@ -114,11 +108,7 @@ class DevelopCog(commands.Cog): # type: ignore
         num = 0
         first_run = True
         while True:
-            # log.info(num=num, max_page=max_page)
             if first_run:
-                # embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x9c824a)
-                # embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
-
                 first_run = False
                 msg = await ctx.send(f"{paginated_data[num]}")
 
@@ -155,19 +145,13 @@ class DevelopCog(commands.Cog): # type: ignore
             elif '⏪' in str(res.emoji):
                 print('<< Going backward')
                 num = num - 1
-                # embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x9c824a)
-                # embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
                 await msg.clear_reactions()
-                # await msg.edit(embed=embedVar)
                 await msg.edit(content=f"{paginated_data[num]}")
 
             elif '⏩' in str(res.emoji):
                 print('\t>> Going forward')
                 num = num + 1
-                # embedVar = discord.Embed(title=paginated_data[num].get("title"), description="Desc", color=0x9c824a)
-                # embedVar.add_field(name=f"Test {num}", value=paginated_data[num].get("msg"), inline=False)
                 await msg.clear_reactions()
-                # await msg.edit(embed=embedVar)
                 await msg.edit(content=f"{paginated_data[num]}")
 
 

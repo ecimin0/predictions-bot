@@ -64,13 +64,14 @@ class Bot(commands.Bot):
         self.tracing = kwargs.pop("tracing", False)
         self.league_dict = kwargs.pop("league_dict")
         self.v3league_dict = kwargs.pop("v3league_dict")
-        self.mapped_leagues = kwargs.pop("mapped_leagues")
+        # self.mapped_leagues = kwargs.pop("mapped_leagues")
         self.season_full = kwargs.pop("season_full")
         self.season = kwargs.pop("season")
         self.channel = kwargs.pop("channel")
         self.gitlab_api = kwargs.pop("gitlab_api")
         self.step = kwargs.pop("step", 5)
         self.match_select = f"home, away, fixture_id, league_id, event_date, goals_home, goals_away, new_date, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.home) AS home_name, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = f.away) AS away_name, (SELECT name FROM predictionsbot.leagues t WHERE t.league_id = f.league_id) as league_name, CASE WHEN away = {self.main_team} THEN home ELSE away END as opponent, (SELECT name FROM predictionsbot.teams t WHERE t.team_id = (CASE WHEN f.away = {self.main_team} THEN f.home ELSE f.away END)) as opponent_name, CASE WHEN away = {self.main_team} THEN 'away' ELSE 'home' END as home_or_away, scorable, status_short, notifications_sent"
+        # self.run_tasks = bool(os.environ.get("RUN_TASKS_ANYWAY", False))
 
     def channelNameToChannelID(self) -> None:
         self.channel_id = 652580035483402250 # initialize as the test bot channel in kubernauts
@@ -282,7 +283,7 @@ options = {
     "api_key": api_key,
     "league_dict": league_dict,
     "v3league_dict": v3league_dict,
-    "mapped_leagues": mapped_leagues,
+    # "mapped_leagues": mapped_leagues,
     "season_full": "2022-2023",
     "season": "2022",
     "gitlab_api": os.environ.get("GITLAB_API", None),
