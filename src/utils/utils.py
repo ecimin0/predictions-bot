@@ -1,18 +1,20 @@
-from datetime import datetime
 import datetime as dt
 import asyncio
 import asyncpg
 import discord
-from discord.ext import commands
 import pytz
 import aiohttp
+import string
+import random
+import sys
+import utils.models as models
+from datetime import datetime
+from discord.ext import commands
+from typing import Mapping
 from utils.exceptions import *
 from tabulate import tabulate
 from typing import List, Mapping, Any, NoReturn, Optional, Union
-import string
-import random
-# import phrasier
-from typing import Mapping
+import json
 
 async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
     fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date <= (SELECT coalesce((SELECT f.event_date FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1), now())) AND (f.home = {bot.main_team} or f.away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY f.event_date DESC")
@@ -26,20 +28,22 @@ async def getUserRank(bot: commands.Bot, ctx: commands.Context) -> int:
             user_rank = rank.get("rank")
     return user_rank
 
-async def getUserPredictions(bot: commands.Bot, ctx: commands.Context) -> List[asyncpg.Record]:
+async def getUserPredictions(bot: commands.Bot, ctx: commands.Context) -> List[models.UserPrediction]:
     '''
     Return the last predictions by user
     '''
     predictions = await bot.db.fetch("SELECT * FROM predictionsbot.predictions WHERE user_id = $1 AND guild_id = $2 AND fixture_id NOT IN (SELECT fixture_id from predictionsbot.fixtures WHERE status_short IN ('PST', 'CANC')) ORDER BY timestamp DESC;", ctx.message.author.id, ctx.guild.id)
-    return predictions
+    return [models.UserPrediction(**p) for p in predictions]
 
-async def getMatch(bot: commands.Bot, fixture_id: int) -> asyncpg.Record:
+
+async def getFixtureByID(bot: commands.Bot, fixture_id: int) -> models.Fixture:
     match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE fixture_id = $1;", fixture_id)
-    return match
+    return models.Fixture(**match)
 
-async def getRandomTeam(bot: commands.Bot) -> str:
-    team = await bot.db.fetchrow(f"SELECT * FROM predictionsbot.teams WHERE team_id != {bot.main_team} ORDER BY random() LIMIT 1;")
-    return team.get("name")
+async def getRandomTeam(bot: commands.Bot) -> Optional[str]:
+    team_resp = await bot.db.fetchrow(f"SELECT * FROM predictionsbot.teams WHERE team_id != {bot.main_team} ORDER BY random() LIMIT 1;")
+    team = models.Team(**team_resp)
+    return team.name
 
 async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context) -> Optional[bool]:
     user = await bot.db.fetch("SELECT * FROM predictionsbot.users WHERE user_id = $1", user_id)
@@ -54,24 +58,28 @@ async def checkUserExists(bot: commands.Bot, user_id: int, ctx: commands.Context
                     await bot.notifyAdmin(f"Error inserting user {user_id} into database:\n{e}")
                     bot.logger.error(f"Error inserting user {user_id} into database: {e}")                
                 return True
-        # return False
     else:
         return True
 
 # nextMatches returns array of fixtures (even for one)
-async def nextMatches(bot: commands.Bot, count: int = 1) -> List[asyncpg.Record]:
+async def nextMatches(bot: commands.Bot, count: int = 1) -> List[models.Fixture]:
     matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY event_date LIMIT $1;", count)
-    return matches
+    nextlist = [models.Fixture(**m) for m in matches]
+    return nextlist
 
 # nextMatch returns record (no array)
-async def nextMatch(bot: commands.Bot) -> asyncpg.Record:
-    match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC')  ORDER BY event_date LIMIT 1;")
-    return match
+async def nextMatch(bot: commands.Bot, team_id: Optional[int]=None) -> Optional[models.Fixture]:
+    if team_id:
+        match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND ((home = {bot.main_team} AND away = $1) OR (away = {bot.main_team} AND home = $1)) AND status_short not in ('PST','CANC') ORDER BY event_date LIMIT 1", team_id)
+    else:
+        match = await bot.db.fetchrow(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY event_date LIMIT 1;")
+    return models.Fixture(**match) if match else None # lol ternaries
 
 # array of completed fixtures records
-async def completedMatches(bot: commands.Bot, count: int=1, offset: int=0) -> List[asyncpg.Record]:
-    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
-    return matches
+async def completedMatches(bot: commands.Bot, count: int=1, offset: int=0) -> List[models.Fixture]:
+    matches = await bot.db.fetch(f"SELECT {bot.match_select} FROM predictionsbot.fixtures f WHERE event_date + interval '2 hour' < now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date DESC LIMIT $1 OFFSET $2;", count, offset)
+    nextlist = [models.Fixture(**m) for m in matches]
+    return nextlist
 
 # todo will need context eventually
 async def getUsersPredictionCurrentMatch(bot: commands.Bot) -> List[asyncpg.Record]:
@@ -83,8 +91,6 @@ async def getUserPredictedLastMatches(bot: commands.Bot) -> List[asyncpg.Record]
     return users
 
 async def getPlayerId(bot: commands.Bot, userInput: str, active_only=True) -> int:
-    # player = await bot.db.fetchrow("SELECT player_id FROM predictionsbot.players WHERE $1 = ANY(nicknames) AND team_id = $2;", userInput.lower(), bot.main_team)
-    
     sql_active_flag = "AND active = true" if active_only else ""
     
     player_obj = await bot.db.fetch(f"select * from predictionsbot.players where team_id = {bot.main_team} {sql_active_flag} AND (exists (SELECT 1 FROM unnest(nicknames) AS name WHERE unaccent(name) ILIKE unaccent($1)) OR unaccent(lastname) ILIKE unaccent($1) OR unaccent(firstname) ILIKE unaccent($1));", f"%{userInput}%")
@@ -128,15 +134,16 @@ async def getUserTimezone(bot: commands.Bot, user: int) -> dt.tzinfo:
     return tz 
 
 async def getTeamsInLeague(bot: commands.Bot, league_id: int) -> List[int]:
-    team_ids_list = []
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://v2.api-football.com/teams/league/{league_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
-            response = await resp.json()
+    team_ids = []
 
-    league_teams = response.get("api").get("teams")
-    for team in league_teams:
-        team_ids_list.append(team.get("team_id"))
-    return team_ids_list
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://v3.football.api-sports.io/teams?season={bot.season}&league={league_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
+            response = await resp.json()
+    teams = response.get("response")
+
+    for team in teams:
+        team_ids.append(team.get("id"))
+    return team_ids
     
 async def checkBotReady() -> None:
     await asyncio.sleep(5)
@@ -158,15 +165,12 @@ async def checkOptOut(bot: commands.Bot, user: int):
 async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) -> str:
     tz: dt.tzinfo = await getUserTimezone(bot, user)
 
-    time_until_match = (match.get('event_date') - datetime.now()).total_seconds()
-    # home_emoji = discord.utils.get(bot.emojis, name=match.get('home_name').lower().replace(' ', ''))
-    # away_emoji = discord.utils.get(bot.emojis, name=match.get('away_name').lower().replace(' ', ''))
-    # league_emoji = discord.utils.get(bot.emojis, name=match.get('league_name').lower().replace(' ', ''))
+    time_until_match = (match.event_date - datetime.now()).total_seconds()
 
-    home_emoji = discord.utils.get(bot.emojis, name=match.get('home_name').lower().replace(' ', '').replace('/', '')) # because bodo glimt; also see models.py
-    away_emoji = discord.utils.get(bot.emojis, name=match.get('away_name').lower().replace(' ', '').replace('/', ''))
+    home_emoji = models.Emoji(bot, match.home_name).emoji # because bodo glimt; also see models.py
+    away_emoji = models.Emoji(bot, match.away_name).emoji
 
-    league_emoji = discord.utils.get(bot.emojis, name=match.get('league_name').lower().replace(' ', '').replace('/', ''))
+    league_emoji = models.Emoji(bot, match.league_name).emoji
 
     if not home_emoji:
         home_emoji = ""
@@ -176,28 +180,31 @@ async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) ->
         league_emoji = ""
 
     if score:
-        match_time = match.get("event_date")
+        match_time = match.event_date
         match_time = prepareTimestamp(match_time, tz, str=False)
 
         match_time_str = match_time.strftime('%m/%d/%Y')
-        if match.get("status_short") == "TBD":
-            match_time_str = f"{match.get('event_date').strftime('%m/%d/%Y')}, TBD"
-        return f"{league_emoji} **{match.get('league_name')} | {match_time_str}**\n{home_emoji} {match.get('home_name')} {match.get('goals_home')} - {match.get('goals_away')} {away_emoji} {match.get('away_name')}\n" 
+
+        if match.status_short == "TBD":
+            match_time_str = f"{match.event_date.strftime('%m/%d/%Y')}, TBD"
+
+        return f"{league_emoji} **{match.league_name} | {match_time_str}**\n{home_emoji} {match.home_name} {match.goals_home} - {match.goals_away} {away_emoji} {match.away_name}\n" 
     else:
-        match_time_str = prepareTimestamp(match.get('event_date'), tz)
-        if match.get("status_short") == "TBD":
-            match_time_str = f"{match.get('event_date').strftime('%A, %d %B')}, TBD"
-        # return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time}\n*match starts in {time_until_match // 86400:.0f} days, {time_until_match // 3600 %24:.0f} hours, and {time_until_match // 60 %60:.0f} minutes*\n\n" 
-        return f"{league_emoji} **{match.get('league_name')}**\n{home_emoji} {match.get('home_name')} vs {away_emoji} {match.get('away_name')}\n{match_time_str}\n\n" 
+        match_time_str = prepareTimestamp(match.event_date, tz)
+
+        if match.status_short == "TBD":
+            match_time_str = f"{match.event_date.strftime('%A, %d %B')}, TBD"
+        
+        return f"{league_emoji} **{match.league_name}**\n{home_emoji} {match.home_name} vs {away_emoji} {match.away_name}\n{match_time_str}"
 
 async def addTeam(bot: commands.Bot, team_id: int) -> None:
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://v2.api-football.com/teams/team/{team_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
+        async with session.get(f"https://v3.football.api-sports.io/teams?id={team_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
             response = await resp.json()
-    teams = response.get("api").get("teams")
+    teams = response.get("response")
 
     for team in teams:
-        delete_keys = [key for key in team if key not in ["team_id", "name", "logo", "country"]]
+        delete_keys = [key for key in team if key not in ["id", "name", "logo", "country"]]
 
     for key in delete_keys:
         del team[key]
@@ -209,7 +216,7 @@ async def addTeam(bot: commands.Bot, team_id: int) -> None:
                 if changesExistTeam(team, existing_info):
                     await connection.execute("UPDATE predictionsbot.teams SET name = $1, logo = $2, country = $3 WHERE team_id = $4", team.get("name"), team.get("logo"), team.get("country"), team_id)
             else:
-                await connection.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES ($1, $2, $3, $4);", team.get("team_id"), team.get("name"), team.get("logo"), team.get("country"))
+                await connection.execute("INSERT INTO predictionsbot.teams (team_id, name, logo, country) VALUES ($1, $2, $3, $4);", team.get("id"), team.get("name"), team.get("logo"), team.get("country"))
 
 async def getStandings(bot: commands.Bot, league_id: int) -> List[Mapping]:
     parsed_standings = []
@@ -217,26 +224,21 @@ async def getStandings(bot: commands.Bot, league_id: int) -> List[Mapping]:
     bot.logger.info("Generating standings", league=league_id)
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://v2.api-football.com/leagueTable/{league_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=20) as resp:
+            async with session.get(f"https://v3.football.api-sports.io/standings?league={league_id}&season={bot.season}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
                 response = await resp.json()
-    except Exception:
-        bot.logger.exception("Failed to featch standings", league_id=league_id)
-        raise PleaseTellMeAboutIt(f"Failed to featch standings for {league_id}")
+        standings = response.get("response")[0].get("league").get("standings")[0]
 
-    standings = response.get("api").get("standings")
-    
-    for rank in standings[0]:
+    except Exception:
+        bot.logger.exception("Failed to fetch standings", league_id=league_id)
+        raise PleaseTellMeAboutIt(f"Failed to fetch standings for {league_id}")
+
+    for rank in standings:
         played = rank.get("all").get("matchsPlayed")
         win = rank.get("all").get("win")
         draw = rank.get("all").get("draw")
         lose = rank.get("all").get("lose")
-        gf = rank.get("all").get("goalsFor")
-        ga = rank.get("all").get("goalsAgainst")
-
-        delete_keys = [key for key in rank if key not in ["rank", "team_id", "teamName", "goalsDiff", "points"]]
-        
-        for key in delete_keys:
-            del rank[key]
+        gf = rank.get("all").get("goals").get("for")
+        ga = rank.get("all").get("goals").get("against")
 
         rank["played"] = played
         rank["win"] = win
@@ -244,6 +246,12 @@ async def getStandings(bot: commands.Bot, league_id: int) -> List[Mapping]:
         rank["loss"] = lose
         rank["goals_for"] = gf
         rank["goals_against"] = ga
+        rank["rank"] = rank.get("rank")
+        rank["team_id"] = rank.get("team").get("id")
+        rank["teamName"] = rank.get("team").get("name")
+        rank["goalsDiff"] = rank.get("goalsDiff")
+        rank["points"] = rank.get("points")
+
         parsed_standings.append(rank)
 
     return parsed_standings
@@ -251,7 +259,6 @@ async def getStandings(bot: commands.Bot, league_id: int) -> List[Mapping]:
 def formatStandings(standings: List[Mapping]) -> str:
     standings_formatted = []
     for standing in standings:
-        # standings_formatted.append([makeOrdinal(standing["rank"]), standing["teamName"], standing["points"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}'])
         standings_formatted.append([standing["rank"], standing["teamName"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["points"]])
 
     return tabulate(standings_formatted, headers=["Rank", "Team", "P", "W-D-L", "GD", "Pts"], tablefmt="github")
@@ -267,7 +274,8 @@ def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
         fixture1.get("goalsHomeTeam") == fixture2.get("goals_home"),
         fixture1.get("goalsAwayTeam") == fixture2.get("goals_away"),
         fixture1.get("league_id") == fixture2.get("league_id"),
-        fixture1.get("statusShort") == fixture2.get("status_short")
+        fixture1.get("statusShort") == fixture2.get("status_short"),
+        fixture1.get("season") == fixture2.get("season")
     ]
     return not all(likeness)
 
@@ -348,12 +356,8 @@ async def makePagedEmbed(bot, ctx, paginated_data):
     first_run = True
     while True:
         try:
-            # log.info(num=num, max_page=max_page
             if first_run:
                 embed = makeEmbed(paginated_data[num])
-                # embed = discord.Embed(title="Arsenal Prediction League Leaderboard", description=f"{rank_num}/{user_max_pages}", color=embed_color)
-                # embed.set_thumbnail(url="https://media.api-sports.io/football/teams/42.png") 
-                # embed.add_field(name=f'{makeOrdinal(rank_num)}:  {paginated_data[num].get("rank_score")} Points', value=f"\n{paginated_data[num].get('leaders')}", inline=False)
                 first_run = False
                 msg = await ctx.send(f"{ctx.message.author.mention}", embed=embed)
 
@@ -385,8 +389,6 @@ async def makePagedEmbed(bot, ctx, paginated_data):
             except asyncio.TimeoutError:
                 return await msg.clear_reactions()
 
-            # if user != ctx.message.author:
-            #     pass
             if '⏪' in str(res.emoji):
                 bot.logger.debug("Going backwards", max=max_page, current=num)
                 num = num - 1
@@ -419,7 +421,6 @@ async def makePaged(bot: commands.Bot, ctx: commands.Context, paginated_data: Li
     first_run = True
     while True:
         try:
-            # log.info(num=num, max_page=max_page
             if first_run:
                 first_run = False
                 msg = await ctx.send(content=paginated_data[num])
@@ -452,8 +453,6 @@ async def makePaged(bot: commands.Bot, ctx: commands.Context, paginated_data: Li
             except asyncio.TimeoutError:
                 return await msg.clear_reactions()
 
-            # if user != ctx.message.author:
-            #     pass
             if '⏪' in str(res.emoji):
                 bot.logger.debug('Going backwards')
                 num = num - 1
@@ -470,7 +469,7 @@ async def makePaged(bot: commands.Bot, ctx: commands.Context, paginated_data: Li
         except Exception:
             bot.logger.exception("Error creating or reacting to paged function")
             break
-        
+
 
 async def getTopPredictions(bot, fixture):
     async with bot.db.acquire() as connection:
@@ -486,6 +485,24 @@ async def getAveragePredictionScore(bot, fixture):
     return final_avg
 
 
-# async def makePhrase():
-#     return phrasier.newphrase()
-    
+async def getApiPrediction(bot: commands.Bot, fixture):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://v3.football.api-sports.io/predictions?fixture={fixture.fixture_id}", headers={'X-RapidAPI-Key': bot.api_key}, timeout=60) as resp:
+                response = await resp.json()
+    except Exception as e:
+        return e
+
+    outputarr = []
+
+    for section in response.get("response"):
+        section["predictions"]["winner"]["team_id"] = section["predictions"]["winner"]["id"]
+        del section["predictions"]["winner"]["id"]
+        v3p = models.V3Predictions(**section)
+        v3p.winner.setEmoji(bot)
+        outputarr.append(v3p)
+
+    newline = "\n" # can't use literal \n in .join()
+    output = f"||{newline.join([p.output() for p in outputarr])}||"
+
+    return output

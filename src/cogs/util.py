@@ -7,6 +7,7 @@ from utils.utils import checkBotReady, nextMatch, getPlayerId
 from tabulate import tabulate
 from typing import Optional
 import os
+import utils.models as models
 
 class Utilities(commands.Cog, name="Utility"): # type: ignore
     def __init__(self, bot: commands.Bot):
@@ -38,14 +39,12 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
         '''
         Display Prediction League Rules
         '''
-        predict_example = "+predict 3-0 saka 2x fgs, odegaard"
-        try:
-            next_match = await nextMatch(self.bot)
-            opponent = next_match.get('opponent_name')
-        except AttributeError:
-            opponent = "Shrewsbury Town"
+        predict_example = "+predict 3-0 saka 2x fgs, martinelli"
+        next_match = await nextMatch(self.bot)
+        if not next_match:
+            next_match = models.Fixture(opponent_name="Party Parrots", fixture_id=999999)
 
-        rules_set_filled = self.rules_set.format(discord.utils.get(self.bot.emojis, name=opponent.lower().replace(' ', '').replace('/', '')), opponent, predict_example)
+        rules_set_filled = self.rules_set.format(models.Emoji(self.bot, next_match.opponent_name).emoji, next_match.opponent_name, predict_example)
         await ctx.send(f"{ctx.message.author.mention}\n{rules_set_filled}")
 
     @commands.command()
@@ -74,11 +73,11 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
     #     spurs_status = "SHIT"
     #     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
     
-    @commands.command(aliases=["bug", "request"])
-    @commands.cooldown(1, 21600, commands.BucketType.user)
+    @commands.command(aliases=["bug", "request", "todo"])
+    @commands.cooldown(1, 3600, commands.BucketType.user)
     async def feedback(self, ctx: commands.Context, *, feedback: Optional[str]):
         '''
-        Open an issue on GitLab | +feedback +bug +request
+        Open or report an issue on GitLab | +feedback +bug +request +todo
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
