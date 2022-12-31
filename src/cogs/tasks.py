@@ -467,10 +467,10 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     away_emoji = Emoji(self.bot, match.away_name).emoji
 
 
-                    output_str = f'**{home_emoji} {match.get("home_name")} {match.get("goals_home")} - {match.get("goals_away")} {away_emoji} {match.get("away_name")}**\n' + \
+                    output_str = f'**{home_emoji} {match.home_name} {match.goals_home} - {match.goals_away} {away_emoji} {match.away_name}**\n' + \
                         f'\n:fire: Maximum possible score this fixture: **{max_score}**' + \
                         f'\n:soccer: Total predictions this fixture: **{num_predictions}**' + \
-                        f'\n:loudspeaker: Average prediction score: **{await getAveragePredictionScore(self.bot, match.get("fixture_id"))}**\n\n' +\
+                        f'\n:loudspeaker: Average prediction score: **{await getAveragePredictionScore(self.bot, match.fixture_id)}**\n\n' +\
                         f':first_place: {max_score_achieved} **{scores[0]} pts\n**{top_rank_dict[1]}\n'
 
                     if len(scores) >= 2:
@@ -684,6 +684,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         try:
             log = self.bot.logger.bind(task="updateTeamLineups")
             log.info("Starting updateTeamLineups")
+            # need to add other teams to db so that we dont get a key error for players on other teams
             # for name, league_id in self.bot.league_dict.items(): # should be v3league_dict or something better
             # team_ids_list = await getTeamsInLeague(self.bot, 4335) # needs to NOT be the v2/old league IDs, see that really good league mapping thing we did
             # for team_id in team_ids_list:
@@ -695,7 +696,11 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 # sys.exit(0)
 
             for player in team_squad:
-                # get current season
+                # get season so dont have to hardcode it, 
+                # also
+                # check if player is already in lineup, if so then skip
+                # else if in this list but not in the db lineup, insert to db
+                # else if not in this list, but in db, update end field
                 async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
                         await connection.execute("INSERT INTO predictionsbot.team_lineups (season, team_id, player_id, start, kit_number) VALUES ($1, $2, $3, $4, $5);", "2022", 42, player.get("id"), datetime.utcnow(), player.get("number"))
