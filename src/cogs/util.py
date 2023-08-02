@@ -91,11 +91,12 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
             await ctx.send("Missing feedback, please ensure you included something.")
             ctx.command.reset_cooldown(ctx)
         else:
-            issue_title: str = f"{ctx.author.name}: {feedback}"
-            async with aiohttp.ClientSession() as session:
-                async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(feedback)}&labels={label}", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
-                    fixture_info = await resp.json()
-            await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
+            # issue_title: str = f"{ctx.author.name}: {feedback}"
+            # async with aiohttp.ClientSession() as session:
+            #     async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(feedback)}&labels={label}", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
+            #         fixture_info = await resp.json()
+            # await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
+            await ctx.send(f"{ctx.message.author.mention}\ngo fuck yourself")
 
     @commands.command()
     async def botissues(self, ctx: commands.Context):
