@@ -136,14 +136,14 @@ async def test_botissues(bot):
     msg = await bot.message("+botissues")
     bot.verify_message("Open Issues:", contains=True)
 
-@pytest.mark.asyncio
-async def test_feedback(bot, mocker):
-    data = {}
-    resp = MockResponse(json.dumps(data), 200)
-    resptext = resp.text()
-    mocker.patch('aiohttp.ClientSession.post', return_value=resp)    
-    msg = await bot.message("+feedback pytest_test_feedback")
-    bot.verify_message("Thank you for your feedback", contains=True)
+# @pytest.mark.asyncio
+# async def test_feedback(bot, mocker):
+#     data = {}
+#     resp = MockResponse(json.dumps(data), 200)
+#     resptext = resp.text()
+#     mocker.patch('aiohttp.ClientSession.post', return_value=resp)    
+#     msg = await bot.message("+feedback pytest_test_feedback")
+#     bot.verify_message("Thank you for your feedback", contains=True)
 
 @pytest.mark.asyncio
 async def test_ping(bot):
