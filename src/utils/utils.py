@@ -17,7 +17,9 @@ from typing import List, Mapping, Any, NoReturn, Optional, Union
 import json
 
 async def getFixturesWithPredictions(bot: commands.Bot, ctx: commands.Context) -> List:
-    fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date <= (SELECT coalesce((SELECT f.event_date FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1), now())) AND (f.home = {bot.main_team} or f.away = {bot.main_team}) AND status_short not in ('PST','CANC') ORDER BY f.event_date DESC")
+    # start of 2023 season added the AND f.season = bot.season filter so that at the beginning of a new season the user's previous season predictions are not selected
+    # if we ever implement seasons directly in the predictions we can probably take this back out
+    fixtures = await bot.db.fetch(f"SELECT f.fixture_id FROM predictionsbot.fixtures f WHERE f.event_date <= (SELECT coalesce((SELECT f.event_date FROM predictionsbot.fixtures f WHERE event_date > now() AND (home = {bot.main_team} OR away = {bot.main_team}) ORDER BY event_date LIMIT 1), now())) AND (f.home = {bot.main_team} or f.away = {bot.main_team}) AND status_short not in ('PST','CANC') AND f.season = '{bot.season}' ORDER BY f.event_date DESC")
     return fixtures
 
 async def getUserRank(bot: commands.Bot, ctx: commands.Context) -> int:
@@ -203,7 +205,8 @@ async def addTeam(bot: commands.Bot, team_id: int) -> None:
             response = await resp.json()
     teams = response.get("response")
 
-    for team in teams:
+    for t in teams:
+        team = t.get("team") # sometime between the 2022 and 2023 seasons the API response chnaged
         delete_keys = [key for key in team if key not in ["id", "name", "logo", "country"]]
 
     for key in delete_keys:

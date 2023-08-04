@@ -173,7 +173,8 @@ def createLogger(level):
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
+            # structlog.processors.CallsiteParameterAdder()
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -193,11 +194,11 @@ utc = pytz.timezone("UTC")
 
 # 2022-2023 season league IDs
 league_dict = {
-    "premier_league": 4335,
-    "champions_league": 4314,
-    "europa_league": 4584,
-    "fa_cup": 4530,
-    "league_cup": 4377,
+    "premier_league": 5267,
+    "champions_league": 5262,
+    "europa_league": 5277,
+    "fa_cup": 5418,
+    "league_cup": 5296,
 }
 
 v3league_dict = {
@@ -210,11 +211,11 @@ v3league_dict = {
 
 # good at coding
 mapped_leagues = {
-    39: 4335,
-    2: 4314,
-    3: 4584,
-    45: 4530,
-    48: 4377,
+    39: 5267,
+    2: 5262,
+    3: 5277,
+    45: 5418,
+    48: 5296,
 } 
 
 # TBD : Time To Be Defined
@@ -284,8 +285,8 @@ options = {
     "league_dict": league_dict,
     "v3league_dict": v3league_dict,
     # "mapped_leagues": mapped_leagues,
-    "season_full": "2022-2023",
-    "season": "2022",
+    "season_full": "2023-2024",
+    "season": "2023",
     "gitlab_api": os.environ.get("GITLAB_API", None),
     "tracing": os.environ.get("TRACING", False),
     "prefix": "+",

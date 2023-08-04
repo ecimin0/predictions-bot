@@ -41,7 +41,7 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
                     log.exception("Error retrieving nextMatches from database")
                 output = f"{ctx.message.author.mention}\n**Next {count} matches:**\n"
 
-                addV3P = True
+                addV3P = False
                 for match in next_matches:
                     if addV3P:
                         output_array.append(await formatMatch(self.bot, match, ctx.message.author.id))
@@ -100,6 +100,8 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
         # \u200b  null space/break char
         await ctx.send(f"{ctx.message.author.mention}\n\n**<:premierleague:756634419837665361> Premier League Leaderboard <:premierleague:756634419837665361>**\n```{output}```")
 
+
+    @commands.command(aliases=["past"])
     @commands.command()
     async def results(self, ctx: commands.Context):
         '''

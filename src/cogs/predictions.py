@@ -393,10 +393,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             log.exception("Failed to retrieve players_that_suck from database")
         
         if not players_that_suck:
-            if random.randrange(1,255) % 7: 
-                await ctx.send("Believe it or not Granit Xhaka is not currently suspended")
-            else:
-                await ctx.send("There are no players currently sidelined")
+            await ctx.send("No players currently sidelined")
         else:
             paginated_data = []
             color = getArsenalColor()
