@@ -100,9 +100,7 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
         # \u200b  null space/break char
         await ctx.send(f"{ctx.message.author.mention}\n\n**<:premierleague:756634419837665361> Premier League Leaderboard <:premierleague:756634419837665361>**\n```{output}```")
 
-
     @commands.command(aliases=["past"])
-    @commands.command()
     async def results(self, ctx: commands.Context):
         '''
         Return past fixture results
