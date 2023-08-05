@@ -81,8 +81,9 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
                     await ctx.send(f"{ctx.message.author.mention}\n{self.bot.main_team_name} does not have any upcoming matches against {team}.")
                 else:
                     fmt_match = await formatMatch(self.bot, next_match, ctx.message.author.id)
-                    prediction = await getApiPrediction(self.bot, next_match)
-                    await ctx.send(f"{ctx.message.author.mention}\n{fmt_match}\n*API Prediction:*\n{prediction}")
+                    # prediction = await getApiPrediction(self.bot, next_match)
+                    # await ctx.send(f"{ctx.message.author.mention}\n{fmt_match}\n*API Prediction:*\n{prediction}")
+                    await ctx.send(f"{ctx.message.author.mention}\n{fmt_match}")
             except TypeError as e:
                 await ctx.send(f"sorry, something went wrong")
                 log.error(e)
