@@ -39,7 +39,7 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
         '''
         Display Prediction League Rules
         '''
-        predict_example = "+predict 3-0 saka 2x fgs, martinelli"
+        predict_example = "+predict 3-0 saka fgs, martinelli, saliba\n(separate using commas)"
         next_match = await nextMatch(self.bot)
         if not next_match:
             next_match = models.Fixture(opponent_name="Party Parrots", fixture_id=999999)
@@ -73,30 +73,29 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
     #     spurs_status = "SHIT"
     #     await ctx.send(f"{ctx.message.author.mention}\n{spurs_status}\n{video}")
     
-    @commands.command(aliases=["bug", "request", "todo"])
-    @commands.cooldown(1, 3600, commands.BucketType.user)
-    async def feedback(self, ctx: commands.Context, *, feedback: Optional[str]):
-        '''
-        Open or report an issue on GitLab | +feedback +bug +request +todo
-        '''
-        log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
+    # @commands.command(aliases=["bug", "request", "todo"])
+    # @commands.cooldown(1, 3600, commands.BucketType.user)
+    # async def feedback(self, ctx: commands.Context, *, feedback: Optional[str]):
+    #     '''
+    #     Open or report an issue on GitLab | +feedback +bug +request +todo
+    #     '''
+    #     log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
-        label = "feedback"
-        for feedback_type in ["bug", "request", "feedback"]:
-            if f"+{feedback_type}" in ctx.message.content:
-                feedback_type = feedback_type
-                label = f"{feedback_type},{label}"
+    #     label = "feedback"
+    #     for feedback_type in ["bug", "request", "feedback"]:
+    #         if f"+{feedback_type}" in ctx.message.content:
+    #             feedback_type = feedback_type
+    #             label = f"{feedback_type},{label}"
 
-        if not feedback:
-            await ctx.send("Missing feedback, please ensure you included something.")
-            ctx.command.reset_cooldown(ctx)
-        else:
-            # issue_title: str = f"{ctx.author.name}: {feedback}"
-            # async with aiohttp.ClientSession() as session:
-            #     async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(feedback)}&labels={label}", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
-            #         fixture_info = await resp.json()
-            # await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
-            await ctx.send(f"{ctx.message.author.mention}\ngo fuck yourself")
+    #     if not feedback:
+    #         await ctx.send("Missing feedback, please ensure you included something.")
+    #         ctx.command.reset_cooldown(ctx)
+    #     else:
+    #         issue_title: str = f"{ctx.author.name}: {feedback}"
+    #         async with aiohttp.ClientSession() as session:
+    #             async with session.post(f"https://gitlab.com/api/v4/projects/15728299/issues?title={urllib.parse.quote_plus(issue_title)}&description={urllib.parse.quote_plus(feedback)}&labels={label}", headers={'PRIVATE-TOKEN': self.bot.gitlab_api}, timeout=30) as resp:
+    #                 fixture_info = await resp.json()
+    #         await ctx.send(f"{ctx.message.author.mention}\nThank you for your feedback!")
 
     @commands.command()
     async def botissues(self, ctx: commands.Context):
