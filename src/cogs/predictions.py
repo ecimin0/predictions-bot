@@ -269,7 +269,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             away_goals = int(goals_match.group(3))
 
         if home_goals > 99 or away_goals > 99:
-            await ctx.send(f"{ctx.message.author.mention}\nPrediction scores cannot be 3 digit numbers, try again")
+            await ctx.send(f"{ctx.message.author.mention}\nPrediction scores cannot be 3 digit numbers, try again.")
             return
 
         if current_match.home_or_away == "home":
@@ -327,7 +327,7 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
 
         except (Exception) as e:
             log.exception(f"There was an error loading this prediction into the database: {e}")
-            await self.bot.notifyAdmin(f"There was an error loading this prediction into the databse:\n{e}")
+            await self.bot.notifyAdmin(f"There was an error loading this prediction into the database:\n{e}")
             return
 
 
