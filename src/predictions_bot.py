@@ -199,6 +199,7 @@ league_dict = {
     "europa_league": 5277,
     "fa_cup": 5418,
     "league_cup": 5296,
+    "community_shield": 5224,
 }
 
 v3league_dict = {
@@ -207,6 +208,7 @@ v3league_dict = {
     "v3europa_league": 3,
     "v3fa_cup": 45,
     "v3league_cup": 48,
+    "community_shield": 528,
 }
 
 # good at coding
@@ -216,6 +218,7 @@ mapped_leagues = {
     3: 5277,
     45: 5418,
     48: 5296,
+    528: 5224,
 } 
 
 # TBD : Time To Be Defined
