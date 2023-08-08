@@ -124,7 +124,7 @@ async def test_next_too_many(bot):
 async def test_no_sidelined(bot):
     msg = await bot.message("+sidelined")
     response = bot.get_message().content
-    assert("Believe it or not Granit Xhaka is not currently suspended" == response or "There are no players currently sidelined" == response or "Sidelined Arsenal Players")
+    assert("There are no players currently sidelined" == response or "Sidelined Arsenal Players")
 
 @pytest.mark.asyncio
 async def test_remindme(bot):
@@ -291,15 +291,15 @@ async def test_makeOrdinal():
 #     msg = await bot.message("+table")
 #     bot.verify_message("```|   Rank | Team              |   P | W-D-L   |   GD |   Pts |", contains=True)
 
-# @pytest.mark.asyncio
-# async def test_(bot):
-#     msg = await bot.message("+")
-#     bot.verify_message("", contains=True)
+@pytest.mark.asyncio
+async def test_results(bot):
+    msg = await bot.message("+results")
+    bot.verify_message("Past Match Results", contains=True)
+    # how to test len(paged_results) > 0?
 
 # @pytest.mark.asyncio
-# async def test_(bot):
-#     msg = await bot.message("+")
-#     bot.verify_message("", contains=True)
+# async def test_checkUserExists(bot):
+#     assert await checkUserExists(bot.get_config().client, 249231078303203329) # needs ctx as third arg. how to pass?
 
 # @pytest.mark.asyncio
 # async def test_(bot):

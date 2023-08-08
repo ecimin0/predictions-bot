@@ -190,7 +190,12 @@ async def formatMatch(bot: commands.Bot, match, user: int, score: bool=False) ->
         if match.status_short == "TBD":
             match_time_str = f"{match.event_date.strftime('%m/%d/%Y')}, TBD"
 
-        return f"{league_emoji} **{match.league_name} | {match_time_str}**\n{home_emoji} {match.home_name} {match.goals_home} - {match.goals_away} {away_emoji} {match.away_name}\n" 
+        if match.status_short == "PEN":
+            bot.logger.info(f"match penalty home: {match.penalty_home}")
+            return f"{league_emoji} **{match.league_name} | {match_time_str}**\n{home_emoji} {match.home_name} {match.goals_home} - {match.goals_away} ({match.penalty_home} - {match.penalty_away}) {away_emoji} {match.away_name}\n"
+        else:
+            # print(match)
+            return f"{league_emoji} **{match.league_name} | {match_time_str}**\n{home_emoji} {match.home_name} {match.goals_home} - {match.goals_away} {away_emoji} {match.away_name}\n"
     else:
         match_time_str = prepareTimestamp(match.event_date, tz)
 
@@ -278,7 +283,9 @@ def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
         fixture1.get("goalsAwayTeam") == fixture2.get("goals_away"),
         fixture1.get("league_id") == fixture2.get("league_id"),
         fixture1.get("statusShort") == fixture2.get("status_short"),
-        fixture1.get("season") == fixture2.get("season")
+        fixture1.get("season") == fixture2.get("season"),
+        fixture1.get("penaltyHome") == fixture2.get("penalty_home"),
+        fixture1.get("penaltyAway") == fixture2.get("penalty_away"),
     ]
     return not all(likeness)
 
