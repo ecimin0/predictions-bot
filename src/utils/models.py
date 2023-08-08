@@ -83,6 +83,8 @@ class Fixture: # matches
     new_date: Optional[datetime.datetime] = None
     goals_home: Optional[int] = None
     goals_away: Optional[int] = None
+    penalty_home: Optional[int] = None
+    penalty_away: Optional[int] = None
     scorable: Optional[bool] = None
     status_short: Optional[str] = None
     notifications_sent: Optional[bool] = None

@@ -105,6 +105,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     tempmatch["goalsAwayTeam"] = match.get("goals").get("away")
                     tempmatch["statusShort"] = match.get("fixture").get("status").get("short")
                     tempmatch["season"] = match.get("league").get("season")
+                    tempmatch["penaltyHome"] = match.get("score").get("penalty").get("home")
+                    tempmatch["penaltyAway"] = match.get("score").get("penalty").get("away")
                     match_completed = self.status_lookup[tempmatch.get("statusShort")]
                 
                 except asyncio.TimeoutError:
@@ -118,8 +120,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 try:
                     async with self.bot.db.acquire() as connection:
                         async with connection.transaction():
-                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4 WHERE fixture_id = $5", tempmatch.get("goalsHomeTeam"), tempmatch.get("goalsAwayTeam"), match_completed, tempmatch.get('statusShort'), fixture.get('fixture_id'))
-                
+                            await connection.execute("UPDATE predictionsbot.fixtures SET goals_home = $1, goals_away = $2, scorable = $3, status_short = $4, penalty_home = $5, penalty_away = $6 WHERE fixture_id = $7", tempmatch.get("goalsHomeTeam"), tempmatch.get("goalsAwayTeam"), match_completed, tempmatch.get('statusShort'), tempmatch.get("penaltyHome"), tempmatch.get("penaltyAway"), fixture.get('fixture_id'))
+
                 except Exception:
                     log.exception("Failed to update fixture", fixture=fixture.get('fixture_id'))
                     raise PleaseTellMeAboutIt(f"Failed to get fixture from api: {fixture.get('fixture_id')}")
@@ -142,6 +144,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
 
             for league_name, league_id in self.bot.v3league_dict.items():
                 log.info("generating fixtures", league_id=league_id, league_name=league_name)
+                # if league_id == 528:
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={self.bot.season}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
@@ -168,6 +171,8 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     tempmatch["goalsAwayTeam"] = match.get("goals").get("away")
                     tempmatch["statusShort"] = match.get("fixture").get("status").get("short")
                     tempmatch["season"] = str(match.get("league").get("season"))
+                    tempmatch["penaltyHome"] = match.get("score").get("penalty").get("home")
+                    tempmatch["penaltyAway"] = match.get("score").get("penalty").get("away")
 
                     parsed_fixtures.append(tempmatch)
 
@@ -182,7 +187,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                             await addTeam(self.bot, fixture.get("away"))
                             log.info("Added team (away)", fixture=fixture.get("fixture_id"), team=fixture.get("away"))
 
-                        fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, status_short, season FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
+                        fixture_exists = await self.bot.db.fetchrow("SELECT home, away, fixture_id, league_id, event_date, goals_home, goals_away, status_short, season, penalty_home, penalty_away FROM predictionsbot.fixtures WHERE fixture_id = $1", fixture.get("fixture_id"))
 
                         if fixture_exists:
                             if changesExist(fixture, fixture_exists):
@@ -190,17 +195,17 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                                 log.info("changes exist", fixture_id=fixture.get("fixture_id"), league_id=fixture.get("league_id"))
                                 async with self.bot.db.acquire() as connection:
                                     async with connection.transaction():
-                                        await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7, status_short = $8, season = $9 WHERE fixture_id = $10", 
+                                        await connection.execute("UPDATE predictionsbot.fixtures SET home = $1, away = $2, league_id = $3, event_date = $4, goals_home = $5, goals_away = $6, scorable = $7, status_short = $8, season = $9, penalty_home = $10, penalty_away = $11 WHERE fixture_id = $12",
                                                                     fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), 
-                                                                    fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get("statusShort"), fixture.get("season") ,fixture.get('fixture_id'))
+                                                                    fixture.get("goalsHomeTeam"), fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get("statusShort"), fixture.get("season"), fixture.get("penaltyHome"), fixture.get("penaltyAway"), fixture.get('fixture_id'))
                         else:
                             log.info("new fixture", fixture_id=fixture.get("fixture_id"), league_id=fixture.get("league_id"))
                             updated_fixtures += 1
                             async with self.bot.db.acquire() as connection:
                                 async with connection.transaction():
-                                    await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id, status_short, season) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)", 
+                                    await connection.execute("INSERT INTO predictionsbot.fixtures (home, away, league_id, event_date, goals_home, goals_away, scorable, fixture_id, status_short, season, penalty_home, penalty_away) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
                                                                 fixture.get("home"), fixture.get("away"), fixture.get("league_id"), fixture.get("event_date"), fixture.get("goalsHomeTeam"), 
-                                                                fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'), fixture.get("statusShort"), fixture.get("season"))
+                                                                fixture.get("goalsAwayTeam"), self.status_lookup[fixture.get("statusShort")], fixture.get('fixture_id'), fixture.get("statusShort"), fixture.get("season"), fixture.get("penaltyHome"), fixture.get("penaltyAway"))
                     except Exception:
                         log.exception("Failed to verify/update fixture", fixture_id=fixture.get("fixture_id"))
 
