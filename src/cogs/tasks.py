@@ -80,7 +80,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
             log.info("Starting updateFixtures")
 
             try:
-                fixtures = await self.bot.db.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-1 hour' AND NOT scorable")
+                fixtures = await self.bot.db.fetch("SELECT fixture_id FROM predictionsbot.fixtures WHERE event_date < now() + interval '5 hour' AND event_date > now() + interval '-3 hour' AND NOT scorable")
                 # this is expensive if there a shitload of fixtures that happen to be within the window (the beginning of the FA cup for example)
                 # heuristic: for large numbers of fixtures, sort by event date and check newer events first
                 # if 10 or so don't update stop and log a warning saying to check the API for issues; usually signifies API slow or out of date
