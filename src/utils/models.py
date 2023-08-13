@@ -1,5 +1,6 @@
 #!/usr/local/bin/python3
 
+from __future__ import annotations
 import discord
 from discord.ext import commands
 from pprint import pprint
