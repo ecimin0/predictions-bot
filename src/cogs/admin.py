@@ -202,7 +202,9 @@ class AdminCog(commands.Cog, command_attrs=dict(hidden=True)): # type: ignore
         '''
         Show API v3 prediction for next fixture
         '''
-        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+        retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+        finalval = await retval.perform(self.bot, ctx)
+
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name, command="v3p")
         next_match = await nextMatch(self.bot)
         fmt_match = await formatMatch(self.bot, next_match, ctx.message.author.id)

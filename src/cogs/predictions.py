@@ -21,11 +21,12 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         '''
         Show your past predictions
         '''
-        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+        retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+        finalval = await retval.perform(self.bot, ctx)
 
         #compare all fixtures with predictions to user predictions
         predictions = await getUserPredictions(self.bot, ctx)
-        fixtures = await getFixturesWithPredictions(self.bot, ctx)
+        fixtures = await getFixturesWithPredictions(self.bot)
         rank = await getUserRank(self.bot, ctx)
 
         if not predictions:
@@ -51,10 +52,21 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             away_emoji = Emoji(self.bot, match.away_name).emoji
 
             if not fixture.get("fixture_id") in user_predictions:
-                fields.append({
-                    "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} {away_emoji} {match.away_name}',
-                    "value": "Score: **0** | `no prediction made`"
-                })
+                if match.league_id == 528:
+                    fields.append({
+                        "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} ({match.penalty_home or 0} - {match.penalty_away or 0}) {away_emoji} {match.away_name}',
+                        "value": "`no predictions for Community Shield`"
+                    })
+                elif match.penalty_home is not None or match.penalty_away is not None:
+                    fields.append({
+                        "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} ({match.penalty_home or 0} - {match.penalty_away or 0}) {away_emoji} {match.away_name}',
+                        "value": "Score: **0** | `no prediction made`"
+                    })
+                else:
+                    fields.append({
+                        "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} {away_emoji} {match.away_name}',
+                        "value": "Score: **0** | `no prediction made`"
+                    })
             else:
                 prediction = user_predictions.get(fixture.get("fixture_id"))
                 if prediction.prediction_score:
@@ -62,10 +74,22 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
                 prediction_value = "TBD"
                 if prediction.prediction_score is not None:
                     prediction_value = str(prediction.prediction_score)
-                fields.append({
-                    "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} {away_emoji} {match.away_name}',
-                    "value": f'Score: **{prediction_value}** | `{prediction.prediction_string}`\n\n'
-                })
+
+                if match.penalty_home is not None or match.penalty_away is not None:
+                    fields.append({
+                        "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} ({match.penalty_home or 0} - {match.penalty_away or 0}) {away_emoji} {match.away_name}',
+                        "value": f'Score: **{prediction_value}** | `{prediction.prediction_string}`\n\n'
+                    })
+                else:
+                    fields.append({
+                        "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} {away_emoji} {match.away_name}',
+                        "value": f'Score: **{prediction_value}** | `{prediction.prediction_string}`\n\n'
+                    })
+
+                # fields.append({
+                #     "name": f'{match.event_date.strftime("%m/%d/%y")} | {home_emoji} {match.home_name} {match.goals_home or 0} - {match.goals_away or 0} {away_emoji} {match.away_name}',
+                #     "value": f'Score: **{prediction_value}** | `{prediction.prediction_string}`\n\n'
+                # })
 
         if rank == 0:
             description = f"_League score: **{total}** | League pos. **N/A - no predictions scored**_"
@@ -152,9 +176,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
-        #checkUserExists inserts the user_id if not present
         try:
-            await checkUserExists(self.bot, ctx.message.author.id, ctx)
+            retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+            finalval = await retval.perform(self.bot, ctx)
             current_match = await nextMatch(self.bot)
             user_tz = await getUserTimezone(self.bot, ctx.message.author.id)
         except Exception:
@@ -165,11 +189,9 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             await ctx.send(f"{ctx.message.author.mention}\nNo upcoming matches found.")
             return
 
-        time_limit_offset: Dict[str, float] = {
+        time_limit_offset: Dict[int, float] = {
             self.bot.league_dict["europa_league"]: 1.5
         }
-        # if europa league then timedelta(hours=1.5)
-        # else timedelta(hours=1)
         time_offset = 1.0
         if current_match.league_id in time_limit_offset:
             assert current_match.league_id
