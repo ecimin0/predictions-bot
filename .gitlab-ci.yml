@@ -30,3 +30,4 @@ testing:
     - source ./venv/bin/activate
     - python -m pip install -r requirements.txt
     - pytest -srpfE --cov-report term-missing --cov='./src'
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)/'

@@ -16,7 +16,9 @@ class UserFunctions(commands.Cog, name="User Functions"): # type: ignore
         Change timezone | +timezone Europe/London | https://stackoverflow.com/questions/13866926/is-there-a-list-of-pytz-timezones
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+
+        retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+        finalval = await retval.perform(self.bot, ctx)
 
         msg: str = ctx.message.content
         try:
@@ -47,7 +49,9 @@ class UserFunctions(commands.Cog, name="User Functions"): # type: ignore
         Toggle reminders; sent 2h before kickoff
         '''
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
-        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+
+        retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+        finalval = await retval.perform(self.bot, ctx)
         try:
             notify = await self.bot.db.fetchrow("SELECT allow_notifications FROM predictionsbot.users WHERE user_id = $1", ctx.message.author.id)
             # if not notify:

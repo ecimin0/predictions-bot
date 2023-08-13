@@ -6,6 +6,7 @@ from pprint import pprint
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Any
 import datetime
+import asyncio
 
 
 @dataclass
@@ -34,7 +35,7 @@ class Emoji:
     emoji: str = ""
     def __init__(self, bot, name: str) -> None:
         self.name = name
-        self.emoji =  discord.utils.get(bot.emojis, name=name.lower().replace(' ', '').replace('/', ''))
+        self.emoji = discord.utils.get(bot.emojis, name=name.lower().replace(' ', '').replace('/', ''))
 
 @dataclass
 class Odds:
@@ -122,3 +123,46 @@ class V3Predictions:
 
     def output(self) -> str:
         return f"**{self.winner.emoji}{self.winner.name}** {self.winner.comment.lower() if self.winner.comment else ''}\n{self.odds.output()}"
+
+
+@dataclass
+class BotAction:
+    message: str
+    embed: Optional[discord.Embed]
+
+    async def send(ctx: commands.Context):
+        # if has an embed
+        pass
+
+@dataclass
+class CompositeAction:
+    """
+    A function that requires the Discord context as a function param can instead create a CompositeAction so that the context is offloaded to a different place.
+    This is used in part to allow the test suite to call/test any function it needs to, since the test library does not contain a mock for the context.
+
+    :param actions: list of actions # good at commenting
+    :param upstream_value: the object that the function originally returned before before moving a CompositeAction
+    """
+    actions: List[str] # List[BotAction]
+    upstream_value: Any
+
+    def __init__(self, actions: List[str], val: Any) -> None:
+        self.actions = actions
+        self.upstream_value = val
+
+
+    def unwrap(self) -> tuple[List[str], Any]:
+        a = self.actions
+        uv = self.upstream_value
+        return a, uv
+
+
+    async def perform(self, bot, ctx: commands.Context) -> Any:
+        a,uv = self.unwrap()
+        for action in a:
+            try:
+                await ctx.send(action)
+                # await action.send(ctx)
+            except Exception as e:
+                bot.logger.error(f"cool monadic thing failed: {e}")
+        return uv

@@ -14,12 +14,14 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
     def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot
 
+
     @commands.command(aliases=["fixtures", "when"])
     async def next(self, ctx: commands.Context, *, msg: Optional[Union[int, str]]):
         '''
         Upcoming matches or next match against another side | [+next 3 | +next wolves]
         '''
-        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+        retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+        finalval = await retval.perform(self.bot, ctx)
         log = self.bot.logger.bind(content=ctx.message.content, author=ctx.message.author.name)
 
         if type(msg) == int or not msg:
@@ -32,7 +34,7 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
                 
             if count <= 0:
                 await ctx.send(f"{ctx.message.author.mention}\nNumber of next matches cannot be a negative number")
-            elif count >= 20:
+            elif count > 20:
                 await ctx.send(f"{ctx.message.author.mention}\nNumber of next matches cannot be greater than 20")
             else:
                 try:
@@ -106,7 +108,8 @@ class Fixtures(commands.Cog, name="Fixtures"): # type: ignore
         '''
         Return past fixture results
         '''
-        await checkUserExists(self.bot, ctx.message.author.id, ctx)
+        retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+        finalval = await retval.perform(self.bot, ctx)
         user_tz: dt.tzinfo = await getUserTimezone(self.bot, ctx.message.author.id)
 
         done_matches = await completedMatches(self.bot, count=10)

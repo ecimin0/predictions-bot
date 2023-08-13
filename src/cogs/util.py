@@ -3,7 +3,7 @@ import discord
 from discord.ext import tasks, commands
 import urllib
 from utils.exceptions import *
-from utils.utils import checkBotReady, nextMatch, getPlayerId
+from utils.utils import checkBotReady, nextMatch, getPlayerId, checkUserExists
 from tabulate import tabulate
 from typing import Optional
 import os
@@ -127,6 +127,7 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
         try:
             player_id = await getPlayerId(self.bot, name)
         except Exception as e:
+            print("THIS")
             await ctx.send(f"{e}")
         
         async with self.bot.db.acquire() as connection:
@@ -134,6 +135,14 @@ class Utilities(commands.Cog, name="Utility"): # type: ignore
                 player_name = await connection.fetchrow("SELECT player_name FROM predictionsbot.players WHERE player_id = $1", player_id)
         
         await ctx.send(f"{player_name.get('player_name')}")
+
+
+    @commands.command()
+    async def check(self, ctx: commands.Context):
+        retval = await checkUserExists(self.bot, ctx.message.author.id, ctx.message.author.mention, discord.utils.get(self.bot.emojis, name=self.bot.main_team_name.lower()))
+        finalval = await retval.perform(self.bot, ctx)
+        # if we ever find that we repeat this pattern in wider use of the monadic stuff, we can write a function to chain async await functions
+
 
 def setup(bot):
     bot.add_cog(Utilities(bot))

@@ -38,37 +38,37 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
         }
         # below functions are in the proper order to fill a new season's db or fix an old one
 
-        self.sendNotifications.start()
+        # self.sendNotifications.start()
 
-        self.calculatePredictionScores.add_exception_type(Exception)
-        self.calculatePredictionScores.start()
+        # self.calculatePredictionScores.add_exception_type(Exception)
+        # self.calculatePredictionScores.start()
 
-        self.updateLeagues.add_exception_type(Exception)
-        self.updateLeagues.start()
+        # self.updateLeagues.add_exception_type(Exception)
+        # self.updateLeagues.start()
 
-        self.updateTeams.add_exception_type(Exception)
-        self.updateTeams.start()
+        # self.updateTeams.add_exception_type(Exception)
+        # self.updateTeams.start()
 
-        self.updatePlayers.add_exception_type(Exception)
-        self.updatePlayers.start()
+        # self.updatePlayers.add_exception_type(Exception)
+        # self.updatePlayers.start()
 
-        # scoring related, will not add or remove fixtures
-        self.updateFixtures.add_exception_type(Exception)
-        self.updateFixtures.start()
+        # # scoring related, will not add or remove fixtures
+        # self.updateFixtures.add_exception_type(Exception)
+        # self.updateFixtures.start()
 
-        # new fixtures, no scoring
-        self.updateFixturesbyLeague.add_exception_type(Exception)
-        self.updateFixturesbyLeague.start()
+        # # new fixtures, no scoring
+        # self.updateFixturesbyLeague.add_exception_type(Exception)
+        # self.updateFixturesbyLeague.start()
         
-        # todo: should be the first function migrated to v3
-        self.sidelinedPlayers.add_exception_type(Exception)
-        self.sidelinedPlayers.start()
+        # # todo: should be the first function migrated to v3
+        # self.sidelinedPlayers.add_exception_type(Exception)
+        # self.sidelinedPlayers.start()
 
-        self.updateTeamLineups.add_exception_type(Exception)
-        self.updateTeamLineups.start()
+        # self.updateTeamLineups.add_exception_type(Exception)
+        # self.updateTeamLineups.start()
 
-        self.updateFixtureLineups.add_exception_type(Exception)
-        self.updateFixtureLineups.start()
+        # self.updateFixtureLineups.add_exception_type(Exception)
+        # self.updateFixtureLineups.start()
 
     # @bot.command(hidden=True)
     # runs every 15 min to check if fixtures within 5 hours before and after now are complete/scorable for predictions
