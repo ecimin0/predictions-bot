@@ -320,7 +320,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                     new_goals = []
                     for goal in goals:
                         if goal.get("detail") == "Own Goal":
-                            goal["player_id"] = 0
+                            goal["player"]["id"] = 0
                             new_goals.append(goal)
                         else:
                             new_goals.append(goal)
