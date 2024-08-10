@@ -190,9 +190,10 @@ class Predictions(commands.Cog, name="Prediction Functions"): # type: ignore
             return
 
         time_limit_offset: Dict[int, float] = {
+            self.bot.league_dict["champions_league"]: 1.5,
             self.bot.league_dict["europa_league"]: 1.5
         }
-        time_offset = 1.0
+        time_offset = 1.25
         if current_match.league_id in time_limit_offset:
             assert current_match.league_id
             time_offset = time_limit_offset[current_match.league_id]
