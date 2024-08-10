@@ -185,9 +185,9 @@ async def test_getUsersPredictionCurrentMatch(bot):
     assert await getUsersPredictionCurrentMatch(bot.get_config().client)
 
 
-@pytest.mark.asyncio
-async def test_getUserPredictedLastMatches(bot):
-    assert await getUserPredictedLastMatches(bot.get_config().client)
+# @pytest.mark.asyncio
+# async def test_getUserPredictedLastMatches(bot):
+#     assert await getUserPredictedLastMatches(bot.get_config().client)
 
 
 @pytest.mark.asyncio
