@@ -711,7 +711,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                 # else if not in this list, but in db, update end field
                 async with self.bot.db.acquire() as connection:
                     async with connection.transaction():
-                        await connection.execute("INSERT INTO predictionsbot.team_lineups (season, team_id, player_id, start, kit_number) VALUES ($1, $2, $3, $4, $5);", "2023", 42, player.get("id"), datetime.utcnow(), player.get("number"))
+                        await connection.execute("INSERT INTO predictionsbot.team_lineups (season, team_id, player_id, start, kit_number) VALUES ($1, $2, $3, $4, $5);", "2024", 42, player.get("id"), datetime.utcnow(), player.get("number"))
         except Exception as e:
             log.error(e)
         log.info("completed updateTeamLineups")

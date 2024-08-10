@@ -233,7 +233,7 @@ async def addTeam(bot: commands.Bot, team_id: int) -> None:
     teams = response.get("response")
 
     for t in teams:
-        team = t.get("team") # sometime between the 2022 and 2023 seasons the API response chnaged
+        team = t.get("team") # sometime between the 2022 and 2023 seasons the API response changed
         delete_keys = [key for key in team if key not in ["id", "name", "logo", "country"]]
 
     for key in delete_keys:

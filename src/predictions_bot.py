@@ -192,14 +192,14 @@ logger = createLogger(os.environ.get("LOGLEVEL", "INFO"))
 
 utc = pytz.timezone("UTC")
 
-# 2022-2023 season league IDs
+# 2024-2025 API v2 season league IDs
 league_dict = {
-    "premier_league": 5267,
-    "champions_league": 5262,
-    "europa_league": 5277,
-    "fa_cup": 5418,
-    "league_cup": 5296,
-    "community_shield": 5224,
+    "premier_league": 6280,
+    "champions_league": 6281,
+    "europa_league": 6283,
+    "fa_cup": 6422,
+    "league_cup": 6339,
+    "community_shield": 6363,
 }
 
 v3league_dict = {
@@ -213,12 +213,12 @@ v3league_dict = {
 
 # good at coding
 mapped_leagues = {
-    39: 5267,
-    2: 5262,
-    3: 5277,
-    45: 5418,
-    48: 5296,
-    528: 5224,
+    39: 6280,
+    2: 6281,
+    3: 6283,
+    45: 6422,
+    48: 6339,
+    528: 6363,
 } 
 
 # TBD : Time To Be Defined
@@ -288,8 +288,8 @@ options = {
     "league_dict": league_dict,
     "v3league_dict": v3league_dict,
     # "mapped_leagues": mapped_leagues,
-    "season_full": "2023-2024",
-    "season": "2023",
+    "season_full": "2024-2025",
+    "season": "2024",
     "gitlab_api": os.environ.get("GITLAB_API", None),
     "tracing": os.environ.get("TRACING", False),
     "prefix": "+",
