@@ -316,7 +316,7 @@ class TasksCog(commands.Cog, name="Scheduled Tasks"): # type: ignore
                         async with session.get(f"https://v3.football.api-sports.io/fixtures?id={fix}", headers={'X-RapidAPI-Key': self.bot.api_key}, timeout=60) as resp:
                             fixture_response = await resp.json()
                     fixture_info = fixture_response['response'][0]
-                    goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and event.get("team").get("id") == self.bot.main_team and "Penalty Shootout" != event.get("comments","")]
+                    goals = [event for event in fixture_info.get("events") if event.get("type") == "Goal" and "Missed Penalty" != event.get("detail", "") and event.get("team").get("id") == self.bot.main_team and "Penalty Shootout" != event.get("comments","")]
                     new_goals = []
                     for goal in goals:
                         if goal.get("detail") == "Own Goal":
