@@ -95,7 +95,7 @@ async def test_when_arsenal(bot):
 
 @pytest.mark.asyncio
 async def test_when_team(bot):
-    msg = await bot.message("+when wolves")
+    msg = await bot.message("+when brentford")
     bot.verify_message("vs", contains=True)
 
 
