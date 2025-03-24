@@ -52,7 +52,8 @@ class Bot(commands.Bot):
             command_prefix=kwargs.pop("prefix"),
             case_insensitive=True,
             help_command=CustomHelpCommand(dm_help=True),
-            intents=discord.Intents().all()
+            intents=discord.Intents().all(),
+            allowed_mentions=discord.AllowedMentions(everyone=False)
         )
         self.db = db
         self.testing_mode = kwargs.pop("testing_mode")
@@ -293,7 +294,7 @@ options = {
     "gitlab_api": os.environ.get("GITLAB_API", None),
     "tracing": os.environ.get("TRACING", False),
     "prefix": "+",
-    "channel": channel
+    "channel": channel,
 }
 
 cogs = [
@@ -377,5 +378,3 @@ if __name__ == "__main__":
 # finally:
 #     loop.stop()
 #     loop.close()
-
-    

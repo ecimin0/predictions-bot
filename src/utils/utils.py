@@ -264,7 +264,7 @@ async def getStandings(bot: commands.Bot, league_id: int) -> List[Mapping]:
         raise PleaseTellMeAboutIt(f"Failed to fetch standings for {league_id}")
 
     for rank in standings:
-        played = rank.get("all").get("matchsPlayed")
+        played = rank.get("all").get("played")
         win = rank.get("all").get("win")
         draw = rank.get("all").get("draw")
         lose = rank.get("all").get("lose")
@@ -293,7 +293,7 @@ def formatStandings(standings: List[Mapping]) -> str:
     for standing in standings:
         standings_formatted.append([standing["rank"], standing["teamName"], standing["played"], f'{standing["win"]}-{standing["draw"]}-{standing["loss"]}', standing["goalsDiff"], standing["points"]])
 
-    return tabulate(standings_formatted, headers=["Rank", "Team", "P", "W-D-L", "GD", "Pts"], tablefmt="github")
+    return tabulate(standings_formatted, headers=["Rank", "Team", "P", "W-D-L", "GD", "Pts"], tablefmt="plain")
 
 
 def changesExist(fixture1: Mapping, fixture2: Mapping) -> bool:
